@@ -1,3 +1,40 @@
+# 만약 모든 워크스페이스 파일을 제외하고 싶다면
+# Unreal Engine
+Binaries/
+Intermediate/
+DerivedDataCache/
+Saved/
+
+# VS Code & clangd
+.vscode/
+.clangd
+compile_commands.json
+.unreal-clangd/
+A302.code-workspace
+{
+    "folders": [
+        {
+            "path": "Source/A302"
+        }
+    ],
+    "settings": {
+        "files.exclude": {
+            "**/Binaries": true,
+            "**/DerivedDataCache": true,
+            "**/Intermediate": true,
+            "**/Saved": true,
+            "**/Build": true,
+            "**/Plugins/**/Binaries": true,
+            "**/*.sln": true,
+            "**/*.opensdf": true,
+            "**/*.sdf": true,
+            "**/*.VC.db": true,
+            "**/*.VC.opendb": true,
+            "**/.vsconfig": true,
+            "**/A302.code-workspace": true
+        }
+    }
+}
 # Visual Studio 2015 user specific files
 .vs/
 .vscode/
@@ -74,3 +111,6 @@ Plugins/**/Intermediate/*
 
 # Cache files for the editor to use
 DerivedDataCache/*
+
+Plugins/Developer/
+.idea/
