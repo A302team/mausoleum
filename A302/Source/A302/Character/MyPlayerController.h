@@ -1,0 +1,35 @@
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/PlayerController.h"
+#include "MyPlayerController.generated.h"
+
+/**
+ Player Controller
+ IMC 활성화
+ IMC를 Uproperty로 들고 있음, beginPlay에서 property를 호출하여 함수 바인딩
+ * 
+ */
+
+class UInputMappingContext;
+
+UCLASS()
+class A302_API AMyPlayerController : public APlayerController
+{
+	GENERATED_BODY()
+
+public:
+	AMyPlayerController();
+
+protected:
+	virtual void BeginPlay() override;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	UInputMappingContext* DefaultMappingContext;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	int32 MappingPriority = 0;
+
+};
