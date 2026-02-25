@@ -10,7 +10,17 @@ public class A302 : ModuleRules
 
 		PublicIncludePaths.AddRange(new string[] { "A302" });
 	
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "NetCore"});
+		PublicDependencyModuleNames.AddRange(new string[] { "Core",
+			"CoreUObject",
+			"Engine",
+			"InputCore",
+			"EnhancedInput",
+			"NetCore",
+			"WebSockets",
+			"Json",
+			"JsonUtilities",
+			"UMG"
+		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
 
