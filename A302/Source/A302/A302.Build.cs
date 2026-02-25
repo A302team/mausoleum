@@ -15,6 +15,7 @@ public class A302 : ModuleRules
 			"Engine",
 			"InputCore",
 			"EnhancedInput",
+			"NetCore",
 			"WebSockets",
 			"Json",
 			"JsonUtilities",
