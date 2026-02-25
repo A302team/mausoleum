@@ -10,7 +10,7 @@ public class A302 : ModuleRules
 
 		PublicIncludePaths.AddRange(new string[] { "A302" });
 	
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "NetCore"});
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
 

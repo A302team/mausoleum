@@ -1,3 +1,28 @@
+
+{
+    "folders": [
+        {
+            "path": "Source/A302"
+        }
+    ],
+    "settings": {
+        "files.exclude": {
+            "**/Binaries": true,
+            "**/DerivedDataCache": true,
+            "**/Intermediate": true,
+            "**/Saved": true,
+            "**/Build": true,
+            "**/Plugins/**/Binaries": true,
+            "**/*.sln": true,
+            "**/*.opensdf": true,
+            "**/*.sdf": true,
+            "**/*.VC.db": true,
+            "**/*.VC.opendb": true,
+            "**/.vsconfig": true,
+            "**/A302.code-workspace": true
+        }
+    }
+}
 # Visual Studio 2015 user specific files
 .vs/
 .vscode/
