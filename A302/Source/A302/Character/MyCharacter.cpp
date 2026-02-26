@@ -119,7 +119,7 @@ void AMyCharacter::CheckForInteractables()
 		false,        // 한 프레임만 유지 (Tick 함수에서 매 프레임 호출되므로 false가 맞음)
 		-1.0f,        // 화면 유지 시간 (false일 땐 무시됨)
 		0,            // 우선순위
-		2.0f          // 선의 두께 (뷰포트에서 잘 보이게 2.0으로 설정)
+		0.0f          // 선의 두께
 	);
 	
 	FHitResult HitResult;
