@@ -39,12 +39,16 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	UInputAction* IA_Jump;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	UInputAction* IA_Interact;
 
 private:
 	void OnMove(const FInputActionValue& Value);
 	void OnLook(const FInputActionValue& Value);
 	void OnJump(const FInputActionValue& Value);
 	void OnJumpReleased(const FInputActionValue& Value);
+	void OnInteract(const FInputActionValue& Value);
 	
 protected:
 	// 상호작용 가능 거리를 설정합니다.

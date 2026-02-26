@@ -62,6 +62,11 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
         EIC->BindAction(IA_Jump, ETriggerEvent::Completed, this, &AMyCharacter::OnJumpReleased);
         EIC->BindAction(IA_Jump, ETriggerEvent::Canceled,  this, &AMyCharacter::OnJumpReleased);
     }
+	
+	if (IA_Interact)
+	{
+		EIC->BindAction(IA_Interact, ETriggerEvent::Started, this, &AMyCharacter::OnInteract);
+	}
 }
 
 void AMyCharacter::OnMove(const FInputActionValue& Value)
@@ -98,6 +103,30 @@ void AMyCharacter::OnJumpReleased(const FInputActionValue& Value)
 {
     StopJumping();
 
+}
+
+void AMyCharacter::OnInteract(const FInputActionValue& Value)
+{
+	FVector Start = GetPawnViewLocation();
+	FVector ForwardVector = GetViewRotation().Vector();
+	FVector End = Start + (ForwardVector * InteractionDistance);
+	
+	FHitResult HitResult;
+	FCollisionQueryParams Params;
+	Params.AddIgnoredActor(this);
+	
+	if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, Params))
+	{
+		if (IInteractableInterface* Interactable = Cast<IInteractableInterface>(HitResult.GetActor()))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("상호작용 키(F) 눌림! 대상: %s"), *HitResult.GetActor()->GetName());
+			
+			if (GEngine)
+			{
+				GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Green, TEXT("상호작용 로직 성공적으로 실행됨!"));
+			}
+		}
+	}
 }
 
 void AMyCharacter::CheckForInteractables()
