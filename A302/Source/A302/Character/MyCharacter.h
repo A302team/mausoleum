@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "InputActionValue.h"
+#include "Interface/InteractableInterface.h"
 #include "MyCharacter.generated.h"
 
 class UInputAction;
@@ -45,4 +46,11 @@ private:
 	void OnJump(const FInputActionValue& Value);
 	void OnJumpReleased(const FInputActionValue& Value);
 	
+protected:
+	// 상호작용 가능 거리를 설정합니다.
+	UPROPERTY(EditAnywhere, Category = "Interaction")
+	float InteractionDistance = 300.f;
+
+	// 매 프레임 상호작용 대상을 체크하는 함수
+	void CheckForInteractables();
 };
