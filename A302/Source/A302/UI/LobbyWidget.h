@@ -4,42 +4,58 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "UI/RoomListPopup.h"
 #include "LobbyWidget.generated.h"
 
 /**
- * 
+ *
  */
 UCLASS()
 class A302_API ULobbyWidget : public UUserWidget
 {
 	GENERATED_BODY()
-	
+
 public:
 	virtual void NativeConstruct() override;
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<class UButton> Btn_CreateRoom;
-	
+
 	UPROPERTY(meta = (BindWidget))
-	TObjectPtr<class UButton> Btn_Ready;
-	
+	TObjectPtr<class UButton> Btn_EnterRoom;
+
 	UPROPERTY(meta = (BindWidget))
-	TObjectPtr<class UButton> Btn_StartGame;
-	
+	TObjectPtr<class UButton> Btn_FindRoom;
+
 	UPROPERTY(meta = (BindWidget))
-	TObjectPtr<class UEditableTextBox> Input_RoomId;
-	
+	TObjectPtr<class UButton> Btn_Exit;
+
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<class UEditableTextBox> Input_PlayerName;
+
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<class UEditableTextBox> Input_RoomCode;
+
+	UPROPERTY(EditDefaultsOnly)
+	TSubclassOf<class URoomListPopup> RoomListPopupClass;
+
+	UPROPERTY()
+	TObjectPtr<class UEnterRoomPopup> EnterRoomPopup;
 
 	UFUNCTION()
 	void OnCreateRoomClicked();
 
 	UFUNCTION()
-	void OnReadyClicked();
+	void OnEnterRoomClicked();
 
 	UFUNCTION()
-	void OnStartGameClicked();
+	void OnFindRoomClicked();
+
+	UFUNCTION()
+	void OnExitClicked();
+
+	UFUNCTION()
+	void OnRoomCreated(const FString &RoomCode);
 
 private:
 	TObjectPtr<class ALobbyGameMode> LobbyGameMode;
