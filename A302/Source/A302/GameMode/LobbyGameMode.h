@@ -7,9 +7,27 @@
 #include "Network/WebSocketManager.h"
 #include "LobbyGameMode.generated.h"
 
-/**
- * 
- */
+USTRUCT(BlueprintType)
+struct FRoomInfo
+{
+    GENERATED_BODY()
+
+    UPROPERTY()
+    FString RoomCode;
+
+    UPROPERTY()
+    int32 PlayerCount = 0;
+};
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlayerEntered, const FString&, PlayerName);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlayerReady, const FString&, PlayerName);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnGameStarted);
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnRoomCreated, const FString&, RoomCode);
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnRoomListReceived, const TArray<FRoomInfo>&, RoomList);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnRoomJoined);
+
 UCLASS()
 class A302_API ALobbyGameMode : public AGameModeBase
 {
@@ -37,4 +55,32 @@ public:
 
 	UPROPERTY()
 	TObjectPtr<class ULobbyWidget> LobbyWidget;
+
+	// Delegate For Widget
+	UPROPERTY(BlueprintAssignable)
+	FOnPlayerEntered OnPlayerEntered;
+
+	UPROPERTY(BlueprintAssignable)
+	FOnPlayerReady OnPlayerReady;
+
+	UPROPERTY(BlueprintAssignable)
+	FOnGameStarted OnGameStarted;
+
+	UPROPERTY(BlueprintAssignable)
+	FOnRoomCreated OnRoomCreated;
+
+	UPROPERTY(BlueprintAssignable)
+	FOnRoomListReceived OnRoomListReceived;
+
+	UPROPERTY(BlueprintAssignable)
+	FOnRoomJoined OnRoomJoined;
+
+	UPROPERTY(BlueprintReadOnly)
+	FString CurrentRoomCode;
+
+	UPROPERTY(BlueprintReadOnly)
+	FString MyPlayerName;
+
+	UPROPERTY(BlueprintReadOnly)
+	bool bIsHost = false;
 };
