@@ -11,7 +11,7 @@
 
 namespace
 {
-    void LogAndScreen(const FString& Message, const FColor& Color = FColor::Yellow, const float Duration = 3.0f)
+    void LogAndScreenDummy(const FString& Message, const FColor& Color = FColor::Yellow, const float Duration = 3.0f)
     {
         UE_LOG(LogTemp, Warning, TEXT("%s"), *Message);
         if (GEngine)
@@ -47,12 +47,12 @@ float ADummyCharacter::TakeDamage(
 
     if (CombatStatusComponent && CombatStatusComponent->TryConsumeShieldToBlock())
     {
-        LogAndScreen(FString::Printf(TEXT("Blocked by Shield, remaining=%d"), CombatStatusComponent->ShieldBlockCount));
+        LogAndScreenDummy(FString::Printf(TEXT("Blocked by Shield, remaining=%d"), CombatStatusComponent->ShieldBlockCount));
         return 0.f;
     }
 
     bIsDead = true;
-    LogAndScreen(TEXT("Dummy Dead"), FColor::Red, 4.0f);
+    LogAndScreenDummy(TEXT("Dummy Dead"), FColor::Red, 4.0f);
 
     SetActorEnableCollision(false);
     SetActorHiddenInGame(true);
@@ -71,7 +71,7 @@ void ADummyCharacter::SetupInitialShield()
 
     if (!ShieldDef)
     {
-        LogAndScreen(TEXT("[DummyCharacter] ShieldDef is not set in editor."), FColor::Orange);
+        LogAndScreenDummy(TEXT("[DummyCharacter] ShieldDef is not set in editor."), FColor::Orange);
         return;
     }
 
@@ -104,10 +104,10 @@ void ADummyCharacter::SetupInitialShield()
 
     if (AppliedCount == 1)
     {
-        LogAndScreen(TEXT("Shield applied once"));
+        LogAndScreenDummy(TEXT("Shield applied once"));
     }
     else
     {
-        LogAndScreen(FString::Printf(TEXT("Shield applied x%d"), AppliedCount));
+        LogAndScreenDummy(FString::Printf(TEXT("Shield applied x%d"), AppliedCount));
     }
 }
