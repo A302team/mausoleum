@@ -38,7 +38,7 @@ AMyCharacter::AMyCharacter()
 {
  	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
-    VoiceComp = CreateDefaultSubobject<UVoiceComponent>(TEXT("VoiceComponent"));
+    // VoiceComp = CreateDefaultSubobject<UVoiceComponent>(TEXT("VoiceComponent"));
 }
 
 // Called when the game starts or when spawned

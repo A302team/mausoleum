@@ -1,5 +1,5 @@
-#include "Server/InGameGameMode.h"
-#include "Server/SpawnManager.h"
+#include "GameMode/InGameGameMode.h"
+#include "Manager/SpawnManager.h"
 #include "Kismet/GameplayStatics.h"
 
 AInGameGameMode::AInGameGameMode()
