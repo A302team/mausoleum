@@ -2,6 +2,7 @@
 
 
 #include "Character/MyCharacter.h"
+#include "Blueprint/UserWidget.h"
 
 #include "DrawDebugHelpers.h"
 #include "EnhancedInputComponent.h"
@@ -23,6 +24,17 @@ void AMyCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 	
+	// 위젯 생성 및 뷰포트 추가
+	if (InteractionWidgetClass)
+	{
+		InteractionWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), InteractionWidgetClass);
+		if (InteractionWidgetInstance)
+		{
+			InteractionWidgetInstance->AddToViewport(10);
+			// 처음엔 숨김 처리
+			InteractionWidgetInstance->SetVisibility(ESlateVisibility::Hidden);
+		}
+	}
 }
 
 // Called every frame
@@ -191,7 +203,16 @@ void AMyCharacter::CheckForInteractables()
 		{
 			ToggleHighlight(CurrentHitActor, true);
 		}
-
+	
+		if (InteractionWidgetInstance)
+		{
+			// 조준한 대상이 있으면 보이고, 없으면 숨김
+			ESlateVisibility NewVisibility = CurrentHitActor ? ESlateVisibility::Visible : ESlateVisibility::Hidden;
+			InteractionWidgetInstance->SetVisibility(NewVisibility);
+			
+			if(CurrentHitActor) UE_LOG(LogTemp, Warning, TEXT("UI Visible!"));
+		}
+		
 		// 3. 기록 갱신
 		LastInteractableActor = CurrentHitActor;
 	}
