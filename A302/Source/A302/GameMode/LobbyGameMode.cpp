@@ -4,6 +4,7 @@
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "UI/LobbyWidget.h"
+#include "UI/WaitingRoomWidget.h"
 #include "Blueprint/UserWidget.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -66,14 +67,19 @@ void ALobbyGameMode::OnMessageReceived(const FString &Message)
         bIsHost = Data->GetBoolField(TEXT("isHost"));
         UE_LOG(LogTemp, Log, TEXT("[GameMode/LobbyGameMode] Success enter the room. Code : %s"), *CurrentRoomCode);
         OnRoomJoined.Broadcast();
+
+        ShowWaitingRoom(CurrentRoomCode);
     }
     else if (Type == TEXT("room_created"))
     {
         FString RoomCode = Data->GetStringField(TEXT("roomCode"));
         MyPlayerName = Data->GetStringField(TEXT("playerName"));
         bIsHost = true;
+        CurrentRoomCode = RoomCode;
         UE_LOG(LogTemp, Log, TEXT("[GameMode/LobbyGameMode] Success create the room. Code : %s"), *RoomCode);
         OnRoomCreated.Broadcast(RoomCode);
+
+        ShowWaitingRoom(RoomCode);
     }
     else if (Type == TEXT("room_list"))
     {
@@ -114,6 +120,17 @@ void ALobbyGameMode::OnMessageReceived(const FString &Message)
 
         UGameplayStatics::OpenLevel(this, TEXT("GameLevel"));
     }
+    else if (Type == TEXT("nickname_available"))
+    {
+        UE_LOG(LogTemp, Log, TEXT("[GameMode/LobbyGameMode] You Can Use this Nickname."));
+        OnNicknameAvailable.Broadcast();
+    }
+    else if (Type == TEXT("player_left"))
+    {
+        FString LeftName = Data->GetStringField(TEXT("playerName"));
+        UE_LOG(LogTemp, Log, TEXT("[LobbyGameMode] 플레이어 퇴장: %s"), *LeftName);
+        OnPlayerLeft.Broadcast(LeftName);
+    }
     else if (Type == TEXT("error"))
     {
         FString ErrorMsg = Data->GetStringField(TEXT("message"));
@@ -122,5 +139,21 @@ void ALobbyGameMode::OnMessageReceived(const FString &Message)
     else
     {
         UE_LOG(LogTemp, Warning, TEXT("[GameMode/LobbyGameMode] Wrong Type : %s"), *Type);
+    }
+}
+
+void ALobbyGameMode::ShowWaitingRoom(const FString &RoomCode)
+{
+    if (WaitingRoomWidgetClass)
+    {
+        WaitingRoomWidget = CreateWidget<UWaitingRoomWidget>(GetWorld(), WaitingRoomWidgetClass);
+        if (WaitingRoomWidget)
+        {
+            WaitingRoomWidget->SetRoomCode(RoomCode);
+            WaitingRoomWidget->AddToViewport();
+
+            // 내 플레이어도 목록에 추가
+            WaitingRoomWidget->OnPlayerEntered(MyPlayerName);
+        }
     }
 }
