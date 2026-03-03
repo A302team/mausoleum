@@ -7,7 +7,7 @@
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnShieldChanged, int32, NewCount);
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
-class MYGAME_API UCombatStatusComponent : public UActorComponent
+class A302_API UCombatStatusComponent : public UActorComponent
 {
     GENERATED_BODY()
 

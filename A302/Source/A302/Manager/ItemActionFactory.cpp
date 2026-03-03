@@ -1,7 +1,7 @@
 #include "Manager/ItemActionFactory.h"
 #include "GameData/ItemInstance.h"
 #include "GameData/ItemDefinition.h"
-#include "Character/Items/BaseItem.h"
+#include "GamePlay/Items/BaseItem.h"
 
 UBaseItem* UItemActionFactory::CreateLogic(UObject* Outer, UItemInstance* Instance) const
 {
@@ -16,7 +16,7 @@ UBaseItem* UItemActionFactory::CreateLogic(UObject* Outer, UItemInstance* Instan
         return nullptr;
     }
 
-    // ✅ UE 핵심: NewObject로 UObject 인스턴스 생성
+    // UE 핵심: NewObject로 UObject 인스턴스 생성
     UBaseItem* Logic = NewObject<UBaseItem>(Outer, Def->ItemLogicClass);
     if (!Logic) return nullptr;
 

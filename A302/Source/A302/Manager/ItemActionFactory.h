@@ -8,7 +8,7 @@ class UItemInstance;
 class UBaseItem;
 
 UCLASS(BlueprintType)
-class MYGAME_API UItemActionFactory : public UObject
+class A302_API UItemActionFactory : public UObject
 {
     GENERATED_BODY()
 

@@ -1,5 +1,6 @@
-#include "Character/Items/ItemShield.h"
+#include "GamePlay/Items/ItemShield.h"
 #include "GameData/ItemDefinition.h"
+#include "GameData/ItemInstance.h"
 #include "GameFramework/Character.h"
 #include "Character/Components/CombatStatusComponent.h"
 

@@ -8,7 +8,7 @@
 class UBaseItem;
 
 UCLASS(BlueprintType)
-class MYGAME_API UItemDefinition : public UDataAsset
+class A302_API UItemDefinition : public UDataAsset
 {
     GENERATED_BODY()
 
@@ -43,4 +43,5 @@ public:
     // Shield용 파라미터
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item|Shield", meta=(EditCondition="UseMode==EItemUseMode::SelfCast"))
     int32 BlockCount = 1;
+
 };
