@@ -68,6 +68,13 @@ protected:
     
     UPROPERTY()
     UUserWidget* CrosshairWidgetInstance;
+    
+    // UI에서 가져다 쓸 진행도 비율 (0.0 ~ 1.0)
+    UPROPERTY(BlueprintReadOnly, Category = "Interaction")
+    float InteractProgressRatio = 0.0f;
+    
+    UPROPERTY(EditAnywhere, Category = "Interaction")
+    float MaxInteractHoldTime = 2.0f;
 
     UPROPERTY(EditDefaultsOnly, Category = "Item|Definition")
     TObjectPtr<UItemDefinition> KnifeDef;
@@ -96,7 +103,9 @@ private:
     void OnLook(const FInputActionValue& Value);
     void OnJump(const FInputActionValue& Value);
     void OnJumpReleased(const FInputActionValue& Value);
-    void OnInteract(const FInputActionValue& Value);
+    void OnInteractComplete(const FInputActionValue& Value);
+    void OnInteractProgress(const FInputActionValue& Value);
+    void OnInteractCanceled(const FInputActionValue& Value);
 
     UPROPERTY()
     AActor* LastInteractableActor = nullptr;

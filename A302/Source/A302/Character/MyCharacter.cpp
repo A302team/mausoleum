@@ -138,7 +138,14 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	
 	if (IA_Interact)
 	{
-		EIC->BindAction(IA_Interact, ETriggerEvent::Started, this, &AMyCharacter::OnInteract);
+		// 1. Triggered: 지정된 시간(Hold Time)을 끝까지 채웠을 때 1회 발생
+		EIC->BindAction(IA_Interact, ETriggerEvent::Triggered, this, &AMyCharacter::OnInteractComplete);
+       
+		// 2. Ongoing: 키를 누르고 있는 동안 매 프레임 발생 (UI 게이지 업데이트용)
+		EIC->BindAction(IA_Interact, ETriggerEvent::Ongoing, this, &AMyCharacter::OnInteractProgress);
+       
+		// 3. Canceled: 지정된 시간을 채우지 못하고 도중에 키를 뗐을 때 발생
+		EIC->BindAction(IA_Interact, ETriggerEvent::Canceled, this, &AMyCharacter::OnInteractCanceled);
 	}
 }
 
@@ -178,25 +185,68 @@ void AMyCharacter::OnJumpReleased(const FInputActionValue& Value)
 
 }
 
-void AMyCharacter::OnInteract(const FInputActionValue& Value)
+// void AMyCharacter::OnInteract(const FInputActionValue& Value)
+// {
+// 	FVector Start = GetPawnViewLocation();
+// 	FVector ForwardVector = GetViewRotation().Vector();
+// 	FVector End = Start + (ForwardVector * InteractionDistance);
+// 	
+// 	FHitResult HitResult;
+// 	FCollisionQueryParams Params;
+// 	Params.AddIgnoredActor(this);
+// 	
+// 	if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, Params))
+// 	{
+// 		if (IInteractableInterface* Interactable = Cast<IInteractableInterface>(HitResult.GetActor()))
+// 		{
+// 			UE_LOG(LogTemp, Warning, TEXT("상호작용 키(F) 눌림! 대상: %s"), *HitResult.GetActor()->GetName());
+// 			
+// 			if (GEngine)
+// 			{
+// 				GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Green, TEXT("상호작용 로직 성공적으로 실행됨!"));
+// 			}
+// 		}
+// 	}
+// }
+
+void AMyCharacter::OnInteractProgress(const FInputActionValue& Value)
 {
-	FVector Start = GetPawnViewLocation();
-	FVector ForwardVector = GetViewRotation().Vector();
-	FVector End = Start + (ForwardVector * InteractionDistance);
+	// [진행 중] 키를 누르고 있는 동안 매 프레임 호출됩니다.
+	if (!LastInteractableActor) return;
 	
-	FHitResult HitResult;
-	FCollisionQueryParams Params;
-	Params.AddIgnoredActor(this);
-	
-	if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, Params))
+	// 매 프레임(Ongoing)마다 DeltaTime을 더해서 진행도 비율을 계산합니다.
+	float DeltaTime = GetWorld()->GetDeltaSeconds();
+	InteractProgressRatio += (DeltaTime / MaxInteractHoldTime);
+    
+	// 최대 1.0을 넘지 않도록 제한
+	InteractProgressRatio = FMath::Clamp(InteractProgressRatio, 0.0f, 1.0f);
+}
+
+void AMyCharacter::OnInteractCanceled(const FInputActionValue& Value)
+{
+	// 도중에 취소하면 진행도를 다시 0으로 초기화
+	InteractProgressRatio = 0.0f;
+}
+
+void AMyCharacter::OnInteractComplete(const FInputActionValue& Value)
+{
+	// [성공] 설정한 시간(Hold Time Threshold)을 끝까지 채웠을 때 1회 호출됩니다.
+	if (LastInteractableActor)
 	{
-		if (IInteractableInterface* Interactable = Cast<IInteractableInterface>(HitResult.GetActor()))
+		// 완료 후에도 게이지를 0으로 초기화
+		InteractProgressRatio = 0.0f;
+
+		if (LastInteractableActor)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("상호작용 키(F) 눌림! 대상: %s"), *HitResult.GetActor()->GetName());
-			
-			if (GEngine)
+			if (IInteractableInterface* Interactable = Cast<IInteractableInterface>(LastInteractableActor))
 			{
-				GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Green, TEXT("상호작용 로직 성공적으로 실행됨!"));
+				LastInteractableActor->Destroy();
+				LastInteractableActor = nullptr;
+            
+				if (InteractionWidgetInstance)
+				{
+					InteractionWidgetInstance->SetVisibility(ESlateVisibility::Hidden);
+				}
 			}
 		}
 	}
