@@ -50,6 +50,10 @@ private:
 	void OnJumpReleased(const FInputActionValue& Value);
 	void OnInteract(const FInputActionValue& Value);
 	
+	UPROPERTY()
+	AActor* LastInteractableActor = nullptr;
+	void ToggleHighlight(AActor* TargetActor, bool bIsOn);
+	
 protected:
 	// 상호작용 가능 거리를 설정합니다.
 	UPROPERTY(EditAnywhere, Category = "Interaction")

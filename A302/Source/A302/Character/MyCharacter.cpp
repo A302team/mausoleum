@@ -131,6 +131,8 @@ void AMyCharacter::OnInteract(const FInputActionValue& Value)
 
 void AMyCharacter::CheckForInteractables()
 {
+	if (!IsLocallyControlled()) return;
+	
 	//시작점: 카메라 위치
 	FVector Start = GetPawnViewLocation();
     
@@ -153,7 +155,9 @@ void AMyCharacter::CheckForInteractables()
 	
 	FHitResult HitResult;
 	FCollisionQueryParams Params;
-	Params.AddIgnoredActor(this); // 나 자신은 무시
+	Params.AddIgnoredActor(this);
+	
+	AActor* CurrentHitActor = nullptr;
 
 	// 라인트레이스 실행 (가장 먼저 부딪히는 Visibility 채널 물체 탐색)
 	if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, Params))
@@ -161,6 +165,8 @@ void AMyCharacter::CheckForInteractables()
 		// 부딪힌 물체가 인터페이스를 가지고 있는지 확인
 		if (IInteractableInterface* Interactable = Cast<IInteractableInterface>(HitResult.GetActor()))
 		{
+			CurrentHitActor = HitResult.GetActor();
+			
 			// 인터페이스의 GetInteractText()를 가져와서 화면에 출력
 			FString DebugMsg = FString::Printf(TEXT("상호작용 가능: %s"), *Interactable->GetInteractText());
             
@@ -169,7 +175,38 @@ void AMyCharacter::CheckForInteractables()
 			{
 				GEngine->AddOnScreenDebugMessage(0, 0.1f, FColor::Cyan, DebugMsg);
 			}
-			return;
 		}
+	}
+	
+	if (CurrentHitActor != LastInteractableActor)
+	{
+		// 1. 기존 대상의 하이라이트 끄기
+		if (LastInteractableActor)
+		{
+			ToggleHighlight(LastInteractableActor, false);
+		}
+
+		// 2. 새로운 대상의 하이라이트 켜기
+		if (CurrentHitActor)
+		{
+			ToggleHighlight(CurrentHitActor, true);
+		}
+
+		// 3. 기록 갱신
+		LastInteractableActor = CurrentHitActor;
+	}
+}
+
+void AMyCharacter::ToggleHighlight(AActor* TargetActor, bool bIsOn)
+{
+	if (!TargetActor) return;
+
+	// 액터가 가진 모든 메시(외형) 컴포넌트를 찾아서 커스텀 뎁스를 켬/끔
+	TArray<UMeshComponent*> MeshComps;
+	TargetActor->GetComponents<UMeshComponent>(MeshComps);
+
+	for (UMeshComponent* MeshComp : MeshComps)
+	{
+		MeshComp->SetRenderCustomDepth(bIsOn);
 	}
 }
