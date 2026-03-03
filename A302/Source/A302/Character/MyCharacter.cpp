@@ -6,6 +6,7 @@
 #include "EnhancedInputComponent.h"
 #include "InputAction.h"
 #include "GameFramework/Controller.h"
+#include "Server/VoiceComponent.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogMyInput, Log, All);
 
@@ -14,7 +15,7 @@ AMyCharacter::AMyCharacter()
 {
  	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
-
+    VoiceComp = CreateDefaultSubobject<UVoiceComponent>(TEXT("VoiceComponent"));
 }
 
 // Called when the game starts or when spawned
@@ -60,6 +61,13 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
         EIC->BindAction(IA_Jump, ETriggerEvent::Completed, this, &AMyCharacter::OnJumpReleased);
         EIC->BindAction(IA_Jump, ETriggerEvent::Canceled,  this, &AMyCharacter::OnJumpReleased);
     }
+
+    if (IA_VoiceChat)
+    {
+        EIC->BindAction(IA_VoiceChat, ETriggerEvent::Started, this, &AMyCharacter::OnVoiceTalkStarted);
+        EIC->BindAction(IA_VoiceChat, ETriggerEvent::Completed, this, &AMyCharacter::OnVoiceTalkReleased);
+        EIC->BindAction(IA_VoiceChat, ETriggerEvent::Canceled, this, &AMyCharacter::OnVoiceTalkReleased);
+    }
 }
 
 void AMyCharacter::OnMove(const FInputActionValue& Value)
@@ -97,3 +105,6 @@ void AMyCharacter::OnJumpReleased(const FInputActionValue& Value)
     StopJumping();
 
 }
+
+void AMyCharacter::OnVoiceTalkStarted(const FInputActionValue& Value) { if (VoiceComp) VoiceComp->StartTalking(); }
+void AMyCharacter::OnVoiceTalkReleased(const FInputActionValue& Value) { if (VoiceComp) VoiceComp->StopTalking(); }
