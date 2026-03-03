@@ -8,6 +8,11 @@
 #include "MyCharacter.generated.h"
 
 class UInputAction;
+class UItemDefinition;
+class UItemActionFactory;
+class UItemInstance;
+class UBaseItem;
+class ADummyCharacter;
 
 UCLASS()
 class A302_API AMyCharacter : public ACharacter
@@ -39,10 +44,45 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	UInputAction* IA_Jump;
 
+    UPROPERTY(EditDefaultsOnly, Category = "Item|Definition")
+    TObjectPtr<UItemDefinition> KnifeDef;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Item|Definition")
+    TObjectPtr<UItemDefinition> ShieldDef;
+
+    UPROPERTY(EditAnywhere, Category = "Item|Test", meta=(ClampMin="0"))
+    int32 InitialKnifeStack = 2;
+
+    UPROPERTY(EditAnywhere, Category = "Item|Test", meta=(ClampMin="0.0"))
+    float FirstAutoAttackDelay = 0.5f;
+
+    UPROPERTY(EditAnywhere, Category = "Item|Test", meta=(ClampMin="0.0"))
+    float SecondAutoAttackDelay = 1.5f;
+
+    UPROPERTY(EditAnywhere, Category = "Item|Test", meta=(ClampMin="0.0"))
+    float AutoWarpDistanceToDummy = 120.f;
+
 private:
 	void OnMove(const FInputActionValue& Value);
 	void OnLook(const FInputActionValue& Value);
 	void OnJump(const FInputActionValue& Value);
 	void OnJumpReleased(const FInputActionValue& Value);
-	
+
+    void SetupKnifeForTest();
+    void FindAndWarpNearDummy();
+    void ExecuteAutoKnifeAttack();
+
+    UPROPERTY()
+    TObjectPtr<UItemActionFactory> ItemActionFactory;
+
+    UPROPERTY()
+    TObjectPtr<UItemInstance> KnifeInstance;
+
+    UPROPERTY()
+    TObjectPtr<UBaseItem> KnifeLogic;
+
+    UPROPERTY()
+    TObjectPtr<ADummyCharacter> CachedDummyCharacter;
+
+    int32 AutoAttackCount = 0;
 };
