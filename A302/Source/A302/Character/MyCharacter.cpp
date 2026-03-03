@@ -57,7 +57,16 @@ void AMyCharacter::BeginPlay()
 			InteractionWidgetInstance->SetVisibility(ESlateVisibility::Hidden);
 		}
 	}
-
+	
+	if (CrosshairWidgetClass)
+	{
+		CrosshairWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), CrosshairWidgetClass);
+		if (CrosshairWidgetInstance)
+		{
+			CrosshairWidgetInstance->AddToViewport(20);
+		}
+	}
+	
     SetupKnifeForTest();
     FindAndWarpNearDummy();
 

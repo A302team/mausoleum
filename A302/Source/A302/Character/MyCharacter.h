@@ -91,6 +91,12 @@ protected:
 	
 	UPROPERTY()
 	UUserWidget* InteractionWidgetInstance;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<UUserWidget> CrosshairWidgetClass;
+	
+	UPROPERTY()
+	UUserWidget* CrosshairWidgetInstance;
 
     void SetupKnifeForTest();
     void FindAndWarpNearDummy();
