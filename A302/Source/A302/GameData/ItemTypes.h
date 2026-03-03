@@ -3,6 +3,8 @@
 #include "CoreMinimal.h"
 #include "ItemTypes.generated.h"
 
+class AActor;
+
 UENUM(BlueprintType)
 enum class EItemUseMode : uint8
 {

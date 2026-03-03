@@ -1,5 +1,6 @@
-#include "Character/Items/ItemKnife.h"
+#include "GamePlay/Items/ItemKnife.h"
 #include "GameData/ItemDefinition.h"
+#include "GameData/ItemInstance.h"
 #include "GameFramework/Character.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"

@@ -1,4 +1,4 @@
-#include "Character/Items/BaseItem.h"
+#include "GamePlay/Items/BaseItem.h"
 #include "GameData/ItemInstance.h"
 #include "GameData/ItemDefinition.h"
 

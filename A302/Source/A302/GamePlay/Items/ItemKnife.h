@@ -1,12 +1,12 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Character/Items/BaseItem.h"
+#include "GamePlay/Items/BaseItem.h"
 #include "Interface/UsableItem.h"
 #include "ItemKnife.generated.h"
 
 UCLASS(BlueprintType)
-class MYGAME_API UItemKnife : public UBaseItem, public IUsableItem
+class A302_API UItemKnife : public UBaseItem, public IUsableItem
 {
     GENERATED_BODY()
 

@@ -5,6 +5,8 @@
 #include "GameData/ItemTypes.h"
 #include "UsableItem.generated.h"
 
+class ACharacter;
+
 UINTERFACE(BlueprintType)
 class UUsableItem : public UInterface
 {

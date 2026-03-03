@@ -1,14 +1,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Character/Items/BaseItem.h"
+#include "GamePlay/Items/BaseItem.h"
 #include "Interface/UsableItem.h"
 #include "ItemShield.generated.h"
 
 class UCombatStatusComponent;
 
 UCLASS(BlueprintType)
-class MYGAME_API UItemShield : public UBaseItem, public IUsableItem
+class A302_API UItemShield : public UBaseItem, public IUsableItem
 {
     GENERATED_BODY()
 
