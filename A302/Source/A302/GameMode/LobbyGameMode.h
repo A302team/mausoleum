@@ -10,23 +10,27 @@
 USTRUCT(BlueprintType)
 struct FRoomInfo
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 
-    UPROPERTY()
-    FString RoomCode;
+	UPROPERTY()
+	FString RoomCode;
 
-    UPROPERTY()
-    int32 PlayerCount = 0;
+	UPROPERTY()
+	int32 PlayerCount = 0;
 };
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlayerEntered, const FString&, PlayerName);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlayerReady, const FString&, PlayerName);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlayerEntered, const FString &, PlayerName);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlayerReady, const FString &, PlayerName);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnGameStarted);
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnRoomCreated, const FString&, RoomCode);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnRoomCreated, const FString &, RoomCode);
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnRoomListReceived, const TArray<FRoomInfo>&, RoomList);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnRoomListReceived, const TArray<FRoomInfo> &, RoomList);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnRoomJoined);
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnNicknameAvailable);
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlayerLeft, const FString &, PlayerName);
 
 UCLASS()
 class A302_API ALobbyGameMode : public AGameModeBase
@@ -43,11 +47,14 @@ public:
 
 	// Send Message to Server
 	UFUNCTION(BlueprintCallable)
-	void SendToServer(const FString& Message);
+	void SendToServer(const FString &Message);
 
 	// Received Server Message
 	UFUNCTION()
-	void OnMessageReceived(const FString& Message);
+	void OnMessageReceived(const FString &Message);
+
+	UFUNCTION()
+	void ShowWaitingRoom(const FString& RoomCode);
 
 	// Widget Class
 	UPROPERTY(EditDefaultsOnly)
@@ -66,6 +73,7 @@ public:
 	UPROPERTY(BlueprintAssignable)
 	FOnGameStarted OnGameStarted;
 
+	// Room 관련 델리게이드 4개
 	UPROPERTY(BlueprintAssignable)
 	FOnRoomCreated OnRoomCreated;
 
@@ -75,6 +83,9 @@ public:
 	UPROPERTY(BlueprintAssignable)
 	FOnRoomJoined OnRoomJoined;
 
+	UPROPERTY(BlueprintAssignable)
+	FOnPlayerLeft OnPlayerLeft;
+
 	UPROPERTY(BlueprintReadOnly)
 	FString CurrentRoomCode;
 
@@ -83,4 +94,14 @@ public:
 
 	UPROPERTY(BlueprintReadOnly)
 	bool bIsHost = false;
+
+	// 닉네임 체크
+	UPROPERTY(BlueprintAssignable)
+	FOnNicknameAvailable OnNicknameAvailable;
+
+	UPROPERTY(EditDefaultsOnly)
+	TSubclassOf<class UWaitingRoomWidget> WaitingRoomWidgetClass;
+
+	UPROPERTY()
+	TObjectPtr<class UWaitingRoomWidget> WaitingRoomWidget;
 };
