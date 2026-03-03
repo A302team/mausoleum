@@ -8,6 +8,7 @@
 #include "MyCharacter.generated.h"
 
 class UInputAction;
+class UVoiceComponent;
 
 UCLASS()
 class A302_API AMyCharacter : public ACharacter
@@ -39,10 +40,18 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	UInputAction* IA_Jump;
 
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	UInputAction* IA_VoiceChat;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Voice", meta = (AllowPrivateAccess = "true"))
+	UVoiceComponent* VoiceComp;
 private:
 	void OnMove(const FInputActionValue& Value);
 	void OnLook(const FInputActionValue& Value);
 	void OnJump(const FInputActionValue& Value);
 	void OnJumpReleased(const FInputActionValue& Value);
+
 	
+	void OnVoiceTalkStarted(const FInputActionValue& Value);
+	void OnVoiceTalkReleased(const FInputActionValue& Value);
 };
