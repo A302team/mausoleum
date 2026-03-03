@@ -21,6 +21,15 @@ void handleMessage(uWS::WebSocket<false, true, int> *ws,
         {
             std::string playerName = data["playerName"];
 
+            if (rm.isNameTakenGlobal(playerName))
+            {
+                ws->send(json({{"type", "error"},
+                               {"data", {{"message", "이미 사용 중인 닉네임입니다."}}}})
+                             .dump(),
+                         uWS::OpCode::TEXT);
+                return;
+            }
+
             Room &room = rm.createRoom();
             std::string roomCode = room.roomId;
 
@@ -56,7 +65,7 @@ void handleMessage(uWS::WebSocket<false, true, int> *ws,
             Room &room = rm.rooms[roomCode];
 
             // 닉네임 중복 체크
-            if (room.isNameTaken(playerName))
+            if (rm.isNameTakenGlobal(playerName))
             {
                 ws->send(json({{"type", "error"},
                                {"data", {{"message", "이미 사용 중인 닉네임입니다."}}}})
@@ -145,6 +154,46 @@ void handleMessage(uWS::WebSocket<false, true, int> *ws,
                      uWS::OpCode::TEXT);
 
             std::cout << "방 목록 요청" << std::endl;
+        }
+
+        else if (type == "check_nickname")
+        {
+            std::string playerName = data["playerName"];
+
+            if (rm.isNameTakenGlobal(playerName))
+            {
+                ws->send(json({{"type", "error"},
+                               {"data", {{"message", "이미 사용 중인 닉네임입니다."}}}})
+                             .dump(),
+                         uWS::OpCode::TEXT);
+                return;
+            }
+
+            ws->send(json({{"type", "nickname_available"},
+                           {"data", {{"playerName", playerName}}}})
+                         .dump(),
+                     uWS::OpCode::TEXT);
+
+            std::cout << "[닉네임 체크] " << playerName << " 사용 가능" << std::endl;
+        }
+
+        else if (type == "leave_room")
+        {
+            std::string roomCode = data["roomCode"];
+            std::string playerName = data["playerName"];
+
+            if (!rm.roomExists(roomCode))
+                return;
+
+            Room &room = rm.rooms[roomCode];
+            room.removePlayer(playerName);
+
+            std::cout << "[" << roomCode << "] " << playerName << " 님 퇴장" << std::endl;
+
+            room.broadcast({{"type", "player_left"},
+                            {"data", {{"playerName", playerName}}}});
+
+            rm.removeRoomIfEmpty(roomCode);
         }
     }
     catch (const std::exception &e)

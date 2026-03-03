@@ -51,4 +51,13 @@ public:
         }
         return {"", ""};
     }
+
+    bool isNameTakenGlobal(const std::string& name)
+    {
+        for(auto& [roomId, room] : rooms)
+        {
+            if(room.isNameTaken(name)) return true;
+        }
+        return false;
+    }
 };
