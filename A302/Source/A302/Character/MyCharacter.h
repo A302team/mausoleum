@@ -9,6 +9,7 @@
 #include "MyCharacter.generated.h"
 
 class UInputAction;
+class UUserWidget;
 
 UCLASS()
 class A302_API AMyCharacter : public ACharacter
@@ -61,4 +62,10 @@ protected:
 
 	// 매 프레임 상호작용 대상을 체크하는 함수
 	void CheckForInteractables();
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<UUserWidget> InteractionWidgetClass;
+	
+	UPROPERTY()
+	UUserWidget* InteractionWidgetInstance;
 };
