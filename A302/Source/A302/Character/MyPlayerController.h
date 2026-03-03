@@ -26,6 +26,13 @@ public:
 protected:
 	virtual void BeginPlay() override;
 
+	UPROPERTY(EditDefaultsOnly, Category="UI")
+    TSubclassOf<UUserWidget> QuickSlotBarClass;
+
+    // 런타임에 생성된 위젯 인스턴스(화면에 띄운 객체)
+    UPROPERTY()
+    TObjectPtr<UUserWidget> QuickSlotBarWidget;
+
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	UInputMappingContext* DefaultMappingContext;
 
