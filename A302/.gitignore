@@ -31,7 +31,6 @@ A302.code-workspace
             "**/*.VC.db": true,
             "**/*.VC.opendb": true,
             "**/.vsconfig": true,
-            "**/A302.code-workspace": true
         }
     }
 }
