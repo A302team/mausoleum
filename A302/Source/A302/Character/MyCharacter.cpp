@@ -4,10 +4,32 @@
 #include "Character/MyCharacter.h"
 
 #include "EnhancedInputComponent.h"
+#include "GameData/ItemDefinition.h"
+#include "GameData/ItemInstance.h"
+#include "GameData/ItemTypes.h"
 #include "InputAction.h"
+#include "Interface/UsableItem.h"
+#include "Kismet/GameplayStatics.h"
+#include "Manager/ItemActionFactory.h"
+#include "GamePlay/Items/BaseItem.h"
+#include "Character/DummyCharacter.h"
+#include "Engine/Engine.h"
 #include "GameFramework/Controller.h"
+#include "TimerManager.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogMyInput, Log, All);
+
+namespace
+{
+    void LogAndScreen(const FString& Message, const FColor& Color = FColor::Yellow, const float Duration = 3.0f)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("%s"), *Message);
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(-1, Duration, Color, Message);
+        }
+    }
+}
 
 // Sets default values
 AMyCharacter::AMyCharacter()
@@ -21,7 +43,36 @@ AMyCharacter::AMyCharacter()
 void AMyCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-	
+
+    SetupKnifeForTest();
+    FindAndWarpNearDummy();
+
+    GetWorldTimerManager().SetTimerForNextTick([this]()
+    {
+        if (FirstAutoAttackDelay >= 0.f)
+        {
+            FTimerHandle TimerHandle;
+            GetWorldTimerManager().SetTimer(
+                TimerHandle,
+                this,
+                &AMyCharacter::ExecuteAutoKnifeAttack,
+                FirstAutoAttackDelay,
+                false
+            );
+        }
+
+        if (SecondAutoAttackDelay >= 0.f)
+        {
+            FTimerHandle TimerHandle;
+            GetWorldTimerManager().SetTimer(
+                TimerHandle,
+                this,
+                &AMyCharacter::ExecuteAutoKnifeAttack,
+                SecondAutoAttackDelay,
+                false
+            );
+        }
+    });
 }
 
 // Called every frame
@@ -96,4 +147,90 @@ void AMyCharacter::OnJumpReleased(const FInputActionValue& Value)
 {
     StopJumping();
 
+}
+
+void AMyCharacter::SetupKnifeForTest()
+{
+    ItemActionFactory = NewObject<UItemActionFactory>(this);
+    if (!ItemActionFactory)
+    {
+        UE_LOG(LogTemp, Error, TEXT("[MyCharacter] Failed to create UItemActionFactory."));
+        return;
+    }
+
+    if (!KnifeDef)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[MyCharacter] KnifeDef is not set in editor."));
+        return;
+    }
+
+    KnifeInstance = NewObject<UItemInstance>(this);
+    if (!KnifeInstance)
+    {
+        UE_LOG(LogTemp, Error, TEXT("[MyCharacter] Failed to create UItemInstance."));
+        return;
+    }
+
+    KnifeInstance->Init(KnifeDef, FMath::Max(0, InitialKnifeStack));
+    LogAndScreen(FString::Printf(TEXT("Knife Stack=%d set"), KnifeInstance->StackCount));
+
+    KnifeLogic = ItemActionFactory->CreateLogic(this, KnifeInstance);
+    if (!KnifeLogic)
+    {
+        UE_LOG(LogTemp, Error, TEXT("[MyCharacter] Failed to create KnifeLogic from KnifeDef."));
+    }
+}
+
+void AMyCharacter::FindAndWarpNearDummy()
+{
+    CachedDummyCharacter = Cast<ADummyCharacter>(
+        UGameplayStatics::GetActorOfClass(GetWorld(), ADummyCharacter::StaticClass())
+    );
+
+    if (!CachedDummyCharacter)
+    {
+        LogAndScreen(TEXT("[MyCharacter] DummyCharacter not found."), FColor::Orange);
+        return;
+    }
+
+    const FVector DummyLocation = CachedDummyCharacter->GetActorLocation();
+    const FVector WarpLocation = DummyLocation - CachedDummyCharacter->GetActorForwardVector() * AutoWarpDistanceToDummy;
+    SetActorLocation(WarpLocation);
+}
+
+void AMyCharacter::ExecuteAutoKnifeAttack()
+{
+    ++AutoAttackCount;
+
+    if (!KnifeLogic)
+    {
+        LogAndScreen(FString::Printf(TEXT("[MyCharacter] AutoAttack %d skipped: KnifeLogic is null."), AutoAttackCount), FColor::Orange);
+        return;
+    }
+
+    if (!CachedDummyCharacter)
+    {
+        FindAndWarpNearDummy();
+        if (!CachedDummyCharacter)
+        {
+            LogAndScreen(FString::Printf(TEXT("[MyCharacter] AutoAttack %d skipped: no dummy target."), AutoAttackCount), FColor::Orange);
+            return;
+        }
+    }
+
+    if (KnifeInstance && KnifeInstance->IsEmpty())
+    {
+        LogAndScreen(FString::Printf(TEXT("[MyCharacter] AutoAttack %d skipped: Knife stack is empty."), AutoAttackCount), FColor::Orange);
+        return;
+    }
+
+    FItemTargetData TargetData;
+    TargetData.TargetActor = CachedDummyCharacter;
+    TargetData.TargetLocation = CachedDummyCharacter->GetActorLocation();
+
+    const bool bUsed = IUsableItem::Execute_Use(KnifeLogic, this, TargetData);
+    if (!bUsed)
+    {
+        LogAndScreen(FString::Printf(TEXT("[MyCharacter] AutoAttack %d failed: Use() returned false."), AutoAttackCount), FColor::Orange);
+    }
 }
