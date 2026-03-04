@@ -14,6 +14,10 @@
  */
 
 class UInputMappingContext;
+class UUserWidget;
+class UTextBlock;
+class UImage;
+class UTexture2D;
 
 UCLASS()
 class A302_API AMyPlayerController : public APlayerController
@@ -22,14 +26,29 @@ class A302_API AMyPlayerController : public APlayerController
 
 public:
 	AMyPlayerController();
+	bool UpdateQuickSlotItemName(int32 SlotIndex, const FText& ItemName);
+	bool UpdateQuickSlotItemVisual(int32 SlotIndex, const FText& ItemName, UTexture2D* ItemIcon);
 
 protected:
 	virtual void BeginPlay() override;
+
+	UPROPERTY(EditDefaultsOnly, Category="UI")
+    TSubclassOf<UUserWidget> QuickSlotBarClass;
+
+    // 런타임에 생성된 위젯 인스턴스(화면에 띄운 객체)
+    UPROPERTY()
+    TObjectPtr<UUserWidget> QuickSlotBarWidget;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	UInputMappingContext* DefaultMappingContext;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	int32 MappingPriority = 0;
+
+private:
+	UUserWidget* FindQuickSlotWidget(int32 SlotIndex) const;
+	class UTextBlock* FindQuickSlotItemNameText(int32 SlotIndex) const;
+	class UImage* FindQuickSlotItemIconImage(int32 SlotIndex) const;
+	void InitializeQuickSlotVisualState();
 
 };

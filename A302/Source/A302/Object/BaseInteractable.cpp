@@ -1,4 +1,5 @@
 ﻿#include "Object/BaseInteractable.h"
+#include "GameData/ItemDefinition.h"
 
 ABaseInteractable::ABaseInteractable()
 {
@@ -20,6 +21,10 @@ void ABaseInteractable::Interact(AActor* Interactor)
 
 FString ABaseInteractable::GetInteractText() const
 {
-	// 나중에 UI에 띄울 텍스트
+	if (ItemDefinition && !ItemDefinition->DisplayName.IsEmpty())
+	{
+		return FString::Printf(TEXT("%s (Interact)"), *ItemDefinition->DisplayName.ToString());
+	}
+
 	return FString::Printf(TEXT("%s (Interact)"), *GetName());
 }
