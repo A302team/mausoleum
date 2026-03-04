@@ -21,15 +21,9 @@ public class A302 : ModuleRules
 			"Json",
 			"JsonUtilities",
 			"UMG",
-			"OnlineSubsystem",
-			"OnlineSubsystemUtils",
-			"Voice"
+			"OnlineSubsystem", 
+    		"OnlineSubsystemUtils",
 		});
-
-		if (Target.Type != TargetType.Server)
-		{
-			PublicDependencyModuleNames.Add("VoiceChat");
-		}
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
 
