@@ -8,12 +8,12 @@
 
 namespace
 {
-	constexpr int32 MaxQuickSlotCount = 5;
+	constexpr int32 PlayerControllerQuickSlotCount = 5;
 }
 
 UUserWidget* AMyPlayerController::FindQuickSlotWidget(int32 SlotIndex) const
 {
-	if (!QuickSlotBarWidget || SlotIndex < 0 || SlotIndex >= MaxQuickSlotCount)
+	if (!QuickSlotBarWidget || SlotIndex < 0 || SlotIndex >= PlayerControllerQuickSlotCount)
 	{
 		return nullptr;
 	}
@@ -143,7 +143,7 @@ void AMyPlayerController::BeginPlay()
 
 void AMyPlayerController::InitializeQuickSlotVisualState()
 {
-	for (int32 SlotIndex = 0; SlotIndex < MaxQuickSlotCount; ++SlotIndex)
+	for (int32 SlotIndex = 0; SlotIndex < PlayerControllerQuickSlotCount; ++SlotIndex)
 	{
 		if (UTextBlock* ItemNameText = FindQuickSlotItemNameText(SlotIndex))
 		{

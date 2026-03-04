@@ -12,7 +12,7 @@
 
 namespace
 {
-	constexpr int32 MaxQuickSlotCount = 5;
+	constexpr int32 InteractionQuickSlotCount = 5;
 
 	void LogAndScreen(const FString& Message, const FColor& Color = FColor::Yellow, const float Duration = 3.0f)
 	{
@@ -214,7 +214,7 @@ bool UInteractionQuickSlotComponent::TryPickupItemToQuickSlot(AActor* TargetActo
 	const int32 EmptySlotIndex = FindEmptyQuickSlotIndex();
 	if (EmptySlotIndex == INDEX_NONE)
 	{
-		LogAndScreen(TEXT("[QuickSlot] Slot is full (Max 5)."), FColor::Orange, 2.0f);
+	LogAndScreen(TEXT("[QuickSlot] Slot is full (Max 5)."), FColor::Orange, 2.0f);
 		return false;
 	}
 
@@ -264,7 +264,7 @@ int32 UInteractionQuickSlotComponent::FindEmptyQuickSlotIndex() const
 
 void UInteractionQuickSlotComponent::InitializeQuickSlots()
 {
-	QuickSlotItems.Init(nullptr, MaxQuickSlotCount);
+	QuickSlotItems.Init(nullptr, InteractionQuickSlotCount);
 }
 
 void UInteractionQuickSlotComponent::UpdateQuickSlotNameUI(int32 SlotIndex, const UItemDefinition* ItemDefinition) const
