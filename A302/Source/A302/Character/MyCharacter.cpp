@@ -2,8 +2,9 @@
 
 #include "Character/MyCharacter.h"
 
+#include "Character/Components/InteractComponent.h"
 #include "Character/Components/KnifeAutoTestComponent.h"
-#include "Character/Components/InteractionQuickSlotComponent.h"
+#include "Character/Components/QuickSlotComponent.h"
 #include "EnhancedInputComponent.h"
 #include "GameFramework/Controller.h"
 #include "InputAction.h"
@@ -14,9 +15,8 @@ AMyCharacter::AMyCharacter()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
-	InteractionQuickSlotComponent = CreateDefaultSubobject<UInteractionQuickSlotComponent>(
-		TEXT("InteractionQuickSlotComponent")
-	);
+	InteractionComponent = CreateDefaultSubobject<UInteractComponent>(TEXT("InteractionComponent"));
+	QuickSlotComponent = CreateDefaultSubobject<UQuickSlotComponent>(TEXT("QuickSlotComponent"));
 	KnifeAutoTestComponent = CreateDefaultSubobject<UKnifeAutoTestComponent>(
 		TEXT("KnifeAutoTestComponent")
 	);
@@ -103,8 +103,21 @@ void AMyCharacter::OnJumpReleased(const FInputActionValue& Value)
 
 void AMyCharacter::OnInteract(const FInputActionValue& Value)
 {
-	if (InteractionQuickSlotComponent)
+	// Matches old MyCharacter::OnInteract flow:
+	// 1) run interact, 2) try quick-slot pickup, 3) destroy actor on pickup success.
+	if (!InteractionComponent)
 	{
-		InteractionQuickSlotComponent->HandleInteractInput();
+		return;
+	}
+
+	InteractionComponent->HandleInteractInput();
+
+	AActor* InteractedActor = InteractionComponent->GetLastInteractedActor();
+	if (QuickSlotComponent && InteractedActor)
+	{
+		if (QuickSlotComponent->TryPickupItemToQuickSlot(InteractedActor))
+		{
+			InteractedActor->Destroy();
+		}
 	}
 }

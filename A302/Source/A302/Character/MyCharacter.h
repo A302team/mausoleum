@@ -9,7 +9,8 @@
 
 class UInputAction;
 class UKnifeAutoTestComponent;
-class UInteractionQuickSlotComponent;
+class UInteractComponent;
+class UQuickSlotComponent;
 
 UCLASS()
 class A302_API AMyCharacter : public ACharacter
@@ -44,7 +45,10 @@ private:
 	TObjectPtr<UInputAction> IA_Interact = nullptr;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UInteractionQuickSlotComponent> InteractionQuickSlotComponent = nullptr;
+	TObjectPtr<UInteractComponent> InteractionComponent = nullptr;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|QuickSlot", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UQuickSlotComponent> QuickSlotComponent = nullptr;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|Test", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UKnifeAutoTestComponent> KnifeAutoTestComponent = nullptr;
