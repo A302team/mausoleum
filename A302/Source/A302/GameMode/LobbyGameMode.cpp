@@ -23,6 +23,14 @@ void ALobbyGameMode::BeginPlay()
         return;
     }
 
+    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+    if (PC)
+    {
+        PC->bShowMouseCursor = true;
+        PC->bEnableClickEvents = true;
+        PC->SetInputMode(FInputModeUIOnly());
+    }
+
     WebSocketManager->Connect(TEXT("ws://localhost:9001"));
 
     WebSocketManager->OnMessageReceived.AddDynamic(this, &ALobbyGameMode::OnMessageReceived);
@@ -118,7 +126,7 @@ void ALobbyGameMode::OnMessageReceived(const FString &Message)
         UE_LOG(LogTemp, Log, TEXT("[GameMode/LobbyGameMode] Start the Game!"));
         OnGameStarted.Broadcast();
 
-        UGameplayStatics::OpenLevel(this, TEXT("yoonmap"));
+        UGameplayStatics::OpenLevel(this, TEXT("/Game/PersonalWorkSpace/sikk806/MyTestLevel"));
     }
     else if (Type == TEXT("nickname_available"))
     {
