@@ -4,6 +4,7 @@
 
 #include "Character/Components/KnifeAutoTestComponent.h"
 #include "Character/Components/InteractionQuickSlotComponent.h"
+#include "Character/Components/PrivateVoiceChatComponent.h"
 #include "EnhancedInputComponent.h"
 #include "GameFramework/Controller.h"
 #include "InputAction.h"
@@ -19,6 +20,9 @@ AMyCharacter::AMyCharacter()
 	);
 	KnifeAutoTestComponent = CreateDefaultSubobject<UKnifeAutoTestComponent>(
 		TEXT("KnifeAutoTestComponent")
+	);
+	PrivateVoiceChatComponent = CreateDefaultSubobject<UPrivateVoiceChatComponent>(
+		TEXT("PrivateVoiceChatComponent")
 	);
 }
 

@@ -118,7 +118,7 @@ void ALobbyGameMode::OnMessageReceived(const FString &Message)
         UE_LOG(LogTemp, Log, TEXT("[GameMode/LobbyGameMode] Start the Game!"));
         OnGameStarted.Broadcast();
 
-        UGameplayStatics::OpenLevel(this, TEXT("GameLevel"));
+        UGameplayStatics::OpenLevel(this, TEXT("yoonmap"));
     }
     else if (Type == TEXT("nickname_available"))
     {

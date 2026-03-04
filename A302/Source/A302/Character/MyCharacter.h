@@ -10,6 +10,7 @@
 class UInputAction;
 class UKnifeAutoTestComponent;
 class UInteractionQuickSlotComponent;
+class UPrivateVoiceChatComponent;
 
 UCLASS()
 class A302_API AMyCharacter : public ACharacter
@@ -48,4 +49,7 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|Test", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UKnifeAutoTestComponent> KnifeAutoTestComponent = nullptr;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Voice", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UPrivateVoiceChatComponent> PrivateVoiceChatComponent = nullptr;
 };
