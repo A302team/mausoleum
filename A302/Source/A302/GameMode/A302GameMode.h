@@ -19,4 +19,12 @@ public:
 
 protected:
     virtual void BeginPlay() override;
+
+private:
+    UPROPERTY()
+    TObjectPtr<class ASpawnManager> SpawnManager;
+
+    int CurrentStage = 1;
+
+    void SpawnPlayer(APlayerController* PlayerController);
 };
