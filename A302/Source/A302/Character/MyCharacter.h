@@ -30,7 +30,12 @@ private:
 	void OnLook(const FInputActionValue& Value);
 	void OnJump(const FInputActionValue& Value);
 	void OnJumpReleased(const FInputActionValue& Value);
-	void OnInteract(const FInputActionValue& Value);
+	
+	void OnInteractHoldComplete(const FInputActionValue& Value);
+	void OnInteractHoldProgress(const FInputActionValue& Value);
+	void OnInteractHoldCanceled(const FInputActionValue& Value);
+	
+	void OnQTEInteractStarted(const FInputActionValue& Value);
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> IA_Move = nullptr;
