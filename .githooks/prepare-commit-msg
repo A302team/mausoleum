@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+set -e
+
+MSG_FILE="$1"
+COMMIT_SOURCE="$2"
+
+# merge/squash/rebase 등 자동 생성 메시지는 건드리지 않기
+case "$COMMIT_SOURCE" in
+  merge|squash|commit) exit 0 ;;
+esac
+
+first_line="$(head -n 1 "$MSG_FILE" | tr -d '\r')"
+if [[ -z "$first_line" ]]; then exit 0; fi
+
+# 이미 "이모지 태그:" 형태면 패스(중복 방지)
+if [[ "$first_line" =~ ^[[:space:]]*[✨🐛💄📝♻️🎨✅🔨][[:space:]]+[A-Za-z]+:\  ]]; then
+  exit 0
+fi
+
+# 1) Jira 키: 메시지에 있으면 그걸 사용, 없으면 브랜치에서 추출
+jira_key=""
+if [[ "$first_line" =~ \[(S14P21A302-[0-9]+)\] ]]; then
+  jira_key="[${BASH_REMATCH[1]}]"
+else
+  branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+  if [[ "$branch" =~ (S14P21A302-[0-9]+) ]]; then
+    jira_key="[${BASH_REMATCH[1]}]"
+  fi
+fi
+
+# 2) 타입 추출 (feat: / fix: / ...)
+if [[ "$first_line" != *:* ]]; then
+  echo "❌ 타입 필수! 예: feat: 제목" >&2
+  exit 1
+fi
+
+type_part="${first_line%%:*}"
+rest_part="${first_line#*:}"
+
+type="$(echo "$type_part" | tr '[:upper:]' '[:lower:]' | xargs)"
+rest="$(echo "$rest_part" | xargs)"
+
+# rest에서 Jira 키는 제거(중복 방지) 후 다시 붙임
+rest="$(echo "$rest" | sed -E 's/\[S14P21A302-[0-9]+\]//g' | xargs)"
+
+emoji=""
+tag=""
+
+case "$type" in
+  feat)     emoji="✨"; tag="Feat" ;;
+  fix)      emoji="🐛"; tag="Fix" ;;
+  design)   emoji="💄"; tag="Design" ;;
+  docs)     emoji="📝"; tag="Docs" ;;
+  refactor) emoji="♻️"; tag="Refactor" ;;
+  style)    emoji="🎨"; tag="Style" ;;
+  test)     emoji="✅"; tag="Test" ;;
+  chore)    emoji="🔨"; tag="Chore" ;;
+  hotfix)   emoji="🐛"; tag="Fix" ;;
+  *)
+    echo "❌ 허용되지 않은 타입: '$type' (feat/fix/design/docs/refactor/style/test/chore/hotfix)" >&2
+    exit 1
+    ;;
+esac
+
+new_first="${emoji} ${tag}: ${rest} ${jira_key}"
+
+tmp="$(mktemp)"
+{
+  echo "$new_first"
+  tail -n +2 "$MSG_FILE"
+} > "$tmp"
+cat "$tmp" > "$MSG_FILE"
+rm "$tmp"
