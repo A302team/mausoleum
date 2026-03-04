@@ -8,6 +8,7 @@
 #include "MyCharacter.generated.h"
 
 class UInputAction;
+class UItemDefinition;
 class UKnifeAutoTestComponent;
 class UInteractComponent;
 class UQuickSlotComponent;
@@ -25,12 +26,18 @@ public:
 protected:
 	virtual void BeginPlay() override;
 
+	// BP can bind animation/FX here after a successful item use.
+	UFUNCTION(BlueprintImplementableEvent, Category = "Item|Action")
+	void BP_OnPrimaryItemUsed(UItemDefinition* UsedItemDefinition, int32 UsedSlotNumberOneBased);
+
 private:
 	void OnMove(const FInputActionValue& Value);
 	void OnLook(const FInputActionValue& Value);
 	void OnJump(const FInputActionValue& Value);
 	void OnJumpReleased(const FInputActionValue& Value);
 	void OnInteract(const FInputActionValue& Value);
+	void OnItemSelect(const FInputActionValue& Value);
+	void OnAttack(const FInputActionValue& Value);
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> IA_Move = nullptr;
@@ -43,6 +50,12 @@ private:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> IA_Interact = nullptr;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TObjectPtr<UInputAction> IA_ItemSelect = nullptr;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TObjectPtr<UInputAction> IA_Attack = nullptr;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UInteractComponent> InteractionComponent = nullptr;

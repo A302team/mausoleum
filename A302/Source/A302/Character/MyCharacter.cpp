@@ -7,6 +7,8 @@
 #include "Character/Components/QuickSlotComponent.h"
 #include "EnhancedInputComponent.h"
 #include "GameFramework/Controller.h"
+#include "GameFramework/PlayerController.h"
+#include "InputCoreTypes.h"
 #include "InputAction.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogMyInput, Log, All);
@@ -41,7 +43,17 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(PlayerInputComponent);
 	UE_LOG(LogMyInput, Warning, TEXT("[Input] EnhancedInputComponent cast: %s"), EIC ? TEXT("OK") : TEXT("FAILED"));
 
-	UE_LOG(LogMyInput, Warning, TEXT("[Input] IA_Move=%s IA_Look=%s IA_Jump=%s"), *GetNameSafe(IA_Move), *GetNameSafe(IA_Look), *GetNameSafe(IA_Jump));
+	UE_LOG(
+		LogMyInput,
+		Warning,
+		TEXT("[Input] IA_Move=%s IA_Look=%s IA_Jump=%s IA_Interact=%s IA_ItemSelect=%s IA_Attack=%s"),
+		*GetNameSafe(IA_Move),
+		*GetNameSafe(IA_Look),
+		*GetNameSafe(IA_Jump),
+		*GetNameSafe(IA_Interact),
+		*GetNameSafe(IA_ItemSelect),
+		*GetNameSafe(IA_Attack)
+	);
 
 	if (!EIC)
 	{
@@ -68,6 +80,17 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	if (IA_Interact)
 	{
 		EIC->BindAction(IA_Interact, ETriggerEvent::Started, this, &AMyCharacter::OnInteract);
+	}
+
+	if (IA_ItemSelect)
+	{
+		EIC->BindAction(IA_ItemSelect, ETriggerEvent::Started, this, &AMyCharacter::OnItemSelect);
+		EIC->BindAction(IA_ItemSelect, ETriggerEvent::Triggered, this, &AMyCharacter::OnItemSelect);
+	}
+
+	if (IA_Attack)
+	{
+		EIC->BindAction(IA_Attack, ETriggerEvent::Started, this, &AMyCharacter::OnAttack);
 	}
 }
 
@@ -119,5 +142,77 @@ void AMyCharacter::OnInteract(const FInputActionValue& Value)
 		{
 			InteractedActor->Destroy();
 		}
+	}
+}
+
+void AMyCharacter::OnItemSelect(const FInputActionValue& Value)
+{
+	if (!QuickSlotComponent)
+	{
+		return;
+	}
+
+	int32 SlotNumberOneBased = INDEX_NONE;
+
+	// Fallback path: read actual key states so slot selection still works even when
+	// IA_ItemSelect value scaling in IMC is not configured as 1~5.
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		if (PC->IsInputKeyDown(EKeys::One) || PC->IsInputKeyDown(EKeys::NumPadOne))
+		{
+			SlotNumberOneBased = 1;
+		}
+		else if (PC->IsInputKeyDown(EKeys::Two) || PC->IsInputKeyDown(EKeys::NumPadTwo))
+		{
+			SlotNumberOneBased = 2;
+		}
+		else if (PC->IsInputKeyDown(EKeys::Three) || PC->IsInputKeyDown(EKeys::NumPadThree))
+		{
+			SlotNumberOneBased = 3;
+		}
+		else if (PC->IsInputKeyDown(EKeys::Four) || PC->IsInputKeyDown(EKeys::NumPadFour))
+		{
+			SlotNumberOneBased = 4;
+		}
+		else if (PC->IsInputKeyDown(EKeys::Five) || PC->IsInputKeyDown(EKeys::NumPadFive))
+		{
+			SlotNumberOneBased = 5;
+		}
+	}
+
+	if (SlotNumberOneBased == INDEX_NONE)
+	{
+		const float AxisValue = Value.Get<float>();
+		if (!FMath::IsNearlyZero(AxisValue))
+		{
+			SlotNumberOneBased = FMath::RoundToInt(AxisValue);
+		}
+	}
+
+	if (SlotNumberOneBased == INDEX_NONE)
+	{
+		return;
+	}
+
+	if (QuickSlotComponent->GetSelectedSlotIndex() == SlotNumberOneBased - 1)
+	{
+		return;
+	}
+
+	QuickSlotComponent->SelectQuickSlotByNumber(SlotNumberOneBased);
+}
+
+void AMyCharacter::OnAttack(const FInputActionValue& Value)
+{
+	if (!QuickSlotComponent)
+	{
+		return;
+	}
+
+	UItemDefinition* UsedItemDefinition = nullptr;
+	int32 UsedSlotIndex = INDEX_NONE;
+	if (QuickSlotComponent->TryUseSelectedItem(UsedItemDefinition, UsedSlotIndex))
+	{
+		BP_OnPrimaryItemUsed(UsedItemDefinition, UsedSlotIndex + 1);
 	}
 }
