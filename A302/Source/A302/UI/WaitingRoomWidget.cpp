@@ -20,10 +20,19 @@ void UWaitingRoomWidget::NativeConstruct()
     if (Btn_Ready)
     {
         Btn_Ready->OnClicked.AddDynamic(this, &UWaitingRoomWidget::OnReadyClicked);
+
+        if (LobbyGameMode && LobbyGameMode->bIsHost)
+        {
+            Btn_Ready->SetVisibility(ESlateVisibility::Hidden);
+        }
     }
     if (Btn_StartGame)
     {
         Btn_StartGame->OnClicked.AddDynamic(this, &UWaitingRoomWidget::OnStartGameClicked);
+        Btn_StartGame->SetVisibility(
+            LobbyGameMode && LobbyGameMode->bIsHost
+                ? ESlateVisibility::Visible
+                : ESlateVisibility::Hidden);
     }
     if (Btn_Leave)
     {
@@ -35,25 +44,6 @@ void UWaitingRoomWidget::NativeConstruct()
         LobbyGameMode->OnPlayerEntered.AddDynamic(this, &UWaitingRoomWidget::OnPlayerEntered);
         LobbyGameMode->OnPlayerReady.AddDynamic(this, &UWaitingRoomWidget::OnPlayerReady);
         LobbyGameMode->OnPlayerLeft.AddDynamic(this, &UWaitingRoomWidget::OnPlayerLeft);
-    }
-
-    // 방장 여부에 따라 StartGame 버튼 숨기기
-    if (Btn_StartGame)
-    {
-        Btn_StartGame->SetVisibility(
-            LobbyGameMode && LobbyGameMode->bIsHost
-                ? ESlateVisibility::Visible
-                : ESlateVisibility::Hidden);
-    }
-
-    if (Btn_Ready)
-    {
-        Btn_Ready->OnClicked.AddDynamic(this, &UWaitingRoomWidget::OnReadyClicked);
-
-        if (LobbyGameMode && LobbyGameMode->bIsHost)
-        {
-            Btn_Ready->SetVisibility(ESlateVisibility::Hidden);
-        }
     }
 }
 
