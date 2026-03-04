@@ -3,3 +3,5 @@
 .githooks/post-commit
 .githooks/post-merge
 .githooks/pre-push
+
+.vscode/
