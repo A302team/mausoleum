@@ -27,7 +27,11 @@ void ABaseInteractable::Interact(AMyCharacter* PlayerCharacter)
 
 FString ABaseInteractable::GetInteractText()
 {
-	// 나중에 UI에 띄울 텍스트
+	if (ItemDefinition && !ItemDefinition->DisplayName.IsEmpty())
+	{
+		return FString::Printf(TEXT("%s (Interact)"), *ItemDefinition->DisplayName.ToString());
+	}
+
 	return FString::Printf(TEXT("%s (Interact)"), *GetName());
 }
 

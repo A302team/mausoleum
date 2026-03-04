@@ -4,12 +4,20 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
-#include "UI/RoomListPopup.h"
 #include "LobbyWidget.generated.h"
 
 /**
  *
  */
+UENUM()
+enum class EPendingAction :uint8
+{
+	None,
+	CreateRoom,
+	EnterRoom,
+	FindRoom
+};
+
 UCLASS()
 class A302_API ULobbyWidget : public UUserWidget
 {
@@ -41,6 +49,14 @@ public:
 
 	UPROPERTY()
 	TObjectPtr<class UEnterRoomPopup> EnterRoomPopup;
+
+	EPendingAction PendingAction = EPendingAction::None;
+
+	UFUNCTION()
+	void CheckNickname(const FString& PlayerName);
+
+	UFUNCTION()
+	void OnNicknameAvailable();
 
 	UFUNCTION()
 	void OnCreateRoomClicked();
