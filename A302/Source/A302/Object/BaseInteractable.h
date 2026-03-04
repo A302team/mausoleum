@@ -5,13 +5,17 @@
 #include "Interface/InteractableInterface.h"
 #include "BaseInteractable.generated.h"
 
+class UItemDefinition;
+
 UCLASS()
 class A302_API ABaseInteractable : public AActor, public IInteractableInterface
 {
 	GENERATED_BODY()
-	
+		
 public:	
 	ABaseInteractable();
+
+	UItemDefinition* GetItemDefinition() const { return ItemDefinition; }
 
 protected:
 	// 에디터에서 조회 및 수정 가능하도록 UPROPERTY 설정
@@ -30,4 +34,8 @@ protected:
 	// 시각적 확인을 위한 컴포넌트
 	UPROPERTY(VisibleAnywhere, Category = "Components")
 	TObjectPtr<UStaticMeshComponent> Mesh;
+
+	// 월드에 놓인 이 액터가 표현하는 아이템 정의
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item")
+	TObjectPtr<UItemDefinition> ItemDefinition;
 };
