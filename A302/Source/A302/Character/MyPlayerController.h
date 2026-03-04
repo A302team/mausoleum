@@ -14,6 +14,10 @@
  */
 
 class UInputMappingContext;
+class UUserWidget;
+class UTextBlock;
+class UImage;
+class UTexture2D;
 
 UCLASS()
 class A302_API AMyPlayerController : public APlayerController
@@ -22,6 +26,8 @@ class A302_API AMyPlayerController : public APlayerController
 
 public:
 	AMyPlayerController();
+	bool UpdateQuickSlotItemName(int32 SlotIndex, const FText& ItemName);
+	bool UpdateQuickSlotItemVisual(int32 SlotIndex, const FText& ItemName, UTexture2D* ItemIcon);
 
 protected:
 	virtual void BeginPlay() override;
@@ -38,5 +44,11 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	int32 MappingPriority = 0;
+
+private:
+	UUserWidget* FindQuickSlotWidget(int32 SlotIndex) const;
+	class UTextBlock* FindQuickSlotItemNameText(int32 SlotIndex) const;
+	class UImage* FindQuickSlotItemIconImage(int32 SlotIndex) const;
+	void InitializeQuickSlotVisualState();
 
 };
