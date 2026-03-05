@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Voice/VoiceChatMode.h"
+#include "Interfaces/VoiceCapture.h"
 #include "PrivateVoiceChatComponent.generated.h"
 
 class UDistanceVoiceChatStrategy;
@@ -37,12 +38,12 @@ public:
     void SetDistanceMode(float NewDistance = 0.f);
 
     UFUNCTION(BlueprintCallable, Category = "Voice|Room")
-    void SetRoomId(const FString& InRoomId);
+    void SetRoomCode(const FString& InRoomCode);
 
     UFUNCTION(BlueprintPure, Category = "Voice|Room")
-    const FString& GetRoomId() const
+    const FString& GetRoomCode() const
     {
-        return RoomId;
+        return roomCode;
     }
 
     UFUNCTION(BlueprintPure, Category = "Voice|Mode")
@@ -58,7 +59,7 @@ public:
     FString VoiceServerUrl = TEXT("ws://127.0.0.1:9100");
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voice|Room")
-    FString RoomId;
+    FString roomCode;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voice|Mode", meta=(ClampMin="100.0"))
     float DefaultInGameHearingDistance = 1800.f;
@@ -75,11 +76,32 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "Voice")
     FOnVoiceServerMessage OnVoiceServerMessage;
 
+    UFUNCTION(BlueprintCallable, Category = "Voice|Capture")
+    void StartMicrophone();
+
+    UFUNCTION(BlueprintCallable, Category = "Voice|Capture")
+    void StopMicrophone();
+
+    UFUNCTION(BlueprintCallable, Category = "Voice|Capture")
+    void ToggleMicrophone();
+
+    UFUNCTION(BlueprintPure, Category = "Voice|Capture")
+    bool IsMicrophoneActive() const { return bIsMicActive; }
+
 private:
     UFUNCTION()
     void HandleServerMessage(const FString& Message);
 
     void ApplyStrategy(UVoiceChatStrategyBase* NewStrategy);
+
+    // 틱 대신 사용할 타이머 함수 (꼬리물기 방식)
+    void ProcessVoiceCapture();
+
+    UPROPERTY(VisibleAnywhere, Category = "Voice|Audio")
+    TObjectPtr<class UAudioComponent> VoiceAudioComponent = nullptr;
+
+    UPROPERTY(Transient)
+    TObjectPtr<class USoundWaveProcedural> VoiceSoundWave = nullptr;
 
     UPROPERTY()
     TObjectPtr<UWebSocketManager> WebSocketManager = nullptr;
@@ -92,4 +114,12 @@ private:
 
     UPROPERTY(Transient)
     TObjectPtr<UVoiceChatStrategyBase> ActiveStrategy = nullptr;
+
+    // 언리얼 내장 마이크 캡처 객체
+    TSharedPtr<class IVoiceCapture> VoiceCapture;
+
+    // 마이크 캡처 주기적 폴링을 위한 타이머 핸들
+    FTimerHandle VoiceCaptureTimer;
+
+    bool bIsMicActive = false;
 };

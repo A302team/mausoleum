@@ -32,7 +32,7 @@ void UWebSocketManager::Connect(const FString &URL)
     });
 
     WebSocket -> OnMessage().AddLambda([this](const FString& Message) {
-        UE_LOG(LogTemp, Log, TEXT("[Network/WebSocket] Received : %s"), *Message);
+        // UE_LOG(LogTemp, Log, TEXT("[Network/WebSocket] Received : %s"), *Message);
         OnMessageReceived.Broadcast(Message);
     });
 

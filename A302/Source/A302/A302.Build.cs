@@ -21,8 +21,7 @@ public class A302 : ModuleRules
 			"Json",
 			"JsonUtilities",
 			"UMG",
-			"OnlineSubsystem", 
-    		"OnlineSubsystemUtils",
+			"Voice"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
