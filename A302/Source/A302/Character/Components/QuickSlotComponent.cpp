@@ -157,6 +157,17 @@ bool UQuickSlotComponent::TryUseSelectedItem(UItemDefinition*& OutUsedItemDefini
 		return false;
 	}
 
+	const bool bAutoUseOnly = ItemDefinition->AutoUse || (
+		ItemDefinition->UseMode == EItemUseMode::SelfCast &&
+		ItemDefinition->BlockCount > 0
+	);
+
+	if (bAutoUseOnly)
+	{
+		LogAndScreenQuickSlotMessage(TEXT("[QuickSlot] This slot is AutoUse only."), FColor::Orange, 1.2f);
+		return false;
+	}
+
 	FItemTargetData TargetData;
 	if (ItemDefinition->UseMode == EItemUseMode::Targeted)
 	{
@@ -195,6 +206,119 @@ bool UQuickSlotComponent::TryUseSelectedItem(UItemDefinition*& OutUsedItemDefini
 	}
 
 	return true;
+}
+
+bool UQuickSlotComponent::TryAutoUseItem()
+{
+	AMyCharacter* OwnerCharacter = GetOwnerCharacter();
+	if (!OwnerCharacter)
+	{
+		return false;
+	}
+
+	FItemTargetData TargetData;
+	bool bFoundAutoCandidate = false;
+
+	for (int32 SlotIndex = 0; SlotIndex < QuickSlotItems.Num(); ++SlotIndex)
+	{
+		UItemDefinition* ItemDefinition = QuickSlotItems[SlotIndex];
+		UItemInstance* ItemInstance = QuickSlotItemInstances.IsValidIndex(SlotIndex)
+			? QuickSlotItemInstances[SlotIndex]
+			: nullptr;
+		UBaseItem* ItemLogic = QuickSlotItemLogics.IsValidIndex(SlotIndex)
+			? QuickSlotItemLogics[SlotIndex]
+			: nullptr;
+
+		if (!ItemDefinition || !ItemInstance || !ItemLogic)
+		{
+			continue;
+		}
+
+		const bool bCanAutoUse = ItemDefinition->AutoUse || (
+			ItemDefinition->UseMode == EItemUseMode::SelfCast &&
+			ItemDefinition->BlockCount > 0
+		);
+
+		if (!bCanAutoUse)
+		{
+			continue;
+		}
+
+		bFoundAutoCandidate = true;
+
+		if (!ItemLogic->GetClass()->ImplementsInterface(UUsableItem::StaticClass()))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[QuickSlot] Auto-use skipped: slot %d logic has no IUsableItem."), SlotIndex + 1);
+			continue;
+		}
+
+		if (!IUsableItem::Execute_CanUse(ItemLogic, OwnerCharacter, TargetData))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[QuickSlot] Auto-use skipped: CanUse false at slot %d."), SlotIndex + 1);
+			continue;
+		}
+
+		if (!IUsableItem::Execute_Use(ItemLogic, OwnerCharacter, TargetData))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[QuickSlot] Auto-use failed: Use false at slot %d."), SlotIndex + 1);
+			continue;
+		}
+
+		const FString ItemName = ItemDefinition->DisplayName.IsEmpty()
+			? ItemDefinition->ItemId.ToString()
+			: ItemDefinition->DisplayName.ToString();
+
+		LogAndScreenQuickSlotMessage(
+			FString::Printf(TEXT("[QuickSlot] Auto-used '%s' (Slot %d)"), *ItemName, SlotIndex + 1),
+			FColor::Green,
+			1.2f
+		);
+
+		if (ItemInstance->IsEmpty())
+		{
+			ClearQuickSlot(SlotIndex);
+		}
+
+		return true;
+	}
+
+	if (!bFoundAutoCandidate)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[QuickSlot] Auto-use failed: no auto-usable item in quick slots."));
+	}
+
+	return false;
+}
+
+int32 UQuickSlotComponent::GetShieldItemCount() const
+{
+	int32 TotalCount = 0;
+
+	for (int32 SlotIndex = 0; SlotIndex < QuickSlotItems.Num(); ++SlotIndex)
+	{
+		const UItemDefinition* ItemDefinition = QuickSlotItems[SlotIndex];
+		const UItemInstance* ItemInstance = QuickSlotItemInstances.IsValidIndex(SlotIndex)
+			? QuickSlotItemInstances[SlotIndex]
+			: nullptr;
+
+		if (!ItemDefinition || !ItemInstance || ItemInstance->IsEmpty())
+		{
+			continue;
+		}
+
+		const bool bIsShieldItem =
+			ItemDefinition->UseMode == EItemUseMode::SelfCast &&
+			ItemDefinition->BlockCount > 0;
+
+		if (!bIsShieldItem)
+		{
+			continue;
+		}
+
+		TotalCount += FMath::Max(0, ItemInstance->StackCount);
+	}
+
+	return TotalCount;
 }
 
 void UQuickSlotComponent::LogAndScreenQuickSlotMessage(

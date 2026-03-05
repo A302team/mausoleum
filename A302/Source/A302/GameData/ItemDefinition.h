@@ -29,6 +29,9 @@ public:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item|Use")
     EItemUseMode UseMode = EItemUseMode::SelfCast;
 
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item|Use")
+    bool AutoUse = false;
+
     // 핵심: 이 Definition이 어떤 “로직 클래스”로 Use를 수행하는가
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item|Logic")
     TSubclassOf<UBaseItem> ItemLogicClass;

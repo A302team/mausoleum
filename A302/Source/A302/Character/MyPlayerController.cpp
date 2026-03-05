@@ -57,6 +57,16 @@ UImage* AMyPlayerController::FindQuickSlotItemSelectedImage(int32 SlotIndex) con
 	return nullptr;
 }
 
+UTextBlock* AMyPlayerController::FindShieldCountText() const
+{
+	if (!QuickSlotBarWidget)
+	{
+		return nullptr;
+	}
+
+	return Cast<UTextBlock>(QuickSlotBarWidget->GetWidgetFromName(TEXT("ShieldCount")));
+}
+
 bool AMyPlayerController::UpdateQuickSlotItemVisual(int32 SlotIndex, const FText& ItemName, UTexture2D* ItemIcon)
 {
 	bool bNameUpdated = false;
@@ -118,6 +128,20 @@ void AMyPlayerController::UpdateQuickSlotSelectionVisual(int32 SelectedSlotIndex
 	}
 }
 
+bool AMyPlayerController::UpdateShieldCountText(int32 ShieldCount)
+{
+	UTextBlock* ShieldCountText = FindShieldCountText();
+	if (!ShieldCountText)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PC] ShieldCount text widget not found. Expected name: ShieldCount"));
+		return false;
+	}
+
+	ShieldCountText->SetText(FText::FromString(FString::Printf(TEXT("Shield : %d"), FMath::Max(0, ShieldCount))));
+	ShieldCountText->SetVisibility(ESlateVisibility::Visible);
+	return true;
+}
+
 AMyPlayerController::AMyPlayerController()
 {
 }
@@ -156,6 +180,7 @@ void AMyPlayerController::BeginPlay()
 		{
 			QuickSlotBarWidget->AddToViewport();
 			InitializeQuickSlotVisualState();
+			UpdateShieldCountText(0);
 		}
 	}
 	else

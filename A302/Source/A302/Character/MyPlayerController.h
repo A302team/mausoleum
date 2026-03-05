@@ -29,6 +29,7 @@ public:
 	bool UpdateQuickSlotItemName(int32 SlotIndex, const FText& ItemName);
 	bool UpdateQuickSlotItemVisual(int32 SlotIndex, const FText& ItemName, UTexture2D* ItemIcon);
 	void UpdateQuickSlotSelectionVisual(int32 SelectedSlotIndex);
+	bool UpdateShieldCountText(int32 ShieldCount);
 
 protected:
 	virtual void BeginPlay() override;
@@ -51,6 +52,7 @@ private:
 	class UTextBlock* FindQuickSlotItemNameText(int32 SlotIndex) const;
 	class UImage* FindQuickSlotItemIconImage(int32 SlotIndex) const;
 	class UImage* FindQuickSlotItemSelectedImage(int32 SlotIndex) const;
+	class UTextBlock* FindShieldCountText() const;
 	void InitializeQuickSlotVisualState();
 
 };

@@ -2,9 +2,12 @@
 
 #include "Character/MyCharacter.h"
 
+#include "Character/Components/CombatStatusComponent.h"
 #include "Character/Components/InteractComponent.h"
 #include "Character/Components/KnifeAutoTestComponent.h"
 #include "Character/Components/QuickSlotComponent.h"
+#include "Character/MyPlayerController.h"
+#include "Engine/Engine.h"
 #include "EnhancedInputComponent.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/PlayerController.h"
@@ -13,12 +16,25 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogMyInput, Log, All);
 
+namespace
+{
+	void LogAndScreenCharacter(const FString& Message, const FColor& Color = FColor::Yellow, const float Duration = 3.0f)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("%s"), *Message);
+		if (GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(-1, Duration, Color, Message);
+		}
+	}
+}
+
 AMyCharacter::AMyCharacter()
 {
 	PrimaryActorTick.bCanEverTick = false;
 	
 	InteractionComponent = CreateDefaultSubobject<UInteractComponent>(TEXT("InteractionComponent"));
 	QuickSlotComponent = CreateDefaultSubobject<UQuickSlotComponent>(TEXT("QuickSlotComponent"));
+	CombatStatusComponent = CreateDefaultSubobject<UCombatStatusComponent>(TEXT("CombatStatusComponent"));
 	KnifeAutoTestComponent = CreateDefaultSubobject<UKnifeAutoTestComponent>(
 		TEXT("KnifeAutoTestComponent")
 	);
@@ -28,10 +44,65 @@ void AMyCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
+	if (CombatStatusComponent)
+	{
+		CombatStatusComponent->OnShieldChanged.AddDynamic(this, &AMyCharacter::HandleShieldChanged);
+		HandleShieldChanged(CombatStatusComponent->ShieldBlockCount);
+	}
+
 	if (KnifeAutoTestComponent)
 	{
 		KnifeAutoTestComponent->StartAutoKnifeTest();
 	}
+}
+
+void AMyCharacter::HandleShieldChanged(int32 NewCount)
+{
+	if (AMyPlayerController* MyPlayerController = Cast<AMyPlayerController>(GetController()))
+	{
+		const int32 DisplayShieldCount = QuickSlotComponent
+			? QuickSlotComponent->GetShieldItemCount()
+			: FMath::Max(0, NewCount);
+
+		MyPlayerController->UpdateShieldCountText(DisplayShieldCount);
+	}
+}
+
+float AMyCharacter::TakeDamage(
+	float DamageAmount,
+	const FDamageEvent& DamageEvent,
+	AController* EventInstigator,
+	AActor* DamageCauser
+)
+{
+	if (bIsDead)
+	{
+		return 0.f;
+	}
+
+	if (CombatStatusComponent && CombatStatusComponent->TryConsumeShieldToBlock())
+	{
+		LogAndScreenCharacter(
+			FString::Printf(TEXT("[MyCharacter] Blocked by active shield (remaining=%d)"), CombatStatusComponent->ShieldBlockCount),
+			FColor::Green,
+			1.5f
+		);
+		return 0.f;
+	}
+
+	if (QuickSlotComponent && QuickSlotComponent->TryAutoUseItem())
+	{
+		if (CombatStatusComponent && CombatStatusComponent->TryConsumeShieldToBlock())
+		{
+			LogAndScreenCharacter(TEXT("[MyCharacter] Blocked by auto-used shield"), FColor::Green, 1.5f);
+			return 0.f;
+		}
+	}
+
+	bIsDead = true;
+	LogAndScreenCharacter(TEXT("[MyCharacter] Dead"), FColor::Red, 4.0f);
+
+	return Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 }
 
 void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -98,6 +169,11 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	{
 		EIC->BindAction(IA_Attack, ETriggerEvent::Started, this, &AMyCharacter::OnAttack);
 	}
+
+	if (CombatStatusComponent)
+	{
+		HandleShieldChanged(CombatStatusComponent->ShieldBlockCount);
+	}
 }
 
 void AMyCharacter::OnMove(const FInputActionValue& Value)
@@ -150,6 +226,9 @@ void AMyCharacter::OnInteractHoldComplete(const FInputActionValue& Value)
 		if (QuickSlotComponent->TryPickupItemToQuickSlot(InteractedActor))
 		{
 			InteractedActor->Destroy();
+
+			// Pickup으로 퀵슬롯이 바뀌었으니 ShieldCount UI를 즉시 갱신한다.
+			HandleShieldChanged(CombatStatusComponent ? CombatStatusComponent->ShieldBlockCount : 0);
 		}
 	}
 }
