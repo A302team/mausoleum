@@ -195,6 +195,23 @@ void handleMessage(uWS::WebSocket<false, true, int> *ws,
 
             rm.removeRoomIfEmpty(roomCode);
         }
+
+        else if (type == "chat_message")
+        {
+            std::string roomCode = data["roomCode"];
+            std::string playerName = data["playerName"];
+            std::string message = data["message"];
+
+            if (!rm.roomExists(roomCode))
+                return;
+
+            Room &room = rm.rooms[roomCode];
+
+            std::cout << "[" << roomCode << "] " << playerName << ": " << message << std::endl;
+
+            room.broadcast({{"type", "chat_message"},
+                            {"data", {{"playerName", playerName}, {"message", message}}}});
+        }
     }
     catch (const std::exception &e)
     {
