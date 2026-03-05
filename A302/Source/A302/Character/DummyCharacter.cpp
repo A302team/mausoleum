@@ -1,14 +1,10 @@
 #include "Character/DummyCharacter.h"
 
 #include "Character/Components/CombatStatusComponent.h"
+#include "Character/MyCharacter.h"
 #include "Engine/Engine.h"
 #include "GameData/ItemDefinition.h"
-#include "GameData/ItemInstance.h"
-#include "GameData/ItemTypes.h"
-#include "GamePlay/Items/BaseItem.h"
-#include "Interface/UsableItem.h"
 #include "Kismet/GameplayStatics.h"
-#include "Manager/ItemActionFactory.h"
 
 namespace
 {
@@ -82,6 +78,17 @@ float ADummyCharacter::TakeDamage(
     }
 
     bIsDead = true;
+
+    AMyCharacter* KillerCharacter = DamageCauser ? Cast<AMyCharacter>(DamageCauser) : nullptr;
+    if (!KillerCharacter && EventInstigator)
+    {
+        KillerCharacter = Cast<AMyCharacter>(EventInstigator->GetPawn());
+    }
+    if (KillerCharacter)
+    {
+        KillerCharacter->NotifyKilledCharacter();
+    }
+
     LogAndScreenDummy(TEXT("Dummy Dead"), FColor::Red, 4.0f);
 
     SetActorEnableCollision(false);
@@ -138,52 +145,22 @@ void ADummyCharacter::TryAutoAttackPlayer()
 
 void ADummyCharacter::SetupInitialShield()
 {
-    ItemActionFactory = NewObject<UItemActionFactory>(this);
-    if (!ItemActionFactory)
+    if (!CombatStatusComponent)
     {
-        UE_LOG(LogTemp, Error, TEXT("[DummyCharacter] Failed to create UItemActionFactory."));
         return;
     }
 
-    if (!ShieldDef)
+    int32 ShieldAmount = FMath::Max(0, InitialShieldStack);
+    if (ShieldDef)
     {
-        LogAndScreenDummy(TEXT("[DummyCharacter] ShieldDef is not set in editor."), FColor::Orange);
+        ShieldAmount *= FMath::Max(1, ShieldDef->BlockCount);
+    }
+
+    if (ShieldAmount <= 0)
+    {
         return;
     }
 
-    ShieldInstance = NewObject<UItemInstance>(this);
-    if (!ShieldInstance)
-    {
-        UE_LOG(LogTemp, Error, TEXT("[DummyCharacter] Failed to create UItemInstance."));
-        return;
-    }
-
-    ShieldInstance->Init(ShieldDef, FMath::Max(0, InitialShieldStack));
-    ShieldLogic = ItemActionFactory->CreateLogic(this, ShieldInstance);
-    if (!ShieldLogic)
-    {
-        UE_LOG(LogTemp, Error, TEXT("[DummyCharacter] Failed to create ShieldLogic from ShieldDef."));
-        return;
-    }
-
-    const int32 UseCount = ShieldInstance->StackCount;
-    int32 AppliedCount = 0;
-
-    FItemTargetData TargetData;
-    for (int32 i = 0; i < UseCount; ++i)
-    {
-        if (IUsableItem::Execute_Use(ShieldLogic, this, TargetData))
-        {
-            ++AppliedCount;
-        }
-    }
-
-    if (AppliedCount == 1)
-    {
-        LogAndScreenDummy(TEXT("Shield applied once"));
-    }
-    else
-    {
-        LogAndScreenDummy(FString::Printf(TEXT("Shield applied x%d"), AppliedCount));
-    }
+    CombatStatusComponent->AddShield(ShieldAmount);
+    LogAndScreenDummy(FString::Printf(TEXT("Shield applied x%d"), ShieldAmount));
 }

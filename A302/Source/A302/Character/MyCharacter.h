@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "InputActionValue.h"
+#include "TimerManager.h"
 #include "MyCharacter.generated.h"
 
 class UInputAction;
@@ -12,6 +13,7 @@ class UCombatStatusComponent;
 class UItemDefinition;
 class UKnifeAutoTestComponent;
 class UInteractComponent;
+class UMaliceComponent;
 class UQuickSlotComponent;
 
 UCLASS()
@@ -27,6 +29,7 @@ public:
 		class AController* EventInstigator,
 		AActor* DamageCauser
 	) override;
+	void NotifyKilledCharacter();
 
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
@@ -40,6 +43,15 @@ protected:
 private:
 	UFUNCTION()
 	void HandleShieldChanged(int32 NewCount);
+
+	UFUNCTION()
+	void HandleMaliceChanged(int32 NewCount);
+
+	void CompleteTimedKnifeObjective();
+	void StartTimedKnifeCountdown(const UItemDefinition* TimedKnifeDefinition);
+	void TickTimedKnifeCountdown();
+	void ClearTimedKnifeState(bool bHideTimer);
+	void HandleDead();
 
 	void OnMove(const FInputActionValue& Value);
 	void OnLook(const FInputActionValue& Value);
@@ -83,8 +95,22 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UCombatStatusComponent> CombatStatusComponent = nullptr;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Malice", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UMaliceComponent> MaliceComponent = nullptr;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|Test", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UKnifeAutoTestComponent> KnifeAutoTestComponent = nullptr;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Ending", meta = (AllowPrivateAccess = "true"))
+	bool bMaliceEnding = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Ending", meta = (AllowPrivateAccess = "true"))
+	bool bNiceEnding = true;
+
+	bool bHasActiveTimedKnife = false;
+	float TimedKnifeRemainingSeconds = 0.0f;
+	FName ActiveTimedKnifeItemId = NAME_None;
+	FTimerHandle TimedKnifeTimerHandle;
 
 	bool bIsDead = false;
 };

@@ -5,14 +5,20 @@
 #include "Character/Components/CombatStatusComponent.h"
 #include "Character/Components/InteractComponent.h"
 #include "Character/Components/KnifeAutoTestComponent.h"
+#include "Character/Components/MaliceComponent.h"
 #include "Character/Components/QuickSlotComponent.h"
 #include "Character/MyPlayerController.h"
 #include "Engine/Engine.h"
 #include "EnhancedInputComponent.h"
+#include "GameData/ItemDefinition.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/PlayerController.h"
+#include "GamePlay/Items/ItemMalice.h"
+#include "GamePlay/Items/ItemShield.h"
+#include "GamePlay/Items/ItemTimeKnife.h"
 #include "InputCoreTypes.h"
 #include "InputAction.h"
+#include "Object/BaseInteractable.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogMyInput, Log, All);
 
@@ -35,6 +41,7 @@ AMyCharacter::AMyCharacter()
 	InteractionComponent = CreateDefaultSubobject<UInteractComponent>(TEXT("InteractionComponent"));
 	QuickSlotComponent = CreateDefaultSubobject<UQuickSlotComponent>(TEXT("QuickSlotComponent"));
 	CombatStatusComponent = CreateDefaultSubobject<UCombatStatusComponent>(TEXT("CombatStatusComponent"));
+	MaliceComponent = CreateDefaultSubobject<UMaliceComponent>(TEXT("MaliceComponent"));
 	KnifeAutoTestComponent = CreateDefaultSubobject<UKnifeAutoTestComponent>(
 		TEXT("KnifeAutoTestComponent")
 	);
@@ -50,6 +57,12 @@ void AMyCharacter::BeginPlay()
 		HandleShieldChanged(CombatStatusComponent->ShieldBlockCount);
 	}
 
+	if (MaliceComponent)
+	{
+		MaliceComponent->OnMaliceChanged.AddDynamic(this, &AMyCharacter::HandleMaliceChanged);
+		HandleMaliceChanged(MaliceComponent->MaliceCount);
+	}
+
 	if (KnifeAutoTestComponent)
 	{
 		KnifeAutoTestComponent->StartAutoKnifeTest();
@@ -60,11 +73,18 @@ void AMyCharacter::HandleShieldChanged(int32 NewCount)
 {
 	if (AMyPlayerController* MyPlayerController = Cast<AMyPlayerController>(GetController()))
 	{
-		const int32 DisplayShieldCount = QuickSlotComponent
-			? QuickSlotComponent->GetShieldItemCount()
-			: FMath::Max(0, NewCount);
+		MyPlayerController->UpdateShieldCountText(FMath::Max(0, NewCount));
+	}
+}
 
-		MyPlayerController->UpdateShieldCountText(DisplayShieldCount);
+void AMyCharacter::HandleMaliceChanged(int32 NewCount)
+{
+	bMaliceEnding = NewCount >= 3;
+	bNiceEnding = !bMaliceEnding;
+
+	if (AMyPlayerController* MyPlayerController = Cast<AMyPlayerController>(GetController()))
+	{
+		MyPlayerController->UpdateMaliceCountText(FMath::Max(0, NewCount));
 	}
 }
 
@@ -80,29 +100,127 @@ float AMyCharacter::TakeDamage(
 		return 0.f;
 	}
 
-	if (CombatStatusComponent && CombatStatusComponent->TryConsumeShieldToBlock())
+	if (QuickSlotComponent && QuickSlotComponent->TryAutoUseItem())
 	{
-		LogAndScreenCharacter(
-			FString::Printf(TEXT("[MyCharacter] Blocked by active shield (remaining=%d)"), CombatStatusComponent->ShieldBlockCount),
-			FColor::Green,
-			1.5f
-		);
+		LogAndScreenCharacter(TEXT("[MyCharacter] Blocked by auto-used shield"), FColor::Green, 1.5f);
 		return 0.f;
 	}
 
-	if (QuickSlotComponent && QuickSlotComponent->TryAutoUseItem())
-	{
-		if (CombatStatusComponent && CombatStatusComponent->TryConsumeShieldToBlock())
-		{
-			LogAndScreenCharacter(TEXT("[MyCharacter] Blocked by auto-used shield"), FColor::Green, 1.5f);
-			return 0.f;
-		}
-	}
-
-	bIsDead = true;
-	LogAndScreenCharacter(TEXT("[MyCharacter] Dead"), FColor::Red, 4.0f);
+	HandleDead();
 
 	return Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+}
+
+void AMyCharacter::NotifyKilledCharacter()
+{
+	CompleteTimedKnifeObjective();
+}
+
+void AMyCharacter::CompleteTimedKnifeObjective()
+{
+	if (!bHasActiveTimedKnife)
+	{
+		return;
+	}
+
+	if (QuickSlotComponent && !ActiveTimedKnifeItemId.IsNone())
+	{
+		QuickSlotComponent->RemoveFirstItemByItemId(ActiveTimedKnifeItemId);
+	}
+
+	LogAndScreenCharacter(TEXT("[MyCharacter] Timed knife success"), FColor::Green, 2.0f);
+	ClearTimedKnifeState(true);
+}
+
+void AMyCharacter::StartTimedKnifeCountdown(const UItemDefinition* TimedKnifeDefinition)
+{
+	if (!TimedKnifeDefinition)
+	{
+		return;
+	}
+
+	const float Duration = FMath::Max(1.0f, TimedKnifeDefinition->TimedKillDuration);
+	bHasActiveTimedKnife = true;
+	TimedKnifeRemainingSeconds = Duration;
+	ActiveTimedKnifeItemId = TimedKnifeDefinition->ItemId;
+
+	if (AMyPlayerController* MyPlayerController = Cast<AMyPlayerController>(GetController()))
+	{
+		MyPlayerController->UpdateItemTimerText(TimedKnifeRemainingSeconds);
+		MyPlayerController->SetItemTimerVisible(true);
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(TimedKnifeTimerHandle);
+		World->GetTimerManager().SetTimer(
+			TimedKnifeTimerHandle,
+			this,
+			&AMyCharacter::TickTimedKnifeCountdown,
+			1.0f,
+			true
+		);
+	}
+}
+
+void AMyCharacter::TickTimedKnifeCountdown()
+{
+	if (!bHasActiveTimedKnife)
+	{
+		return;
+	}
+
+	TimedKnifeRemainingSeconds = FMath::Max(0.0f, TimedKnifeRemainingSeconds - 1.0f);
+
+	if (AMyPlayerController* MyPlayerController = Cast<AMyPlayerController>(GetController()))
+	{
+		MyPlayerController->UpdateItemTimerText(TimedKnifeRemainingSeconds);
+	}
+
+	if (TimedKnifeRemainingSeconds > 0.0f)
+	{
+		return;
+	}
+
+	if (QuickSlotComponent && !ActiveTimedKnifeItemId.IsNone())
+	{
+		QuickSlotComponent->RemoveFirstItemByItemId(ActiveTimedKnifeItemId);
+	}
+
+	ClearTimedKnifeState(true);
+	HandleDead();
+}
+
+void AMyCharacter::ClearTimedKnifeState(bool bHideTimer)
+{
+	bHasActiveTimedKnife = false;
+	TimedKnifeRemainingSeconds = 0.0f;
+	ActiveTimedKnifeItemId = NAME_None;
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(TimedKnifeTimerHandle);
+	}
+
+	if (bHideTimer)
+	{
+		if (AMyPlayerController* MyPlayerController = Cast<AMyPlayerController>(GetController()))
+		{
+			MyPlayerController->SetItemTimerVisible(false);
+		}
+	}
+}
+
+void AMyCharacter::HandleDead()
+{
+	if (bIsDead)
+	{
+		return;
+	}
+
+	ClearTimedKnifeState(true);
+	bIsDead = true;
+	LogAndScreenCharacter(TEXT("[MyCharacter] Dead"), FColor::Red, 4.0f);
 }
 
 void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -174,6 +292,24 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	{
 		HandleShieldChanged(CombatStatusComponent->ShieldBlockCount);
 	}
+
+	if (MaliceComponent)
+	{
+		HandleMaliceChanged(MaliceComponent->MaliceCount);
+	}
+
+	if (AMyPlayerController* MyPlayerController = Cast<AMyPlayerController>(GetController()))
+	{
+		if (bHasActiveTimedKnife)
+		{
+			MyPlayerController->UpdateItemTimerText(TimedKnifeRemainingSeconds);
+			MyPlayerController->SetItemTimerVisible(true);
+		}
+		else
+		{
+			MyPlayerController->SetItemTimerVisible(false);
+		}
+	}
 }
 
 void AMyCharacter::OnMove(const FInputActionValue& Value)
@@ -221,14 +357,64 @@ void AMyCharacter::OnInteractHoldComplete(const FInputActionValue& Value)
 	InteractionComponent->HandleInteractHoldComplete();
 
 	AActor* InteractedActor = InteractionComponent->GetLastInteractedActor();
-	if (QuickSlotComponent && InteractedActor)
+	if (!InteractedActor)
 	{
-		if (QuickSlotComponent->TryPickupItemToQuickSlot(InteractedActor))
-		{
-			InteractedActor->Destroy();
+		return;
+	}
 
-			// Pickup으로 퀵슬롯이 바뀌었으니 ShieldCount UI를 즉시 갱신한다.
-			HandleShieldChanged(CombatStatusComponent ? CombatStatusComponent->ShieldBlockCount : 0);
+	const ABaseInteractable* Interactable = Cast<ABaseInteractable>(InteractedActor);
+	const UItemDefinition* PickedItemDefinition = Interactable ? Interactable->GetItemDefinition() : nullptr;
+	const bool bIsMalicePickup =
+		PickedItemDefinition &&
+		(
+			PickedItemDefinition->bApplyMaliceOnPickup ||
+			(
+				PickedItemDefinition->ItemLogicClass &&
+				PickedItemDefinition->ItemLogicClass->IsChildOf(UItemMalice::StaticClass())
+			)
+		);
+
+	if (bIsMalicePickup)
+	{
+		if (MaliceComponent)
+		{
+			const int32 MaliceAmount = PickedItemDefinition->bApplyMaliceOnPickup
+				? PickedItemDefinition->MaliceAmount
+				: 1;
+			MaliceComponent->AddMalice(FMath::Max(1, MaliceAmount));
+		}
+
+		InteractedActor->Destroy();
+		return;
+	}
+
+	if (QuickSlotComponent && QuickSlotComponent->TryPickupItemToQuickSlot(InteractedActor))
+	{
+		InteractedActor->Destroy();
+
+		const bool bIsShieldItem =
+			PickedItemDefinition &&
+			PickedItemDefinition->ItemLogicClass &&
+			PickedItemDefinition->ItemLogicClass->IsChildOf(UItemShield::StaticClass());
+
+		if (bIsShieldItem && CombatStatusComponent)
+		{
+			CombatStatusComponent->AddShield(FMath::Max(1, PickedItemDefinition->BlockCount));
+		}
+
+		const bool bIsTimedKillKnife =
+			PickedItemDefinition &&
+			(
+				PickedItemDefinition->bIsTimedKillKnife ||
+				(
+					PickedItemDefinition->ItemLogicClass &&
+					PickedItemDefinition->ItemLogicClass->IsChildOf(UItemTimeKnife::StaticClass())
+				)
+			);
+
+		if (bIsTimedKillKnife)
+		{
+			StartTimedKnifeCountdown(PickedItemDefinition);
 		}
 	}
 }
@@ -301,6 +487,21 @@ void AMyCharacter::OnAttack(const FInputActionValue& Value)
 	int32 UsedSlotIndex = INDEX_NONE;
 	if (QuickSlotComponent->TryUseSelectedItem(UsedItemDefinition, UsedSlotIndex))
 	{
+		const bool bUsedTimedKillKnife =
+			UsedItemDefinition &&
+			(
+				UsedItemDefinition->bIsTimedKillKnife ||
+				(
+					UsedItemDefinition->ItemLogicClass &&
+					UsedItemDefinition->ItemLogicClass->IsChildOf(UItemTimeKnife::StaticClass())
+				)
+			);
+
+		if (bUsedTimedKillKnife)
+		{
+			CompleteTimedKnifeObjective();
+		}
+
 		BP_OnPrimaryItemUsed(UsedItemDefinition, UsedSlotIndex + 1);
 	}
 }

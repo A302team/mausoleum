@@ -7,9 +7,6 @@
 
 class UCombatStatusComponent;
 class UItemDefinition;
-class UItemActionFactory;
-class UItemInstance;
-class UBaseItem;
 
 UCLASS()
 class A302_API ADummyCharacter : public ACharacter
@@ -56,15 +53,6 @@ protected:
 private:
     void SetupInitialShield();
     void TryAutoAttackPlayer();
-
-    UPROPERTY()
-    TObjectPtr<UItemActionFactory> ItemActionFactory;
-
-    UPROPERTY()
-    TObjectPtr<UItemInstance> ShieldInstance;
-
-    UPROPERTY()
-    TObjectPtr<UBaseItem> ShieldLogic;
 
     bool bIsDead = false;
     FTimerHandle AutoAttackTimerHandle;
