@@ -5,10 +5,12 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "InputActionValue.h"
+#include "TimerManager.h"
 #include "Interface/InteractableInterface.h"
 #include "MyCharacter.generated.h"
 
 class UInputAction;
+class UCombatStatusComponent;
 class UItemDefinition;
 class UUserWidget;
 class UItemDefinition;
@@ -17,6 +19,7 @@ class UItemInstance;
 class UBaseItem;
 class ADummyCharacter;
 class UInteractComponent;
+class UMaliceComponent;
 class UQuickSlotComponent;
 class UKnifeAutoTestComponent;
 class UPrivateVoiceChatComponent;
@@ -27,6 +30,14 @@ class A302_API AMyCharacter : public ACharacter
     GENERATED_BODY()
 
 public:
+	AMyCharacter();
+	virtual float TakeDamage(
+		float DamageAmount,
+		struct FDamageEvent const& DamageEvent,
+		class AController* EventInstigator,
+		AActor* DamageCauser
+	) override;
+	void NotifyKilledCharacter();
     // Sets default values for this character's properties
     AMyCharacter();
 
@@ -111,11 +122,28 @@ protected:
 	void BP_OnPrimaryItemUsed(UItemDefinition* UsedItemDefinition, int32 UsedSlotNumberOneBased);
 
 private:
+	UFUNCTION()
+	void HandleShieldChanged(int32 NewCount);
+
+	UFUNCTION()
+	void HandleMaliceChanged(int32 NewCount);
+
+	void CompleteTimedKnifeObjective();
+	void StartTimedKnifeCountdown(const UItemDefinition* TimedKnifeDefinition);
+	void TickTimedKnifeCountdown();
+	void ClearTimedKnifeState(bool bHideTimer);
+	void HandleDead();
+
+	void OnMove(const FInputActionValue& Value);
+	void OnLook(const FInputActionValue& Value);
+	void OnJump(const FInputActionValue& Value);
+	void OnJumpReleased(const FInputActionValue& Value);
     void OnMove(const FInputActionValue& Value);
     void OnLook(const FInputActionValue& Value);
     void OnJump(const FInputActionValue& Value);
     void OnJumpReleased(const FInputActionValue& Value);
 
+    // Interact
     void OnInteractComplete(const FInputActionValue& Value);
 	void OnItemSelect(const FInputActionValue& Value);
 	void OnAttack(const FInputActionValue& Value);
@@ -128,6 +156,7 @@ private:
     void OnInteractProgress(const FInputActionValue& Value);
     void OnInteractCanceled(const FInputActionValue& Value);
     void OnToggleVoiceChat(const FInputActionValue& Valu);
+
     UPROPERTY()
     AActor* LastInteractableActor = nullptr;
 
@@ -154,6 +183,28 @@ private:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|QuickSlot", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UQuickSlotComponent> QuickSlotComponent = nullptr;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UCombatStatusComponent> CombatStatusComponent = nullptr;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Malice", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UMaliceComponent> MaliceComponent = nullptr;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|Test", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UKnifeAutoTestComponent> KnifeAutoTestComponent = nullptr;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Ending", meta = (AllowPrivateAccess = "true"))
+	bool bMaliceEnding = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Ending", meta = (AllowPrivateAccess = "true"))
+	bool bNiceEnding = true;
+
+	bool bHasActiveTimedKnife = false;
+	float TimedKnifeRemainingSeconds = 0.0f;
+	FName ActiveTimedKnifeItemId = NAME_None;
+	FTimerHandle TimedKnifeTimerHandle;
+
+	bool bIsDead = false;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|Test", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UKnifeAutoTestComponent> KnifeAutoTestComponent = nullptr;

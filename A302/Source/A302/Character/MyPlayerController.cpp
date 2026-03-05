@@ -57,6 +57,36 @@ UImage* AMyPlayerController::FindQuickSlotItemSelectedImage(int32 SlotIndex) con
 	return nullptr;
 }
 
+UTextBlock* AMyPlayerController::FindShieldCountText() const
+{
+	if (!QuickSlotBarWidget)
+	{
+		return nullptr;
+	}
+
+	return Cast<UTextBlock>(QuickSlotBarWidget->GetWidgetFromName(TEXT("ShieldCount")));
+}
+
+UTextBlock* AMyPlayerController::FindMaliceCountText() const
+{
+	if (!QuickSlotBarWidget)
+	{
+		return nullptr;
+	}
+
+	return Cast<UTextBlock>(QuickSlotBarWidget->GetWidgetFromName(TEXT("MaliceCount")));
+}
+
+UTextBlock* AMyPlayerController::FindItemTimerText() const
+{
+	if (!QuickSlotBarWidget)
+	{
+		return nullptr;
+	}
+
+	return Cast<UTextBlock>(QuickSlotBarWidget->GetWidgetFromName(TEXT("ItemTimer")));
+}
+
 bool AMyPlayerController::UpdateQuickSlotItemVisual(int32 SlotIndex, const FText& ItemName, UTexture2D* ItemIcon)
 {
 	bool bNameUpdated = false;
@@ -118,6 +148,56 @@ void AMyPlayerController::UpdateQuickSlotSelectionVisual(int32 SelectedSlotIndex
 	}
 }
 
+bool AMyPlayerController::UpdateShieldCountText(int32 ShieldCount)
+{
+	UTextBlock* ShieldCountText = FindShieldCountText();
+	if (!ShieldCountText)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PC] ShieldCount text widget not found. Expected name: ShieldCount"));
+		return false;
+	}
+
+	ShieldCountText->SetText(FText::FromString(FString::Printf(TEXT("Shield : %d"), FMath::Max(0, ShieldCount))));
+	ShieldCountText->SetVisibility(ESlateVisibility::Visible);
+	return true;
+}
+
+bool AMyPlayerController::UpdateMaliceCountText(int32 MaliceCount)
+{
+	UTextBlock* MaliceCountText = FindMaliceCountText();
+	if (!MaliceCountText)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PC] MaliceCount text widget not found. Expected name: MaliceCount"));
+		return false;
+	}
+
+	MaliceCountText->SetText(FText::FromString(FString::Printf(TEXT("Malice : %d"), FMath::Max(0, MaliceCount))));
+	MaliceCountText->SetVisibility(ESlateVisibility::Visible);
+	return true;
+}
+
+bool AMyPlayerController::UpdateItemTimerText(float RemainingSeconds)
+{
+	UTextBlock* ItemTimerText = FindItemTimerText();
+	if (!ItemTimerText)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PC] ItemTimer text widget not found. Expected name: ItemTimer"));
+		return false;
+	}
+
+	const int32 SafeSeconds = FMath::Max(0, FMath::CeilToInt(RemainingSeconds));
+	ItemTimerText->SetText(FText::FromString(FString::Printf(TEXT("%d"), SafeSeconds)));
+	return true;
+}
+
+void AMyPlayerController::SetItemTimerVisible(bool bVisible)
+{
+	if (UTextBlock* ItemTimerText = FindItemTimerText())
+	{
+		ItemTimerText->SetVisibility(bVisible ? ESlateVisibility::Visible : ESlateVisibility::Hidden);
+	}
+}
+
 AMyPlayerController::AMyPlayerController()
 {
 }
@@ -156,6 +236,10 @@ void AMyPlayerController::BeginPlay()
 		{
 			QuickSlotBarWidget->AddToViewport();
 			InitializeQuickSlotVisualState();
+			UpdateShieldCountText(0);
+			UpdateMaliceCountText(0);
+			UpdateItemTimerText(30.0f);
+			SetItemTimerVisible(false);
 		}
 	}
 	else
