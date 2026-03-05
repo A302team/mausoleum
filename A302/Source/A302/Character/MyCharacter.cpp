@@ -8,6 +8,8 @@
 #include "Character/Components/PrivateVoiceChatComponent.h"
 #include "EnhancedInputComponent.h"
 #include "GameFramework/Controller.h"
+#include "GameFramework/PlayerController.h"
+#include "InputCoreTypes.h"
 #include "InputAction.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogMyInput, Log, All);
@@ -15,7 +17,7 @@ DEFINE_LOG_CATEGORY_STATIC(LogMyInput, Log, All);
 AMyCharacter::AMyCharacter()
 {
 	PrimaryActorTick.bCanEverTick = false;
-
+	
 	InteractionComponent = CreateDefaultSubobject<UInteractComponent>(TEXT("InteractionComponent"));
 	QuickSlotComponent = CreateDefaultSubobject<UQuickSlotComponent>(TEXT("QuickSlotComponent"));
 	KnifeAutoTestComponent = CreateDefaultSubobject<UKnifeAutoTestComponent>(
@@ -49,7 +51,17 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(PlayerInputComponent);
 	UE_LOG(LogMyInput, Warning, TEXT("[Input] EnhancedInputComponent cast: %s"), EIC ? TEXT("OK") : TEXT("FAILED"));
 
-	UE_LOG(LogMyInput, Warning, TEXT("[Input] IA_Move=%s IA_Look=%s IA_Jump=%s"), *GetNameSafe(IA_Move), *GetNameSafe(IA_Look), *GetNameSafe(IA_Jump));
+	UE_LOG(
+		LogMyInput,
+		Warning,
+		TEXT("[Input] IA_Move=%s IA_Look=%s IA_Jump=%s IA_Interact=%s IA_ItemSelect=%s IA_Attack=%s"),
+		*GetNameSafe(IA_Move),
+		*GetNameSafe(IA_Look),
+		*GetNameSafe(IA_Jump),
+		*GetNameSafe(IA_Interact),
+		*GetNameSafe(IA_ItemSelect),
+		*GetNameSafe(IA_Attack)
+	);
 
 	if (!EIC)
 	{
@@ -74,20 +86,29 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	}
 
 	if (IA_Interact)
-	{
-		// 1. Triggered: 지정된 시간(Hold Time)을 끝까지 채웠을 때 1회 발생
-		EIC->BindAction(IA_Interact, ETriggerEvent::Triggered, this, &AMyCharacter::OnInteractComplete);
-       
-		// 2. Ongoing: 키를 누르고 있는 동안 매 프레임 발생 (UI 게이지 업데이트용)
-		EIC->BindAction(IA_Interact, ETriggerEvent::Ongoing, this, &AMyCharacter::OnInteractProgress);
-       
-		// 3. Canceled: 지정된 시간을 채우지 못하고 도중에 키를 뗐을 때 발생
-		EIC->BindAction(IA_Interact, ETriggerEvent::Canceled, this, &AMyCharacter::OnInteractCanceled);
+	{		
+		// Hold
+		EIC->BindAction(IA_Interact, ETriggerEvent::Triggered, this, &AMyCharacter::OnInteractHoldComplete);
+		EIC->BindAction(IA_Interact, ETriggerEvent::Ongoing, this, &AMyCharacter::OnInteractHoldProgress);
+		EIC->BindAction(IA_Interact, ETriggerEvent::Canceled, this, &AMyCharacter::OnInteractHoldCanceled);
+		
+		// QTE
+		EIC->BindAction(IA_Interact, ETriggerEvent::Started, this, &AMyCharacter::OnQTEInteractStarted);
 	}
+
+	if (IA_ItemSelect)
+	{
+		EIC->BindAction(IA_ItemSelect, ETriggerEvent::Started, this, &AMyCharacter::OnItemSelect);
+		EIC->BindAction(IA_ItemSelect, ETriggerEvent::Triggered, this, &AMyCharacter::OnItemSelect);
+	}
+
+	if (IA_Attack)
+	{
+		EIC->BindAction(IA_Attack, ETriggerEvent::Started, this, &AMyCharacter::OnAttack);
+	}
+
 	if(IA_VoiceChat){
 		EIC->BindAction(IA_VoiceChat, ETriggerEvent::Started, this, &AMyCharacter::OnToggleVoiceChat);
-	}else{
-		UE_LOG(LogMyInput, Warning, TEXT("[Input] IA_VoiceChat is not set! Voice chat toggle will not work."));
 	}
 }
 
@@ -121,40 +142,19 @@ void AMyCharacter::OnJumpReleased(const FInputActionValue& Value)
 	StopJumping();
 }
 
-// void AMyCharacter::OnInteract(const FInputActionValue& Value)
-// {
-// 	FVector Start = GetPawnViewLocation();
-// 	FVector ForwardVector = GetViewRotation().Vector();
-// 	FVector End = Start + (ForwardVector * InteractionDistance);
-// 	
-// 	FHitResult HitResult;
-// 	FCollisionQueryParams Params;
-// 	Params.AddIgnoredActor(this);
-// 	
-// 	if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, Params))
-// 	{
-// 		if (IInteractableInterface* Interactable = Cast<IInteractableInterface>(HitResult.GetActor()))
-// 		{
-// 			UE_LOG(LogTemp, Warning, TEXT("상호작용 키(F) 눌림! 대상: %s"), *HitResult.GetActor()->GetName());
-// 			
-// 			if (GEngine)
-// 			{
-// 				GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Green, TEXT("상호작용 로직 성공적으로 실행됨!"));
-// 			}
-// 		}
-// 	}
-// }
-
-void AMyCharacter::OnInteractComplete(const FInputActionValue& Value)
+void AMyCharacter::OnInteractHoldProgress(const FInputActionValue& Value)
 {
-	// Matches old MyCharacter::OnInteract flow:
-	// 1) run interact, 2) try quick-slot pickup, 3) destroy actor on pickup success.
-	if (!InteractionComponent)
+	if (InteractionComponent)
 	{
-		return;
+		InteractionComponent->HandleInteractHoldProgress(GetWorld()->GetDeltaSeconds());
 	}
+}
 
-	InteractionComponent->HandleInteractInput();
+void AMyCharacter::OnInteractHoldComplete(const FInputActionValue& Value)
+{
+	if (!InteractionComponent) return;
+
+	InteractionComponent->HandleInteractHoldComplete();
 
 	AActor* InteractedActor = InteractionComponent->GetLastInteractedActor();
 	if (QuickSlotComponent && InteractedActor)
@@ -166,17 +166,93 @@ void AMyCharacter::OnInteractComplete(const FInputActionValue& Value)
 	}
 }
 
-void AMyCharacter::OnInteractProgress(const FInputActionValue& Value)
+void AMyCharacter::OnItemSelect(const FInputActionValue& Value)
 {
-	// Hold 중 진행도 갱신 자리. MVP에서는 최소 처리만 수행.
-	InteractProgressRatio = 0.0f;
+	if (!QuickSlotComponent)
+	{
+		return;
+	}
+
+	int32 SlotNumberOneBased = INDEX_NONE;
+
+	// Fallback path: read actual key states so slot selection still works even when
+	// IA_ItemSelect value scaling in IMC is not configured as 1~5.
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		if (PC->IsInputKeyDown(EKeys::One) || PC->IsInputKeyDown(EKeys::NumPadOne))
+		{
+			SlotNumberOneBased = 1;
+		}
+		else if (PC->IsInputKeyDown(EKeys::Two) || PC->IsInputKeyDown(EKeys::NumPadTwo))
+		{
+			SlotNumberOneBased = 2;
+		}
+		else if (PC->IsInputKeyDown(EKeys::Three) || PC->IsInputKeyDown(EKeys::NumPadThree))
+		{
+			SlotNumberOneBased = 3;
+		}
+		else if (PC->IsInputKeyDown(EKeys::Four) || PC->IsInputKeyDown(EKeys::NumPadFour))
+		{
+			SlotNumberOneBased = 4;
+		}
+		else if (PC->IsInputKeyDown(EKeys::Five) || PC->IsInputKeyDown(EKeys::NumPadFive))
+		{
+			SlotNumberOneBased = 5;
+		}
+	}
+
+	if (SlotNumberOneBased == INDEX_NONE)
+	{
+		const float AxisValue = Value.Get<float>();
+		if (!FMath::IsNearlyZero(AxisValue))
+		{
+			SlotNumberOneBased = FMath::RoundToInt(AxisValue);
+		}
+	}
+
+	if (SlotNumberOneBased == INDEX_NONE)
+	{
+		return;
+	}
+
+	if (QuickSlotComponent->GetSelectedSlotIndex() == SlotNumberOneBased - 1)
+	{
+		return;
+	}
+
+	QuickSlotComponent->SelectQuickSlotByNumber(SlotNumberOneBased);
 }
 
-void AMyCharacter::OnInteractCanceled(const FInputActionValue& Value)
+void AMyCharacter::OnAttack(const FInputActionValue& Value)
 {
-	InteractProgressRatio = 0.0f;
+	if (!QuickSlotComponent)
+	{
+		return;
+	}
+
+	UItemDefinition* UsedItemDefinition = nullptr;
+	int32 UsedSlotIndex = INDEX_NONE;
+	if (QuickSlotComponent->TryUseSelectedItem(UsedItemDefinition, UsedSlotIndex))
+	{
+		BP_OnPrimaryItemUsed(UsedItemDefinition, UsedSlotIndex + 1);
+	}
 }
 
+void AMyCharacter::OnInteractHoldCanceled(const FInputActionValue& Value)
+{
+	if (InteractionComponent)
+	{
+		InteractionComponent->HandleInteractHoldCanceled();
+	}
+}
+
+void AMyCharacter::OnQTEInteractStarted(const FInputActionValue& Value)
+{
+	if (InteractionComponent)
+	{
+		InteractionComponent->HandleInteractQTEStarted();
+	}
+}
 /**
  * @brief V키를 입력 받아, 마이크 껐다 켰다하기
  * 
@@ -184,19 +260,9 @@ void AMyCharacter::OnInteractCanceled(const FInputActionValue& Value)
  */
 void AMyCharacter::OnToggleVoiceChat(const FInputActionValue& Value)
 {
-	if (!PrivateVoiceChatComponent)
+	PrivateVoiceChatComponent = FindComponentByClass<UPrivateVoiceChatComponent>();
+	if (PrivateVoiceChatComponent)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[Voice] No PrivateVoiceChatComponent found on character!"));
+		PrivateVoiceChatComponent->ToggleMicrophone();
 	}
-
-	if (!PrivateVoiceChatComponent)
-	{
-		PrivateVoiceChatComponent = FindComponentByClass<UPrivateVoiceChatComponent>();
-	}
-	if (!PrivateVoiceChatComponent)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[Voice] Still no PrivateVoiceChatComponent found after search! Voice chat toggle will not work."));
-		return;
-	}
-	PrivateVoiceChatComponent->ToggleMicrophone();
 }

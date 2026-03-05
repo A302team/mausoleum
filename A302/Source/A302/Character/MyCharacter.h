@@ -9,6 +9,7 @@
 #include "MyCharacter.generated.h"
 
 class UInputAction;
+class UItemDefinition;
 class UUserWidget;
 class UItemDefinition;
 class UItemActionFactory;
@@ -105,12 +106,25 @@ protected:
     void FindAndWarpNearDummy();
     void ExecuteAutoKnifeAttack();
 
+	// BP can bind animation/FX here after a successful item use.
+	UFUNCTION(BlueprintImplementableEvent, Category = "Item|Action")
+	void BP_OnPrimaryItemUsed(UItemDefinition* UsedItemDefinition, int32 UsedSlotNumberOneBased);
+
 private:
     void OnMove(const FInputActionValue& Value);
     void OnLook(const FInputActionValue& Value);
     void OnJump(const FInputActionValue& Value);
     void OnJumpReleased(const FInputActionValue& Value);
+
     void OnInteractComplete(const FInputActionValue& Value);
+	void OnItemSelect(const FInputActionValue& Value);
+	void OnAttack(const FInputActionValue& Value);
+	
+	void OnInteractHoldComplete(const FInputActionValue& Value);
+	void OnInteractHoldProgress(const FInputActionValue& Value);
+	void OnInteractHoldCanceled(const FInputActionValue& Value);
+	
+	void OnQTEInteractStarted(const FInputActionValue& Value);
     void OnInteractProgress(const FInputActionValue& Value);
     void OnInteractCanceled(const FInputActionValue& Value);
     void OnToggleVoiceChat(const FInputActionValue& Valu);
@@ -128,6 +142,12 @@ private:
 
     UPROPERTY()
     TObjectPtr<ADummyCharacter> CachedDummyCharacter;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TObjectPtr<UInputAction> IA_ItemSelect = nullptr;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TObjectPtr<UInputAction> IA_Attack = nullptr;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UInteractComponent> InteractionComponent = nullptr;

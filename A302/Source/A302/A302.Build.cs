@@ -20,6 +20,7 @@ public class A302 : ModuleRules
 			"WebSockets",
 			"Json",
 			"JsonUtilities",
+			"SlateCore",
 			"UMG",
 			"Voice"
 		});

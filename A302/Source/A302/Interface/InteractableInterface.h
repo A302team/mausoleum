@@ -8,8 +8,8 @@ UENUM(BlueprintType)
 enum class EInteractType : uint8
 {
 	Hold UMETA(DisplayName = "Hold (꾹 누르기)"),
+	QTE  UMETA(DisplayName = "QTE (무작위 키 입력)"),
 	MAX  UMETA(Hidden)
-	// QTE  UMETA(DisplayName = "QTE (무작위 키 입력)")
 };
 
 UINTERFACE(MinimalAPI)
