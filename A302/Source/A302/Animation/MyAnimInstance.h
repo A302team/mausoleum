@@ -26,6 +26,9 @@ public:
     UPROPERTY(BlueprintReadOnly, Category="Combat")
     bool bIsAttacking = false;
 
+    UPROPERTY(BlueprintReadOnly, Category="Movement")
+    float MoveDirection = 0.f;
+
 
 private:
 

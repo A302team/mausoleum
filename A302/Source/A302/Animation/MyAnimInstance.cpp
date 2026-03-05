@@ -21,9 +21,24 @@ void UMyAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 
     FVector Velocity = CachedCharacter->GetVelocity();
     Velocity.Z = 0.f;
+
     Speed = Velocity.Size();
 
     bIsInAir = CachedCharacter->GetCharacterMovement()->IsFalling();
+
+    FRotator BaseRotation = CachedCharacter->GetActorRotation();
+
+
+    FVector Forward = CachedCharacter->GetActorForwardVector();
+    FVector Right = CachedCharacter->GetActorRightVector();
+
+    FVector NormalizedVel = Velocity.GetSafeNormal();
+
+    float ForwardDot = FVector::DotProduct(Forward, NormalizedVel);
+    float RightDot = FVector::DotProduct(Right, NormalizedVel);
+
+    MoveDirection = FMath::RadiansToDegrees(FMath::Atan2(RightDot, ForwardDot));
+    MoveDirection = FMath::Clamp(MoveDirection, -45.f, 45.f);
 
     //bIsAttacking = CachedCharacter->bIsAttacking;
 }

@@ -1,5 +1,4 @@
 #include "Character/Components/InteractComponent.h"
-
 #include "Blueprint/UserWidget.h"
 #include "Character/MyCharacter.h"
 #include "Components/MeshComponent.h"
@@ -37,46 +36,10 @@ void UInteractComponent::BeginPlay()
 	}
 }
 
-void UInteractComponent::TickComponent(
-	float DeltaTime,
-	ELevelTick TickType,
-	FActorComponentTickFunction* ThisTickFunction
-)
+void UInteractComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-	// Moved from old MyCharacter::Tick -> CheckForInteractables call.
 	CheckForInteractables();
-}
-
-void UInteractComponent::HandleInteractInput()
-{
-	LastInteractedActor = nullptr;
-
-	AMyCharacter* OwnerCharacter = GetOwnerCharacter();
-	if (!OwnerCharacter)
-	{
-		return;
-	}
-
-	// Moved from old MyCharacter::OnInteract (line trace + Interactable->Interact).
-	const FVector Start = OwnerCharacter->GetPawnViewLocation();
-	const FVector ForwardVector = OwnerCharacter->GetViewRotation().Vector();
-	const FVector End = Start + (ForwardVector * InteractionDistance);
-
-	FHitResult HitResult;
-	FCollisionQueryParams Params;
-	Params.AddIgnoredActor(OwnerCharacter);
-
-	if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, Params))
-	{
-		if (IInteractableInterface* Interactable = Cast<IInteractableInterface>(HitResult.GetActor()))
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[Interaction] F pressed. Target: %s"), *HitResult.GetActor()->GetName());
-			Interactable->Interact(OwnerCharacter);
-			LastInteractedActor = HitResult.GetActor();
-		}
-	}
 }
 
 AMyCharacter* UInteractComponent::GetOwnerCharacter() const
@@ -91,8 +54,7 @@ void UInteractComponent::CheckForInteractables()
 	{
 		return;
 	}
-
-	// Moved from old MyCharacter::CheckForInteractables with the same control flow.
+	
 	const FVector Start = OwnerCharacter->GetPawnViewLocation();
 	const FVector ForwardVector = OwnerCharacter->GetViewRotation().Vector();
 	const FVector End = Start + (ForwardVector * InteractionDistance);
@@ -130,6 +92,8 @@ void UInteractComponent::CheckForInteractables()
 
 	if (CurrentHitActor != LastInteractableActor)
 	{
+		InteractionProgressRatio = 0.0f;
+		
 		if (LastInteractableActor)
 		{
 			ToggleHighlight(LastInteractableActor, false);
@@ -165,5 +129,59 @@ void UInteractComponent::ToggleHighlight(AActor* TargetActor, bool bIsOn) const
 	for (UMeshComponent* MeshComp : MeshComps)
 	{
 		MeshComp->SetRenderCustomDepth(bIsOn);
+	}
+}
+
+void UInteractComponent::HandleInteractHoldProgress(float DeltaTime)
+{
+	if (!LastInteractableActor) return;
+
+	if (IInteractableInterface* Interactable = Cast<IInteractableInterface>(LastInteractableActor))
+	{
+		if (Interactable->GetInteractType() == EInteractType::Hold)
+		{
+			InteractionProgressRatio += (DeltaTime / MaxHoldTime);
+			InteractionProgressRatio = FMath::Clamp(InteractionProgressRatio, 0.0f, 1.0f);
+		}
+	}
+}
+
+void UInteractComponent::HandleInteractHoldComplete()
+{
+	LastInteractedActor = nullptr;
+	AMyCharacter* OwnerCharacter = GetOwnerCharacter();
+	if (!OwnerCharacter || !LastInteractableActor) return;
+
+	if (IInteractableInterface* Interactable = Cast<IInteractableInterface>(LastInteractableActor))
+	{
+		if (Interactable->GetInteractType() == EInteractType::Hold)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[Interaction] Hold 상호작용 성공!"));
+			Interactable->Interact(OwnerCharacter);
+			LastInteractedActor = LastInteractableActor;
+			InteractionProgressRatio = 0.0f;
+		}
+	}
+}
+
+void UInteractComponent::HandleInteractHoldCanceled()
+{
+	InteractionProgressRatio = 0.0f;
+}
+
+void UInteractComponent::HandleInteractQTEStarted()
+{
+	if (!LastInteractableActor) return;
+
+	if (IInteractableInterface* Interactable = Cast<IInteractableInterface>(LastInteractableActor))
+	{
+		if (Interactable->GetInteractType() == EInteractType::QTE)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[Interaction] QTE 타입 감지"));
+          
+			// 기존 HandleInteractInput처럼 즉시 상호작용 실행(이후 QTE 기능으로 변경 예정)
+			Interactable->Interact(GetOwnerCharacter());
+			LastInteractedActor = LastInteractableActor;
+		}
 	}
 }
