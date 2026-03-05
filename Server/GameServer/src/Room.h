@@ -2,102 +2,71 @@
 #include "Player.h"
 #include <unordered_map>
 #include <string>
-#include <nlohmann/json.hpp>
+#include <iostream>
+#include <cstdlib>  // rand, srand 를 위해 추가
+#include <ctime>    // time 을 위해 추가
 
-using json = nlohmann::json;
+enum class GamePhase { Waiting, InGame, GameOver };
 
-enum class GamePhase
-{
-    Waiting,
-    InGame,
-    GameOver
-};
-
-class Room
-{
-public:
-    std::string roomId;
+class Room {
+private:
+    std::string roomCode;
     std::string hostId;
     GamePhase phase = GamePhase::Waiting;
     std::unordered_map<std::string, Player> players;
 
-    void addPlayer(Player player)
-    {
-        players[player.name] = player;
+public:
+    Room() = default;
+    Room(std::string code) : roomCode(std::move(code)) {}
+
+    const std::string& getRoomCode() const { return roomCode; }
+    
+    const std::string& getHostId() const { return hostId; }
+    void setHostId(const std::string& host) { hostId = host; }
+    
+    GamePhase getPhase() const { return phase; }
+    void setPhase(GamePhase newPhase) { phase = newPhase; }
+
+    void addPlayer(const Player& player) {
+        players[player.getName()] = player;
     }
 
-    void removePlayer(const std::string &name)
-    {
+    void removePlayer(const std::string& name) {
         players.erase(name);
     }
 
-    // 전체 브로드캐스트
-    void broadcast(const json &message)
-    {
-        std::string msg = message.dump();
-        for (auto &[name, player] : players)
-        {
-            if (player.ws)
-            {
-                player.ws->send(msg, uWS::OpCode::TEXT);
-            }
+    Player* getPlayer(const std::string& name) {
+        auto it = players.find(name);
+        return (it != players.end()) ? &(it->second) : nullptr;
+    }
+
+    bool isEmpty() const { return players.empty(); }
+    size_t getPlayerCount() const { return players.size(); }
+    bool isNameTaken(const std::string& name) const { return players.count(name) > 0; }
+
+    void broadcast(const json& message) const {
+        for (const auto& [name, player] : players) {
+            player.send(message);
         }
     }
 
-    // 특정 플레이어에게만
-    void sendTo(const std::string &name, const json &message)
-    {
-        if (players.count(name) && players[name].ws)
-        {
-            players[name].ws->send(message.dump(), uWS::OpCode::TEXT);
+    // 방장 제외 모두 레디 상태인지 확인
+    bool allReady() const {
+        if (players.empty()) return false;
+        for (const auto& [name, player] : players) {
+            if (name != hostId && !player.isReady()) return false;
         }
+        return true;
     }
 
-    bool isEmpty()
-    {
-        return players.empty();
-    }
-
-    // 모두 레디인지 (방장 제외)
-    bool allReady()
-    {
-        for (auto &[name, player] : players)
-        {
-            if (name == hostId)
-                continue;
-            if (!player.isReady)
-                return false;
-        }
-        return !players.empty();
-    }
-
-    // 생존자 수
-    int aliveCount()
-    {
-        int count = 0;
-        for (auto &[name, player] : players)
-        {
-            if (player.isAlive)
-                count++;
-        }
-        return count;
-    }
-
-    bool isNameTaken(const std::string &name)
-    {
-        return players.count(name) > 0;
-    }
-
-    static std::string GenerateRoomCode()
-    {
+    // 방 코드 생성 함수
+    static std::string GenerateRoomCode() {
         const std::string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         std::string code;
-        srand(time(nullptr));
-        for (int i = 0; i < 6; i++)
-        {
+        srand(static_cast<unsigned int>(time(nullptr))); // 경고 방지를 위해 캐스팅 추가
+        for (int i = 0; i < 6; i++) {
             code += chars[rand() % chars.size()];
         }
-
         return code;
     }
 };

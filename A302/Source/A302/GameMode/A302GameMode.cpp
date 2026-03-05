@@ -7,7 +7,7 @@
 #include "GameMode/A302GameInstance.h"
 #include "Character/MyCharacter.h"
 #include "Character/MyPlayerController.h"
-#include "Server/SpawnManager.h"
+#include "Manager/SpawnManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "Network/WebSocketManager.h"
 #include "UI/ChatWidget.h"
