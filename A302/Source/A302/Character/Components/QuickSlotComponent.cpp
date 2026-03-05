@@ -6,6 +6,8 @@
 #include "GameData/ItemInstance.h"
 #include "GameData/ItemTypes.h"
 #include "GamePlay/Items/BaseItem.h"
+#include "GamePlay/Items/ItemKnife.h"
+#include "GamePlay/Items/ItemShield.h"
 #include "Interface/UsableItem.h"
 #include "Manager/ItemActionFactory.h"
 
@@ -157,10 +159,14 @@ bool UQuickSlotComponent::TryUseSelectedItem(UItemDefinition*& OutUsedItemDefini
 		return false;
 	}
 
-	const bool bAutoUseOnly = ItemDefinition->AutoUse || (
-		ItemDefinition->UseMode == EItemUseMode::SelfCast &&
-		ItemDefinition->BlockCount > 0
-	);
+	const bool bIsShieldLogicClass =
+		ItemDefinition->ItemLogicClass &&
+		ItemDefinition->ItemLogicClass->IsChildOf(UItemShield::StaticClass());
+	const bool bIsKnifeLogicClass =
+		ItemDefinition->ItemLogicClass &&
+		ItemDefinition->ItemLogicClass->IsChildOf(UItemKnife::StaticClass());
+
+	const bool bAutoUseOnly = ItemDefinition->AutoUse || bIsShieldLogicClass;
 
 	if (bAutoUseOnly)
 	{
@@ -169,7 +175,8 @@ bool UQuickSlotComponent::TryUseSelectedItem(UItemDefinition*& OutUsedItemDefini
 	}
 
 	FItemTargetData TargetData;
-	if (ItemDefinition->UseMode == EItemUseMode::Targeted)
+	const bool bNeedsTarget = ItemDefinition->UseMode == EItemUseMode::Targeted || bIsKnifeLogicClass;
+	if (bNeedsTarget)
 	{
 		FVector TargetLocation = FVector::ZeroVector;
 		AActor* TargetActor = FindTargetActorForUse(TargetLocation);
@@ -185,7 +192,15 @@ bool UQuickSlotComponent::TryUseSelectedItem(UItemDefinition*& OutUsedItemDefini
 
 	if (!IUsableItem::Execute_CanUse(ItemLogic, OwnerCharacter, TargetData))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[QuickSlot] CanUse failed for slot %d."), SelectedSlotIndex + 1);
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("[QuickSlot] CanUse failed for slot %d. Item=%s UseMode=%d Logic=%s"),
+			SelectedSlotIndex + 1,
+			*GetNameSafe(ItemDefinition),
+			static_cast<int32>(ItemDefinition->UseMode),
+			*GetNameSafe(ItemDefinition->ItemLogicClass)
+		);
 		LogAndScreenQuickSlotMessage(TEXT("[QuickSlot] Target is not attackable now."), FColor::Orange, 1.0f);
 		return false;
 	}
@@ -234,10 +249,12 @@ bool UQuickSlotComponent::TryAutoUseItem()
 			continue;
 		}
 
-		const bool bCanAutoUse = ItemDefinition->AutoUse || (
-			ItemDefinition->UseMode == EItemUseMode::SelfCast &&
-			ItemDefinition->BlockCount > 0
-		);
+		const bool bCanAutoUse =
+			ItemDefinition->AutoUse ||
+			(
+				ItemDefinition->ItemLogicClass &&
+				ItemDefinition->ItemLogicClass->IsChildOf(UItemShield::StaticClass())
+			);
 
 		if (!bCanAutoUse)
 		{
@@ -290,35 +307,31 @@ bool UQuickSlotComponent::TryAutoUseItem()
 	return false;
 }
 
-int32 UQuickSlotComponent::GetShieldItemCount() const
+bool UQuickSlotComponent::RemoveFirstItemByItemId(const FName& ItemId)
 {
-	int32 TotalCount = 0;
+	if (ItemId.IsNone())
+	{
+		return false;
+	}
 
 	for (int32 SlotIndex = 0; SlotIndex < QuickSlotItems.Num(); ++SlotIndex)
 	{
 		const UItemDefinition* ItemDefinition = QuickSlotItems[SlotIndex];
-		const UItemInstance* ItemInstance = QuickSlotItemInstances.IsValidIndex(SlotIndex)
-			? QuickSlotItemInstances[SlotIndex]
-			: nullptr;
-
-		if (!ItemDefinition || !ItemInstance || ItemInstance->IsEmpty())
+		if (!ItemDefinition)
 		{
 			continue;
 		}
 
-		const bool bIsShieldItem =
-			ItemDefinition->UseMode == EItemUseMode::SelfCast &&
-			ItemDefinition->BlockCount > 0;
-
-		if (!bIsShieldItem)
+		if (ItemDefinition->ItemId != ItemId)
 		{
 			continue;
 		}
 
-		TotalCount += FMath::Max(0, ItemInstance->StackCount);
+		ClearQuickSlot(SlotIndex);
+		return true;
 	}
 
-	return TotalCount;
+	return false;
 }
 
 void UQuickSlotComponent::LogAndScreenQuickSlotMessage(

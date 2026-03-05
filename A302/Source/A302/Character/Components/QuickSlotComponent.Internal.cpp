@@ -104,7 +104,19 @@ AActor* UQuickSlotComponent::FindTargetActorForUse(FVector& OutTargetLocation) c
 	if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, Params))
 	{
 		OutTargetLocation = HitResult.ImpactPoint;
-		return HitResult.GetActor();
+
+		AActor* HitActor = HitResult.GetActor();
+		if (HitActor && HitActor != OwnerCharacter && HitActor->IsA<ACharacter>())
+		{
+			return HitActor;
+		}
+
+		UE_LOG(
+			LogTemp,
+			Verbose,
+			TEXT("[QuickSlot] Trace hit non-character actor: %s. Trying pawn overlap fallback."),
+			*GetNameSafe(HitActor)
+		);
 	}
 
 	// Fallback for cases where character mesh/capsule is not hit by visibility trace:

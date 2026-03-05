@@ -30,7 +30,7 @@ public:
 	bool SelectQuickSlotByNumber(int32 SlotNumberOneBased);
 	bool TryUseSelectedItem(UItemDefinition*& OutUsedItemDefinition, int32& OutUsedSlotIndex);
 	bool TryAutoUseItem();
-	int32 GetShieldItemCount() const;
+	bool RemoveFirstItemByItemId(const FName& ItemId);
 	int32 GetSelectedSlotIndex() const { return SelectedSlotIndex; }
 
 private:
