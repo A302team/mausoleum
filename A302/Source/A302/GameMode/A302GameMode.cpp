@@ -4,6 +4,7 @@
 #include "GameMode/A302GameMode.h"
 #include "GameMode/A302GameState.h"
 #include "GameMode/A302PlayerState.h"
+#include "GameMode/A302GameInstance.h"
 #include "Character/MyCharacter.h"
 #include "Character/MyPlayerController.h"
 #include "Server/SpawnManager.h"
@@ -25,10 +26,20 @@ void AA302GameMode::BeginPlay()
 {
     Super::BeginPlay();
 
+    UA302GameInstance *GI = Cast<UA302GameInstance>(GetGameInstance());
+    if (GI)
+    {
+        CurrentRoomCode = GI->CurrentRoomCode;
+        MyPlayerName = GI->MyPlayerName;
+        bIsHost = GI->bIsHost;
+        UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] RoomCode: %s, PlayerName: %s"),
+               *CurrentRoomCode, *MyPlayerName);
+    }
+
     TArray<AActor *> FoundActors;
     UGameplayStatics::GetAllActorsOfClass(GetWorld(), ASpawnManager::StaticClass(), FoundActors);
 
-    if(WebSocketManager)
+    if (WebSocketManager)
     {
         WebSocketManager->Connect(TEXT("ws://localhost:9001"));
         WebSocketManager->OnMessageReceived.AddDynamic(this, &AA302GameMode::OnMessageReceived);
@@ -48,10 +59,10 @@ void AA302GameMode::BeginPlay()
         UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] Can't find SpawnManager"));
     }
 
-    if(ChatWidgetClass)
+    if (ChatWidgetClass)
     {
         ChatWidget = CreateWidget<UChatWidget>(GetWorld(), TSubclassOf<UUserWidget>(ChatWidgetClass));
-        if(ChatWidget)
+        if (ChatWidget)
         {
             ChatWidget->AddToViewport();
             UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] ChatWidget 생성"));
@@ -100,24 +111,25 @@ void AA302GameMode::SpawnPlayer(APlayerController *PlayerController)
     }
 }
 
-void AA302GameMode::SendToServer(const FString& Message)
+void AA302GameMode::SendToServer(const FString &Message)
 {
-    if(WebSocketManager)
+    if (WebSocketManager)
     {
         WebSocketManager->SendMessage(Message);
     }
 }
 
-void AA302GameMode::OnMessageReceived(const FString& Message)
+void AA302GameMode::OnMessageReceived(const FString &Message)
 {
     TSharedPtr<FJsonObject> JsonObject;
     TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Message);
-    if(!FJsonSerializer::Deserialize(Reader, JsonObject)) return;
+    if (!FJsonSerializer::Deserialize(Reader, JsonObject))
+        return;
 
     FString Type = JsonObject->GetStringField(TEXT("type"));
     TSharedPtr<FJsonObject> Data = JsonObject->GetObjectField(TEXT("data"));
 
-    if(Type == TEXT("chat_message"))
+    if (Type == TEXT("chat_message"))
     {
         FString PlayerName = Data->GetStringField(TEXT("playerName"));
         FString ChatMessage = Data->GetStringField(TEXT("message"));
