@@ -30,6 +30,9 @@ public:
 	bool UpdateQuickSlotItemVisual(int32 SlotIndex, const FText& ItemName, UTexture2D* ItemIcon);
 	void UpdateQuickSlotSelectionVisual(int32 SelectedSlotIndex);
 	bool UpdateShieldCountText(int32 ShieldCount);
+	bool UpdateMaliceCountText(int32 MaliceCount);
+	bool UpdateItemTimerText(float RemainingSeconds);
+	void SetItemTimerVisible(bool bVisible);
 
 protected:
 	virtual void BeginPlay() override;
@@ -53,6 +56,8 @@ private:
 	class UImage* FindQuickSlotItemIconImage(int32 SlotIndex) const;
 	class UImage* FindQuickSlotItemSelectedImage(int32 SlotIndex) const;
 	class UTextBlock* FindShieldCountText() const;
+	class UTextBlock* FindMaliceCountText() const;
+	class UTextBlock* FindItemTimerText() const;
 	void InitializeQuickSlotVisualState();
 
 };
