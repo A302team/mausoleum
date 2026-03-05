@@ -17,6 +17,10 @@ class A302_API UWaitingRoomWidget : public UUserWidget
 public:
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
+	virtual FReply NativeOnKeyDown(const FGeometry &InGeometry, const FKeyEvent &InKeyEvent) override;
+
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<class UChatWidget> ChatWidget;
 
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<class UTextBlock> Text_RoomCode;

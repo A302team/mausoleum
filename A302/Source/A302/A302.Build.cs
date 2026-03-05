@@ -10,7 +10,8 @@ public class A302 : ModuleRules
 
 		PublicIncludePaths.AddRange(new string[] { "A302" });
 	
-		PublicDependencyModuleNames.AddRange(new string[] { "Core",
+		PublicDependencyModuleNames.AddRange(new string[] { 
+			"Core",
 			"CoreUObject",
 			"Engine",
 			"InputCore",
@@ -19,7 +20,9 @@ public class A302 : ModuleRules
 			"WebSockets",
 			"Json",
 			"JsonUtilities",
-			"UMG"
+			"SlateCore",
+			"UMG",
+			"Voice"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });

@@ -2,6 +2,7 @@
 
 #include "LobbyGameMode.h"
 #include "Dom/JsonObject.h"
+#include "GameMode/A302GameInstance.h"
 #include "Serialization/JsonSerializer.h"
 #include "UI/LobbyWidget.h"
 #include "UI/WaitingRoomWidget.h"
@@ -23,7 +24,7 @@ void ALobbyGameMode::BeginPlay()
         return;
     }
 
-    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+    APlayerController *PC = UGameplayStatics::GetPlayerController(this, 0);
     if (PC)
     {
         PC->bShowMouseCursor = true;
@@ -123,6 +124,15 @@ void ALobbyGameMode::OnMessageReceived(const FString &Message)
     }
     else if (Type == TEXT("game_started"))
     {
+        UA302GameInstance *GI = Cast<UA302GameInstance>(GetGameInstance());
+        if (GI)
+        {
+            GI->CurrentRoomCode = CurrentRoomCode;
+            GI->MyPlayerName = MyPlayerName;
+            GI->bIsHost = bIsHost;
+            UE_LOG(LogTemp, Log, TEXT("[GameMode/LobbyGameMode] GameInstance에 저장 - RoomCode: %s, PlayerName: %s"),
+                   *CurrentRoomCode, *MyPlayerName);
+        }
         UE_LOG(LogTemp, Log, TEXT("[GameMode/LobbyGameMode] Start the Game!"));
         OnGameStarted.Broadcast();
 
@@ -138,6 +148,13 @@ void ALobbyGameMode::OnMessageReceived(const FString &Message)
         FString LeftName = Data->GetStringField(TEXT("playerName"));
         UE_LOG(LogTemp, Log, TEXT("[LobbyGameMode] 플레이어 퇴장: %s"), *LeftName);
         OnPlayerLeft.Broadcast(LeftName);
+    }
+    else if (Type == TEXT("chat_message"))
+    {
+        FString PlayerName = Data->GetStringField(TEXT("playerName"));
+        FString ChatMessage = Data->GetStringField(TEXT("message"));
+        UE_LOG(LogTemp, Log, TEXT("[Chat] %s: %s"), *PlayerName, *ChatMessage);
+        OnChatMessageReceived.Broadcast(PlayerName, ChatMessage);
     }
     else if (Type == TEXT("error"))
     {
@@ -162,6 +179,12 @@ void ALobbyGameMode::ShowWaitingRoom(const FString &RoomCode)
 
             // 내 플레이어도 목록에 추가
             WaitingRoomWidget->OnPlayerEntered(MyPlayerName);
+
+            // 로비 위젯 입력 막기
+            if (LobbyWidget)
+            {
+                LobbyWidget->SetVisibility(ESlateVisibility::Collapsed);
+            }
         }
     }
 }

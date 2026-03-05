@@ -32,6 +32,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnNicknameAvailable);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlayerLeft, const FString &, PlayerName);
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnChatMessageReceived, const FString &, PlayerName, const FString &, Message);
+
 UCLASS()
 class A302_API ALobbyGameMode : public AGameModeBase
 {
@@ -54,7 +56,7 @@ public:
 	void OnMessageReceived(const FString &Message);
 
 	UFUNCTION()
-	void ShowWaitingRoom(const FString& RoomCode);
+	void ShowWaitingRoom(const FString &RoomCode);
 
 	// Widget Class
 	UPROPERTY(EditDefaultsOnly)
@@ -85,6 +87,9 @@ public:
 
 	UPROPERTY(BlueprintAssignable)
 	FOnPlayerLeft OnPlayerLeft;
+
+	UPROPERTY(BlueprintAssignable)
+	FOnChatMessageReceived OnChatMessageReceived;
 
 	UPROPERTY(BlueprintReadOnly)
 	FString CurrentRoomCode;
