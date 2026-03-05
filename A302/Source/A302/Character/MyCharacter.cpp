@@ -225,6 +225,8 @@ void AMyCharacter::HandleDead()
 	ClearTimedKnifeState(true);
 	bIsDead = true;
 	LogAndScreenCharacter(TEXT("[MyCharacter] Dead"), FColor::Red, 4.0f);
+}
+
 void AMyCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
@@ -316,8 +318,10 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 		{
 			MyPlayerController->SetItemTimerVisible(false);
 		}
+	}
 
-	if(IA_VoiceChat){
+	if (IA_VoiceChat)
+	{
 		EIC->BindAction(IA_VoiceChat, ETriggerEvent::Started, this, &AMyCharacter::OnToggleVoiceChat);
 	}
 }
