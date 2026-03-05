@@ -33,7 +33,6 @@ private:
 	
 	void InteractionCompleteResult();
 	
-	void OnInteractHoldComplete(const FInputActionValue& Value);
 	void OnInteractHoldProgress(const FInputActionValue& Value);
 	void OnInteractHoldCanceled(const FInputActionValue& Value);
 	
