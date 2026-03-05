@@ -6,6 +6,8 @@
 #include "GameFramework/GameMode.h"
 #include "A302GameMode.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInGameChatReceived, const FString &, PlayerName, const FString &, Message);
+
 UCLASS()
 class A302_API AA302GameMode : public AGameMode
 {
@@ -14,8 +16,23 @@ class A302_API AA302GameMode : public AGameMode
 public:
     AA302GameMode();
 
-    virtual void PostLogin(APlayerController* NewPlayer) override;
-    virtual void Logout(AController* Exiting) override;
+    UPROPERTY(BlueprintReadWrite)
+    FString MyPlayerName;
+
+    UPROPERTY(BlueprintReadWrite)
+    FString CurrentRoomCode;
+
+    UPROPERTY(BlueprintReadWrite)
+    bool bIsHost;
+
+    UPROPERTY(BlueprintAssignable)
+    FOnInGameChatReceived OnInGameChatReceived;
+
+    UFUNCTION()
+    void SendToServer(const FString &Message);
+
+    virtual void PostLogin(APlayerController *NewPlayer) override;
+    virtual void Logout(AController *Exiting) override;
 
 protected:
     virtual void BeginPlay() override;
@@ -24,7 +41,19 @@ private:
     UPROPERTY()
     TObjectPtr<class ASpawnManager> SpawnManager;
 
+    UPROPERTY()
+    TObjectPtr<class UWebSocketManager> WebSocketManager;
+
+    UPROPERTY(EditDefaultsOnly)
+    TSubclassOf<class UChatWidget> ChatWidgetClass;
+
+    UPROPERTY()
+    TObjectPtr<class UChatWidget> ChatWidget;
+
+    UFUNCTION()
+    void OnMessageReceived(const FString &Message);
+
     int CurrentStage = 1;
 
-    void SpawnPlayer(APlayerController* PlayerController);
+    void SpawnPlayer(APlayerController *PlayerController);
 };

@@ -9,6 +9,7 @@
 #include "Character/Components/QuickSlotComponent.h"
 #include "Character/MyPlayerController.h"
 #include "Engine/Engine.h"
+#include "Character/Components/PrivateVoiceChatComponent.h"
 #include "EnhancedInputComponent.h"
 #include "GameData/ItemDefinition.h"
 #include "GameFramework/Controller.h"
@@ -44,6 +45,9 @@ AMyCharacter::AMyCharacter()
 	MaliceComponent = CreateDefaultSubobject<UMaliceComponent>(TEXT("MaliceComponent"));
 	KnifeAutoTestComponent = CreateDefaultSubobject<UKnifeAutoTestComponent>(
 		TEXT("KnifeAutoTestComponent")
+	);
+	PrivateVoiceChatComponent = CreateDefaultSubobject<UPrivateVoiceChatComponent>(
+		TEXT("VoiceChatComponent")
 	);
 }
 
@@ -221,6 +225,9 @@ void AMyCharacter::HandleDead()
 	ClearTimedKnifeState(true);
 	bIsDead = true;
 	LogAndScreenCharacter(TEXT("[MyCharacter] Dead"), FColor::Red, 4.0f);
+void AMyCharacter::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
 }
 
 void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -309,6 +316,9 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 		{
 			MyPlayerController->SetItemTimerVisible(false);
 		}
+
+	if(IA_VoiceChat){
+		EIC->BindAction(IA_VoiceChat, ETriggerEvent::Started, this, &AMyCharacter::OnToggleVoiceChat);
 	}
 }
 
@@ -519,5 +529,18 @@ void AMyCharacter::OnQTEInteractStarted(const FInputActionValue& Value)
 	if (InteractionComponent)
 	{
 		InteractionComponent->HandleInteractQTEStarted();
+	}
+}
+/**
+ * @brief V키를 입력 받아, 마이크 껐다 켰다하기
+ * 
+ * @param Value 
+ */
+void AMyCharacter::OnToggleVoiceChat(const FInputActionValue& Value)
+{
+	PrivateVoiceChatComponent = FindComponentByClass<UPrivateVoiceChatComponent>();
+	if (PrivateVoiceChatComponent)
+	{
+		PrivateVoiceChatComponent->ToggleMicrophone();
 	}
 }

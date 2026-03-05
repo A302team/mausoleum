@@ -1,10 +1,15 @@
 # 만약 모든 워크스페이스 파일을 제외하고 싶다면
+# Local secrets
+.env
+.env.*
+!.env.example
+
 # Unreal Engine
 Binaries/
 Intermediate/
 DerivedDataCache/
 Saved/
-
+.env
 # VS Code & clangd
 .vscode/
 .clangd
