@@ -22,6 +22,9 @@ public:
     UPROPERTY(BlueprintReadWrite)
     FString CurrentRoomCode;
 
+    UPROPERTY(BlueprintReadWrite)
+    bool bIsHost;
+
     UPROPERTY(BlueprintAssignable)
     FOnInGameChatReceived OnInGameChatReceived;
 
