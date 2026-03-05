@@ -68,8 +68,8 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	if (IA_Interact)
 	{		
 		// Hold
-		EIC->BindAction(IA_Interact, ETriggerEvent::Triggered, this, &AMyCharacter::OnInteractHoldComplete);
-		EIC->BindAction(IA_Interact, ETriggerEvent::Ongoing, this, &AMyCharacter::OnInteractHoldProgress);
+		EIC->BindAction(IA_Interact, ETriggerEvent::Triggered, this, &AMyCharacter::OnInteractHoldProgress);
+		EIC->BindAction(IA_Interact, ETriggerEvent::Completed, this, &AMyCharacter::OnInteractHoldCanceled);
 		EIC->BindAction(IA_Interact, ETriggerEvent::Canceled, this, &AMyCharacter::OnInteractHoldCanceled);
 		
 		// QTE
@@ -123,16 +123,13 @@ void AMyCharacter::OnInteractHoldProgress(const FInputActionValue& Value)
 {
 	if (InteractionComponent)
 	{
-		InteractionComponent->HandleInteractHoldProgress(GetWorld()->GetDeltaSeconds());
-	}
-}
-
-void AMyCharacter::OnInteractHoldComplete(const FInputActionValue& Value)
-{
-	if (InteractionComponent)
-	{
-		InteractionComponent->HandleInteractHoldComplete();
-		InteractionCompleteResult();
+		// 매 프레임 게이지를 채우고, 100%가 되었는지 bool 값으로 돌려받습니다.
+		bool bIsComplete = InteractionComponent->HandleInteractHoldProgress(GetWorld()->GetDeltaSeconds());
+       
+		if (bIsComplete)
+		{
+			InteractionCompleteResult();
+		}
 	}
 }
 

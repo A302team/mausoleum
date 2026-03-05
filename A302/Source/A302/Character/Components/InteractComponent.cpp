@@ -82,7 +82,8 @@ void UInteractComponent::CheckForInteractables()
 		{
 			CurrentHitActor = HitResult.GetActor();
 
-			const FString DebugMsg = FString::Printf(TEXT("Interactable: %s"), *Interactable->GetInteractText());
+			FString TypeStr = (Interactable->GetInteractType() == EInteractType::Hold) ? TEXT("Hold") : TEXT("QTE");
+			const FString DebugMsg = FString::Printf(TEXT("[%s] Interactable: %s"), *TypeStr, *Interactable->GetInteractText());
 			if (GEngine)
 			{
 				GEngine->AddOnScreenDebugMessage(0, 0.1f, FColor::Cyan, DebugMsg);
@@ -132,18 +133,25 @@ void UInteractComponent::ToggleHighlight(AActor* TargetActor, bool bIsOn) const
 	}
 }
 
-void UInteractComponent::HandleInteractHoldProgress(float DeltaTime)
+bool UInteractComponent::HandleInteractHoldProgress(float DeltaTime)
 {
-	if (!LastInteractableActor) return;
+	if (!LastInteractableActor) return false;
 
 	if (IInteractableInterface* Interactable = Cast<IInteractableInterface>(LastInteractableActor))
 	{
 		if (Interactable->GetInteractType() == EInteractType::Hold)
 		{
 			InteractionProgressRatio += (DeltaTime / MaxHoldTime);
-			InteractionProgressRatio = FMath::Clamp(InteractionProgressRatio, 0.0f, 1.0f);
+			
+			if (InteractionProgressRatio >= 1.0f)
+			{
+				InteractionProgressRatio = 0.0f;
+				HandleInteractHoldComplete();
+				return true;
+			}
 		}
 	}
+	return false;
 }
 
 void UInteractComponent::HandleInteractHoldComplete()
@@ -159,7 +167,6 @@ void UInteractComponent::HandleInteractHoldComplete()
 			UE_LOG(LogTemp, Warning, TEXT("[Interaction] Hold 상호작용 성공!"));
 			Interactable->Interact(OwnerCharacter);
 			LastInteractedActor = LastInteractableActor;
-			InteractionProgressRatio = 0.0f;
 		}
 	}
 }
@@ -171,6 +178,7 @@ void UInteractComponent::HandleInteractHoldCanceled()
 
 void UInteractComponent::HandleInteractQTEStarted()
 {
+	LastInteractedActor = nullptr;
 	if (!LastInteractableActor) return;
 
 	if (IInteractableInterface* Interactable = Cast<IInteractableInterface>(LastInteractableActor))
@@ -182,6 +190,11 @@ void UInteractComponent::HandleInteractQTEStarted()
 			// 기존 HandleInteractInput처럼 즉시 상호작용 실행(이후 QTE 기능으로 변경 예정)
 			Interactable->Interact(GetOwnerCharacter());
 			LastInteractedActor = LastInteractableActor;
+		}
+		else
+		{
+			// QTE 타입이 아닐 경우 로그 출력 (디버깅용)
+			UE_LOG(LogTemp, Log, TEXT("[Interaction] 감지된 대상이 QTE 타입이 아닙니다."));
 		}
 	}
 }

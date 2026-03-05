@@ -21,7 +21,7 @@ public:
 	// Called from MyCharacter::OnInteract input binding.
 	
 	// 홀드 입력
-	void HandleInteractHoldProgress(float DeltaTime); // 누르는 중 (Hold 게이지용)
+	bool HandleInteractHoldProgress(float DeltaTime); // 누르는 중 (Hold 게이지용)
 	void HandleInteractHoldComplete();  // 완료 (결과 처리)
 	void HandleInteractHoldCanceled();  // 취소 (초기화)
 	
