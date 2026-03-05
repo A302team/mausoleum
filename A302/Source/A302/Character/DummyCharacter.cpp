@@ -7,6 +7,7 @@
 #include "GameData/ItemTypes.h"
 #include "GamePlay/Items/BaseItem.h"
 #include "Interface/UsableItem.h"
+#include "Kismet/GameplayStatics.h"
 #include "Manager/ItemActionFactory.h"
 
 namespace
@@ -31,6 +32,35 @@ void ADummyCharacter::BeginPlay()
 {
     Super::BeginPlay();
     SetupInitialShield();
+
+    UWorld* World = GetWorld();
+    if (!bEnableAutoAttack)
+    {
+        LogAndScreenDummy(TEXT("[DummyCharacter] Auto attack is disabled."), FColor::Orange, 3.0f);
+        return;
+    }
+
+    if (bEnableAutoAttack && World && AutoAttackInterval > 0.f)
+    {
+        World->GetTimerManager().SetTimer(
+            AutoAttackTimerHandle,
+            this,
+            &ADummyCharacter::TryAutoAttackPlayer,
+            AutoAttackInterval,
+            true,
+            AutoAttackInterval
+        );
+
+        LogAndScreenDummy(
+            FString::Printf(
+                TEXT("[DummyCharacter] Auto attack started. interval=%.1fs range=%.0f"),
+                AutoAttackInterval,
+                AutoAttackRange
+            ),
+            FColor::Cyan,
+            3.0f
+        );
+    }
 }
 
 float ADummyCharacter::TakeDamage(
@@ -58,6 +88,52 @@ float ADummyCharacter::TakeDamage(
     SetActorHiddenInGame(true);
 
     return Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+}
+
+void ADummyCharacter::TryAutoAttackPlayer()
+{
+    if (bIsDead)
+    {
+        return;
+    }
+
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(World, 0);
+    if (!PlayerCharacter)
+    {
+        LogAndScreenDummy(TEXT("[DummyCharacter] Auto attack skipped: PlayerCharacter not found."), FColor::Orange, 1.0f);
+        return;
+    }
+
+    const float Distance = FVector::Dist(PlayerCharacter->GetActorLocation(), GetActorLocation());
+    if (Distance > AutoAttackRange)
+    {
+        LogAndScreenDummy(
+            FString::Printf(TEXT("[DummyCharacter] Auto attack skipped: out of range (%.0f/%.0f)"), Distance, AutoAttackRange),
+            FColor::Silver,
+            0.8f
+        );
+        return;
+    }
+
+    UGameplayStatics::ApplyDamage(
+        PlayerCharacter,
+        AutoAttackDamage,
+        GetController(),
+        this,
+        nullptr
+    );
+
+    LogAndScreenDummy(
+        FString::Printf(TEXT("[DummyCharacter] Auto attack hit: %s"), *GetNameSafe(PlayerCharacter)),
+        FColor::Cyan,
+        1.0f
+    );
 }
 
 void ADummyCharacter::SetupInitialShield()

@@ -23,7 +23,7 @@ public:
 	void StartAutoKnifeTest();
 
 	UPROPERTY(EditAnywhere, Category = "Item|Test")
-	bool bEnableAutoKnifeTest = true;
+	bool bEnableAutoKnifeTest = false;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Item|Definition")
 	TObjectPtr<UItemDefinition> KnifeDef = nullptr;

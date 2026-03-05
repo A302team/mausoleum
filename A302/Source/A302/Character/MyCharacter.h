@@ -8,6 +8,7 @@
 #include "MyCharacter.generated.h"
 
 class UInputAction;
+class UCombatStatusComponent;
 class UItemDefinition;
 class UKnifeAutoTestComponent;
 class UInteractComponent;
@@ -20,6 +21,12 @@ class A302_API AMyCharacter : public ACharacter
 
 public:
 	AMyCharacter();
+	virtual float TakeDamage(
+		float DamageAmount,
+		struct FDamageEvent const& DamageEvent,
+		class AController* EventInstigator,
+		AActor* DamageCauser
+	) override;
 
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
@@ -31,6 +38,9 @@ protected:
 	void BP_OnPrimaryItemUsed(UItemDefinition* UsedItemDefinition, int32 UsedSlotNumberOneBased);
 
 private:
+	UFUNCTION()
+	void HandleShieldChanged(int32 NewCount);
+
 	void OnMove(const FInputActionValue& Value);
 	void OnLook(const FInputActionValue& Value);
 	void OnJump(const FInputActionValue& Value);
@@ -70,6 +80,11 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|QuickSlot", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UQuickSlotComponent> QuickSlotComponent = nullptr;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UCombatStatusComponent> CombatStatusComponent = nullptr;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|Test", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UKnifeAutoTestComponent> KnifeAutoTestComponent = nullptr;
+
+	bool bIsDead = false;
 };
