@@ -1,6 +1,6 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-
+#include "Blueprint/UserWidget.h"
 #include "GameMode/A302GameMode.h"
 #include "GameMode/A302GameState.h"
 #include "GameMode/A302PlayerState.h"
@@ -8,23 +8,37 @@
 #include "Character/MyPlayerController.h"
 #include "Server/SpawnManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "Network/WebSocketManager.h"
+#include "UI/ChatWidget.h"
 
 AA302GameMode::AA302GameMode()
 {
-    DefaultPawnClass        = nullptr;
-    PlayerControllerClass   = AMyPlayerController::StaticClass();
-    GameStateClass          = AA302GameState::StaticClass();
-    PlayerStateClass        = AA302PlayerState::StaticClass();
+    WebSocketManager = CreateDefaultSubobject<UWebSocketManager>(TEXT("WebSocketManager"));
+
+    DefaultPawnClass = nullptr;
+    PlayerControllerClass = AMyPlayerController::StaticClass();
+    GameStateClass = AA302GameState::StaticClass();
+    PlayerStateClass = AA302PlayerState::StaticClass();
 }
 
 void AA302GameMode::BeginPlay()
 {
     Super::BeginPlay();
 
-    TArray<AActor*> FoundActors;
+    TArray<AActor *> FoundActors;
     UGameplayStatics::GetAllActorsOfClass(GetWorld(), ASpawnManager::StaticClass(), FoundActors);
 
-    if(FoundActors.Num() > 0)
+    if(WebSocketManager)
+    {
+        WebSocketManager->Connect(TEXT("ws://localhost:9001"));
+        WebSocketManager->OnMessageReceived.AddDynamic(this, &AA302GameMode::OnMessageReceived);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[GameMode/A302GameMode] No WebSocketManager. You CAN'T use chat."));
+    }
+
+    if (FoundActors.Num() > 0)
     {
         SpawnManager = Cast<ASpawnManager>(FoundActors[0]);
         UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] Find SpawnManager."));
@@ -34,10 +48,19 @@ void AA302GameMode::BeginPlay()
         UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] Can't find SpawnManager"));
     }
 
+    if(ChatWidgetClass)
+    {
+        ChatWidget = CreateWidget<UChatWidget>(GetWorld(), TSubclassOf<UUserWidget>(ChatWidgetClass));
+        if(ChatWidget)
+        {
+            ChatWidget->AddToViewport();
+            UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] ChatWidget 생성"));
+        }
+    }
     UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] BeginPlay"));
 }
 
-void AA302GameMode::PostLogin(APlayerController* NewPlayer)
+void AA302GameMode::PostLogin(APlayerController *NewPlayer)
 {
     Super::PostLogin(NewPlayer);
 
@@ -50,15 +73,15 @@ void AA302GameMode::PostLogin(APlayerController* NewPlayer)
     SpawnPlayer(NewPlayer);
 }
 
-void AA302GameMode::Logout(AController* Exiting)
+void AA302GameMode::Logout(AController *Exiting)
 {
     Super::Logout(Exiting);
     UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] 플레이어 퇴장"));
 }
 
-void AA302GameMode::SpawnPlayer(APlayerController* PlayerController)
+void AA302GameMode::SpawnPlayer(APlayerController *PlayerController)
 {
-    if(!SpawnManager)
+    if (!SpawnManager)
     {
         UE_LOG(LogTemp, Warning, TEXT("[GameMode/A302GameMode] No SpawnManager."));
         return;
@@ -66,14 +89,39 @@ void AA302GameMode::SpawnPlayer(APlayerController* PlayerController)
 
     FTransform SpawnTransform = SpawnManager->GetRandomPlayerSpawnTransform(CurrentStage);
 
-    AMyCharacter* Character = GetWorld()->SpawnActor<AMyCharacter>(
+    AMyCharacter *Character = GetWorld()->SpawnActor<AMyCharacter>(
         AMyCharacter::StaticClass(),
-        SpawnTransform
-    );
+        SpawnTransform);
 
-    if(Character)
+    if (Character)
     {
         PlayerController->Possess(Character);
         UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] Success SpawnPlayer."));
+    }
+}
+
+void AA302GameMode::SendToServer(const FString& Message)
+{
+    if(WebSocketManager)
+    {
+        WebSocketManager->SendMessage(Message);
+    }
+}
+
+void AA302GameMode::OnMessageReceived(const FString& Message)
+{
+    TSharedPtr<FJsonObject> JsonObject;
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Message);
+    if(!FJsonSerializer::Deserialize(Reader, JsonObject)) return;
+
+    FString Type = JsonObject->GetStringField(TEXT("type"));
+    TSharedPtr<FJsonObject> Data = JsonObject->GetObjectField(TEXT("data"));
+
+    if(Type == TEXT("chat_message"))
+    {
+        FString PlayerName = Data->GetStringField(TEXT("playerName"));
+        FString ChatMessage = Data->GetStringField(TEXT("message"));
+        UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] Chatting Log >> %s: %s"), *PlayerName, *ChatMessage);
+        OnInGameChatReceived.Broadcast(PlayerName, ChatMessage);
     }
 }
