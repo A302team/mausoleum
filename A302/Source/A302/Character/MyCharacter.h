@@ -13,7 +13,6 @@ class UInputAction;
 class UCombatStatusComponent;
 class UItemDefinition;
 class UUserWidget;
-class UItemDefinition;
 class UItemActionFactory;
 class UItemInstance;
 class UBaseItem;
@@ -38,8 +37,6 @@ public:
 		AActor* DamageCauser
 	) override;
 	void NotifyKilledCharacter();
-    // Sets default values for this character's properties
-    AMyCharacter();
 
     // Called every frame
     virtual void Tick(float DeltaTime) override;
@@ -138,10 +135,6 @@ private:
 	void OnLook(const FInputActionValue& Value);
 	void OnJump(const FInputActionValue& Value);
 	void OnJumpReleased(const FInputActionValue& Value);
-    void OnMove(const FInputActionValue& Value);
-    void OnLook(const FInputActionValue& Value);
-    void OnJump(const FInputActionValue& Value);
-    void OnJumpReleased(const FInputActionValue& Value);
 
     // Interact
     void OnInteractComplete(const FInputActionValue& Value);
@@ -155,7 +148,7 @@ private:
 	void OnQTEInteractStarted(const FInputActionValue& Value);
     void OnInteractProgress(const FInputActionValue& Value);
     void OnInteractCanceled(const FInputActionValue& Value);
-    void OnToggleVoiceChat(const FInputActionValue& Valu);
+    void OnToggleVoiceChat(const FInputActionValue& Value);
 
     UPROPERTY()
     AActor* LastInteractableActor = nullptr;
@@ -205,9 +198,6 @@ private:
 	FTimerHandle TimedKnifeTimerHandle;
 
 	bool bIsDead = false;
-
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|Test", meta = (AllowPrivateAccess = "true"))
-    TObjectPtr<UKnifeAutoTestComponent> KnifeAutoTestComponent = nullptr;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Voice", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UPrivateVoiceChatComponent> PrivateVoiceChatComponent = nullptr;
