@@ -2,14 +2,30 @@
 
 #include "UI/WaitingRoomWidget.h"
 #include "UI/PlayerListItem.h"
+#include "UI/ChatWidget.h"
+#include "UI/LobbyWidget.h"
 #include "GameMode/LobbyGameMode.h"
 #include "Components/Button.h"
 #include "Components/TextBlock.h"
 #include "Components/ScrollBox.h"
+#include "Components/EditableTextBox.h"
 #include "Kismet/GameplayStatics.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
+
+FReply UWaitingRoomWidget::NativeOnKeyDown(const FGeometry &InGeometry, const FKeyEvent &InKeyEvent)
+{
+    if (InKeyEvent.GetKey() == EKeys::Enter)
+    {
+        if (ChatWidget)
+        {
+            ChatWidget->FocusChatInput();
+            return FReply::Handled();
+        }
+    }
+    return Super::NativeOnKeyDown(InGeometry, InKeyEvent);
+}
 
 void UWaitingRoomWidget::NativeConstruct()
 {
@@ -148,9 +164,9 @@ void UWaitingRoomWidget::OnLeaveClicked()
     if (!LobbyGameMode)
         return;
 
-    UE_LOG(LogTemp, Log, TEXT("[UI/WaitingRoom] RoomCode: %s, PlayerName: %s"), 
-        *LobbyGameMode->CurrentRoomCode, 
-        *LobbyGameMode->MyPlayerName);
+    UE_LOG(LogTemp, Log, TEXT("[UI/WaitingRoom] RoomCode: %s, PlayerName: %s"),
+           *LobbyGameMode->CurrentRoomCode,
+           *LobbyGameMode->MyPlayerName);
 
     TSharedPtr<FJsonObject> Data = MakeShareable(new FJsonObject);
     Data->SetStringField(TEXT("roomCode"), LobbyGameMode->CurrentRoomCode);
@@ -170,6 +186,11 @@ void UWaitingRoomWidget::OnLeaveClicked()
     LobbyGameMode->MyPlayerName = TEXT("");
     LobbyGameMode->CurrentRoomCode = TEXT("");
     LobbyGameMode->bIsHost = false;
+
+    if (LobbyGameMode && LobbyGameMode->LobbyWidget)
+    {
+        LobbyGameMode->LobbyWidget->SetVisibility(ESlateVisibility::Visible);
+    }
 
     RemoveFromParent();
     UE_LOG(LogTemp, Log, TEXT("[UI/WaitingRoom] 방 나가기"));

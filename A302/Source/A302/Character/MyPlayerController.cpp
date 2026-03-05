@@ -47,6 +47,16 @@ UImage* AMyPlayerController::FindQuickSlotItemIconImage(int32 SlotIndex) const
 	return nullptr;
 }
 
+UImage* AMyPlayerController::FindQuickSlotItemSelectedImage(int32 SlotIndex) const
+{
+	if (UUserWidget* QuickSlotWidget = FindQuickSlotWidget(SlotIndex))
+	{
+		return Cast<UImage>(QuickSlotWidget->GetWidgetFromName(TEXT("ItemSelected")));
+	}
+
+	return nullptr;
+}
+
 bool AMyPlayerController::UpdateQuickSlotItemVisual(int32 SlotIndex, const FText& ItemName, UTexture2D* ItemIcon)
 {
 	bool bNameUpdated = false;
@@ -93,6 +103,19 @@ bool AMyPlayerController::UpdateQuickSlotItemVisual(int32 SlotIndex, const FText
 bool AMyPlayerController::UpdateQuickSlotItemName(int32 SlotIndex, const FText& ItemName)
 {
 	return UpdateQuickSlotItemVisual(SlotIndex, ItemName, nullptr);
+}
+
+void AMyPlayerController::UpdateQuickSlotSelectionVisual(int32 SelectedSlotIndex)
+{
+	for (int32 SlotIndex = 0; SlotIndex < PlayerControllerQuickSlotCount; ++SlotIndex)
+	{
+		if (UImage* SelectedImage = FindQuickSlotItemSelectedImage(SlotIndex))
+		{
+			SelectedImage->SetVisibility(
+				SlotIndex == SelectedSlotIndex ? ESlateVisibility::Visible : ESlateVisibility::Hidden
+			);
+		}
+	}
 }
 
 AMyPlayerController::AMyPlayerController()
@@ -155,6 +178,11 @@ void AMyPlayerController::InitializeQuickSlotVisualState()
 		{
 			ItemIconImage->SetBrushFromTexture(nullptr, true);
 			ItemIconImage->SetVisibility(ESlateVisibility::Hidden);
+		}
+
+		if (UImage* SelectedImage = FindQuickSlotItemSelectedImage(SlotIndex))
+		{
+			SelectedImage->SetVisibility(ESlateVisibility::Hidden);
 		}
 	}
 }
