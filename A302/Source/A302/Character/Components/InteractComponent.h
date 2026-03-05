@@ -16,18 +16,27 @@ public:
 	UInteractComponent();
 
 	virtual void BeginPlay() override;
-	virtual void TickComponent(
-		float DeltaTime,
-		ELevelTick TickType,
-		FActorComponentTickFunction* ThisTickFunction
-	) override;
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 	// Called from MyCharacter::OnInteract input binding.
-	void HandleInteractInput();
+	
+	// 홀드 입력
+	void HandleInteractHoldProgress(float DeltaTime); // 누르는 중 (Hold 게이지용)
+	void HandleInteractHoldComplete();  // 완료 (결과 처리)
+	void HandleInteractHoldCanceled();  // 취소 (초기화)
+	
+	// QTE
+	void HandleInteractQTEStarted();
 
 	// Read by quick-slot flow right after HandleInteractInput.
 	AActor* GetLastInteractedActor() const { return LastInteractedActor; }
+	
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	float GetInteractionProgressRatio() const { return InteractionProgressRatio; }
 
+	UPROPERTY(EditAnywhere, Category = "Interaction")
+	float MaxHoldTime = 2.0f;
+	
 	UPROPERTY(EditAnywhere, Category = "Interaction")
 	float InteractionDistance = 300.f;
 
@@ -42,6 +51,8 @@ private:
 	void CheckForInteractables();
 	void ToggleHighlight(AActor* TargetActor, bool bIsOn) const;
 
+	float InteractionProgressRatio = 0.0f;
+	
 	UPROPERTY()
 	TObjectPtr<AActor> LastInteractableActor = nullptr;
 
