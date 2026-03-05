@@ -2,6 +2,7 @@
 
 #include "LobbyGameMode.h"
 #include "Dom/JsonObject.h"
+#include "GameMode/A302GameInstance.h"
 #include "Serialization/JsonSerializer.h"
 #include "UI/LobbyWidget.h"
 #include "UI/WaitingRoomWidget.h"
@@ -123,6 +124,15 @@ void ALobbyGameMode::OnMessageReceived(const FString &Message)
     }
     else if (Type == TEXT("game_started"))
     {
+        UA302GameInstance *GI = Cast<UA302GameInstance>(GetGameInstance());
+        if (GI)
+        {
+            GI->CurrentRoomCode = CurrentRoomCode;
+            GI->MyPlayerName = MyPlayerName;
+            GI->bIsHost = bIsHost;
+            UE_LOG(LogTemp, Log, TEXT("[GameMode/LobbyGameMode] GameInstance에 저장 - RoomCode: %s, PlayerName: %s"),
+                   *CurrentRoomCode, *MyPlayerName);
+        }
         UE_LOG(LogTemp, Log, TEXT("[GameMode/LobbyGameMode] Start the Game!"));
         OnGameStarted.Broadcast();
 
