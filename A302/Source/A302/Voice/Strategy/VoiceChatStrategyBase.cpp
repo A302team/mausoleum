@@ -9,5 +9,5 @@ FString UVoiceChatStrategyBase::GetServerChannelName(const UPrivateVoiceChatComp
         return TEXT("");
     }
 
-    return OwnerComp->GetRoomId();
+    return OwnerComp->GetRoomCode();
 }

@@ -6,7 +6,7 @@
 #include "GameMode/A302PlayerState.h"
 #include "Character/MyCharacter.h"
 #include "Character/MyPlayerController.h"
-#include "Server/SpawnManager.h"
+#include "Manager/SpawnManager.h"
 #include "Kismet/GameplayStatics.h"
 
 AA302GameMode::AA302GameMode()

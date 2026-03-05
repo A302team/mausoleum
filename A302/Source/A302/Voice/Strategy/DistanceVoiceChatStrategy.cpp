@@ -10,8 +10,8 @@ bool UDistanceVoiceChatStrategy::CanReceiveVoice(const UPrivateVoiceChatComponen
         return false;
     }
 
-    const FString& ListenerRoom = ListenerComp->GetRoomId();
-    const FString& SpeakerRoom = SpeakerComp->GetRoomId();
+    const FString& ListenerRoom = ListenerComp->GetRoomCode();
+    const FString& SpeakerRoom = SpeakerComp->GetRoomCode();
 
     if (ListenerRoom.IsEmpty() || SpeakerRoom.IsEmpty() || ListenerRoom != SpeakerRoom)
     {

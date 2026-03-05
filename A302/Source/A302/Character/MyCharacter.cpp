@@ -22,18 +22,22 @@ AMyCharacter::AMyCharacter()
 		TEXT("KnifeAutoTestComponent")
 	);
 	PrivateVoiceChatComponent = CreateDefaultSubobject<UPrivateVoiceChatComponent>(
-		TEXT("PrivateVoiceChatComponent")
+		TEXT("VoiceChatComponent")
 	);
 }
 
 void AMyCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-
 	if (KnifeAutoTestComponent)
 	{
 		KnifeAutoTestComponent->StartAutoKnifeTest();
 	}
+}
+
+void AMyCharacter::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
 }
 
 void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -79,6 +83,11 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
        
 		// 3. Canceled: 지정된 시간을 채우지 못하고 도중에 키를 뗐을 때 발생
 		EIC->BindAction(IA_Interact, ETriggerEvent::Canceled, this, &AMyCharacter::OnInteractCanceled);
+	}
+	if(IA_VoiceChat){
+		EIC->BindAction(IA_VoiceChat, ETriggerEvent::Started, this, &AMyCharacter::OnToggleVoiceChat);
+	}else{
+		UE_LOG(LogMyInput, Warning, TEXT("[Input] IA_VoiceChat is not set! Voice chat toggle will not work."));
 	}
 }
 
@@ -136,7 +145,7 @@ void AMyCharacter::OnJumpReleased(const FInputActionValue& Value)
 // 	}
 // }
 
-void AMyCharacter::OnInteractProgress(const FInputActionValue& Value)
+void AMyCharacter::OnInteractComplete(const FInputActionValue& Value)
 {
 	// Matches old MyCharacter::OnInteract flow:
 	// 1) run interact, 2) try quick-slot pickup, 3) destroy actor on pickup success.
@@ -155,4 +164,39 @@ void AMyCharacter::OnInteractProgress(const FInputActionValue& Value)
 			InteractedActor->Destroy();
 		}
 	}
+}
+
+void AMyCharacter::OnInteractProgress(const FInputActionValue& Value)
+{
+	// Hold 중 진행도 갱신 자리. MVP에서는 최소 처리만 수행.
+	InteractProgressRatio = 0.0f;
+}
+
+void AMyCharacter::OnInteractCanceled(const FInputActionValue& Value)
+{
+	InteractProgressRatio = 0.0f;
+}
+
+/**
+ * @brief V키를 입력 받아, 마이크 껐다 켰다하기
+ * 
+ * @param Value 
+ */
+void AMyCharacter::OnToggleVoiceChat(const FInputActionValue& Value)
+{
+	if (!PrivateVoiceChatComponent)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Voice] No PrivateVoiceChatComponent found on character!"));
+	}
+
+	if (!PrivateVoiceChatComponent)
+	{
+		PrivateVoiceChatComponent = FindComponentByClass<UPrivateVoiceChatComponent>();
+	}
+	if (!PrivateVoiceChatComponent)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Voice] Still no PrivateVoiceChatComponent found after search! Voice chat toggle will not work."));
+		return;
+	}
+	PrivateVoiceChatComponent->ToggleMicrophone();
 }
