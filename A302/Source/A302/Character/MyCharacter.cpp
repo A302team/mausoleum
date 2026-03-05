@@ -107,6 +107,18 @@ void AMyCharacter::OnJumpReleased(const FInputActionValue& Value)
 	StopJumping();
 }
 
+void AMyCharacter::InteractionCompleteResult()
+{
+	AActor* InteractedActor = InteractionComponent->GetLastInteractedActor();
+	if (QuickSlotComponent && InteractedActor)
+	{
+		if (QuickSlotComponent->TryPickupItemToQuickSlot(InteractedActor))
+		{
+			InteractedActor->Destroy();
+		}
+	}
+}
+
 void AMyCharacter::OnInteractHoldProgress(const FInputActionValue& Value)
 {
 	if (InteractionComponent)
@@ -117,17 +129,10 @@ void AMyCharacter::OnInteractHoldProgress(const FInputActionValue& Value)
 
 void AMyCharacter::OnInteractHoldComplete(const FInputActionValue& Value)
 {
-	if (!InteractionComponent) return;
-
-	InteractionComponent->HandleInteractHoldComplete();
-
-	AActor* InteractedActor = InteractionComponent->GetLastInteractedActor();
-	if (QuickSlotComponent && InteractedActor)
+	if (InteractionComponent)
 	{
-		if (QuickSlotComponent->TryPickupItemToQuickSlot(InteractedActor))
-		{
-			InteractedActor->Destroy();
-		}
+		InteractionComponent->HandleInteractHoldComplete();
+		InteractionCompleteResult();
 	}
 }
 
@@ -144,5 +149,6 @@ void AMyCharacter::OnQTEInteractStarted(const FInputActionValue& Value)
 	if (InteractionComponent)
 	{
 		InteractionComponent->HandleInteractQTEStarted();
+		InteractionCompleteResult();
 	}
 }
