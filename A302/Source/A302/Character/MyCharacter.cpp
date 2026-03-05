@@ -16,7 +16,7 @@ DEFINE_LOG_CATEGORY_STATIC(LogMyInput, Log, All);
 AMyCharacter::AMyCharacter()
 {
 	PrimaryActorTick.bCanEverTick = false;
-
+	
 	InteractionComponent = CreateDefaultSubobject<UInteractComponent>(TEXT("InteractionComponent"));
 	QuickSlotComponent = CreateDefaultSubobject<UQuickSlotComponent>(TEXT("QuickSlotComponent"));
 	KnifeAutoTestComponent = CreateDefaultSubobject<UKnifeAutoTestComponent>(
@@ -78,8 +78,14 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	}
 
 	if (IA_Interact)
-	{
-		EIC->BindAction(IA_Interact, ETriggerEvent::Started, this, &AMyCharacter::OnInteract);
+	{		
+		// Hold
+		EIC->BindAction(IA_Interact, ETriggerEvent::Triggered, this, &AMyCharacter::OnInteractHoldComplete);
+		EIC->BindAction(IA_Interact, ETriggerEvent::Ongoing, this, &AMyCharacter::OnInteractHoldProgress);
+		EIC->BindAction(IA_Interact, ETriggerEvent::Canceled, this, &AMyCharacter::OnInteractHoldCanceled);
+		
+		// QTE
+		EIC->BindAction(IA_Interact, ETriggerEvent::Started, this, &AMyCharacter::OnQTEInteractStarted);
 	}
 
 	if (IA_ItemSelect)
@@ -124,16 +130,19 @@ void AMyCharacter::OnJumpReleased(const FInputActionValue& Value)
 	StopJumping();
 }
 
-void AMyCharacter::OnInteract(const FInputActionValue& Value)
+void AMyCharacter::OnInteractHoldProgress(const FInputActionValue& Value)
 {
-	// Matches old MyCharacter::OnInteract flow:
-	// 1) run interact, 2) try quick-slot pickup, 3) destroy actor on pickup success.
-	if (!InteractionComponent)
+	if (InteractionComponent)
 	{
-		return;
+		InteractionComponent->HandleInteractHoldProgress(GetWorld()->GetDeltaSeconds());
 	}
+}
 
-	InteractionComponent->HandleInteractInput();
+void AMyCharacter::OnInteractHoldComplete(const FInputActionValue& Value)
+{
+	if (!InteractionComponent) return;
+
+	InteractionComponent->HandleInteractHoldComplete();
 
 	AActor* InteractedActor = InteractionComponent->GetLastInteractedActor();
 	if (QuickSlotComponent && InteractedActor)
@@ -214,5 +223,21 @@ void AMyCharacter::OnAttack(const FInputActionValue& Value)
 	if (QuickSlotComponent->TryUseSelectedItem(UsedItemDefinition, UsedSlotIndex))
 	{
 		BP_OnPrimaryItemUsed(UsedItemDefinition, UsedSlotIndex + 1);
+	}
+}
+
+void AMyCharacter::OnInteractHoldCanceled(const FInputActionValue& Value)
+{
+	if (InteractionComponent)
+	{
+		InteractionComponent->HandleInteractHoldCanceled();
+	}
+}
+
+void AMyCharacter::OnQTEInteractStarted(const FInputActionValue& Value)
+{
+	if (InteractionComponent)
+	{
+		InteractionComponent->HandleInteractQTEStarted();
 	}
 }
