@@ -5,7 +5,6 @@
 #include "UI/ChatWidget.h"
 #include "UI/LobbyWidget.h"
 #include "GameMode/A302GameInstance.h"
-#include "GameMode/LobbyGameMode.h"
 #include "Components/Button.h"
 #include "Components/TextBlock.h"
 #include "Components/ScrollBox.h"
@@ -33,7 +32,6 @@ void UWaitingRoomWidget::NativeConstruct()
     Super::NativeConstruct();
 
     GI = Cast<UA302GameInstance>(UGameplayStatics::GetGameInstance(this));
-    LobbyGameMode = Cast<ALobbyGameMode>(UGameplayStatics::GetGameMode(this));
 
     if (Btn_Ready)
     {
@@ -189,9 +187,9 @@ void UWaitingRoomWidget::OnLeaveClicked()
     GI->CurrentRoomCode = TEXT("");
     GI->bIsHost = false;
 
-    if (LobbyGameMode && LobbyGameMode->LobbyWidget)
+    if (GI && GI->LobbyWidget)
     {
-        LobbyGameMode->LobbyWidget->SetVisibility(ESlateVisibility::Visible);
+        GI->LobbyWidget->SetVisibility(ESlateVisibility::Visible);
     }
 
     RemoveFromParent();

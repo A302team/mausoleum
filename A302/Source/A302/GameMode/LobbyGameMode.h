@@ -16,20 +16,4 @@ public:
     ALobbyGameMode();
 
     virtual void BeginPlay() override;
-
-    // 위젯 클래스
-    UPROPERTY(EditDefaultsOnly)
-    TSubclassOf<class ULobbyWidget> LobbyWidgetClass;
-
-    UPROPERTY()
-    TObjectPtr<class ULobbyWidget> LobbyWidget;
-
-    UPROPERTY(EditDefaultsOnly)
-    TSubclassOf<class UWaitingRoomWidget> WaitingRoomWidgetClass;
-
-    UPROPERTY()
-    TObjectPtr<class UWaitingRoomWidget> WaitingRoomWidget;
-
-    // 위젯 표시
-    void ShowWaitingRoom(const FString& RoomCode);
 };

@@ -13,7 +13,6 @@
 #include "UI/ChatWidget.h"
 #include "Blueprint/UserWidget.h"
 
-
 AA302GameMode::AA302GameMode()
 {
     WebSocketManager = CreateDefaultSubobject<UWebSocketManager>(TEXT("WebSocketManager"));

@@ -52,6 +52,9 @@ class A302_API UA302GameInstance : public UGameInstance
 public:
 	virtual void Init() override;
 
+	UFUNCTION()
+	void OnMapLoaded(UWorld *LoadedWorld);
+
 	// WebSocket
 	UPROPERTY()
 	TObjectPtr<UWebSocketManager> WebSocketManager;
@@ -101,6 +104,22 @@ public:
 
 	UPROPERTY(BlueprintAssignable)
 	FOnItemReceived OnItemReceived;
+
+	// 위젯 클래스
+	UPROPERTY(EditDefaultsOnly)
+	TSubclassOf<class ULobbyWidget> LobbyWidgetClass;
+
+	UPROPERTY()
+	TObjectPtr<class ULobbyWidget> LobbyWidget;
+
+	UPROPERTY(EditDefaultsOnly)
+	TSubclassOf<class UWaitingRoomWidget> WaitingRoomWidgetClass;
+
+	UPROPERTY()
+	TObjectPtr<class UWaitingRoomWidget> WaitingRoomWidget;
+
+	// 위젯 표시
+	void ShowWaitingRoom(const FString &RoomCode);
 
 private:
 	UFUNCTION()
