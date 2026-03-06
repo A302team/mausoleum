@@ -68,5 +68,7 @@ public:
 private:
 	TObjectPtr<class ALobbyGameMode> LobbyGameMode;
 
+	TObjectPtr<class UA302GameInstance> GI;
+
 	TMap<FString, TObjectPtr<class UPlayerListItem>> PlayerItems;
 };

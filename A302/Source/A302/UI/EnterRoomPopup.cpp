@@ -2,7 +2,7 @@
 
 
 #include "UI/EnterRoomPopup.h"
-#include "GameMode/LobbyGameMode.h"
+#include "GameMode/A302GameInstance.h"
 #include "Components/Button.h"
 #include "Components/EditableTextBox.h"
 #include "Kismet/GameplayStatics.h"
@@ -14,7 +14,7 @@ void UEnterRoomPopup::NativeConstruct()
 {
     Super::NativeConstruct();
 
-    LobbyGameMode = Cast<ALobbyGameMode>(UGameplayStatics::GetGameMode(this));
+    GI = Cast<UA302GameInstance>(UGameplayStatics::GetGameInstance(this));
 
     if(Btn_Confirm)
     {
@@ -36,8 +36,8 @@ void UEnterRoomPopup::OnConfirmClicked()
         return;
     }
 
-    if(!LobbyGameMode) return;
-    FString PlayerName = LobbyGameMode->MyPlayerName;
+    if(!GI) return;
+    FString PlayerName = GI->MyPlayerName;
 
     if (PlayerName.IsEmpty())
     {
@@ -57,7 +57,7 @@ void UEnterRoomPopup::OnConfirmClicked()
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Output);
     FJsonSerializer::Serialize(Json.ToSharedRef(), Writer);
 
-    LobbyGameMode->SendToServer(Output);
+    GI->SendToServer(Output);
     UE_LOG(LogTemp, Log, TEXT("[UI/EnterRoomPopup] Try Enter The room - Code : %s | Nickname : %s"), *RoomCode, *PlayerName);
 
     RemoveFromParent();
