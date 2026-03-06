@@ -354,6 +354,11 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	{
 		EIC->BindAction(IA_VoiceChat, ETriggerEvent::Started, this, &AMyCharacter::OnToggleVoiceChat);
 	}
+
+	if (IA_ESC)
+	{
+		EIC->BindAction(IA_ESC, ETriggerEvent::Started, this, &AMyCharacter::OnEscPressed);
+	}
     
 	if (IA_QTE_Input)
 	{
@@ -584,6 +589,14 @@ void AMyCharacter::OnToggleVoiceChat(const FInputActionValue& Value)
 	if (PrivateVoiceChatComponent)
 	{
 		PrivateVoiceChatComponent->ToggleMicrophone();
+	}
+}
+
+void AMyCharacter::OnEscPressed(const FInputActionValue& Value)
+{
+	if (AMyPlayerController* MyPlayerController = Cast<AMyPlayerController>(GetController()))
+	{
+		MyPlayerController->ToggleInGameSettingMenu();
 	}
 }
 
