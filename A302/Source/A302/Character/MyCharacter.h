@@ -70,9 +70,6 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> IA_Interact = nullptr;
 
-    UPROPERTY(EditDefaultsOnly, Category = "Input")
-    UInputAction* IA_VoiceChat;
-
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> IA_ESC = nullptr;
 
@@ -152,8 +149,6 @@ private:
 	void OnToggleVoiceChat(const FInputActionValue& Value);
 	void OnEscPressed(const FInputActionValue& Value);
 	void OnQTEInput(const FInputActionValue& Value);
-	
-	void OnToggleVoiceChat(const FInputActionValue& Value);
 
 	UPROPERTY()
 	AActor* LastInteractableActor = nullptr;
