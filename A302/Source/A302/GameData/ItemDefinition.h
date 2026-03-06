@@ -29,6 +29,9 @@ public:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item|Use")
     EItemUseMode UseMode = EItemUseMode::SelfCast;
 
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item|Use")
+    bool AutoUse = false;
+
     // 핵심: 이 Definition이 어떤 “로직 클래스”로 Use를 수행하는가
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item|Logic")
     TSubclassOf<UBaseItem> ItemLogicClass;
@@ -43,5 +46,17 @@ public:
     // Shield용 파라미터
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item|Shield", meta=(EditCondition="UseMode==EItemUseMode::SelfCast"))
     int32 BlockCount = 1;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item|Malice")
+    bool bApplyMaliceOnPickup = false;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item|Malice", meta=(ClampMin="1", EditCondition="bApplyMaliceOnPickup"))
+    int32 MaliceAmount = 1;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item|TimedKnife")
+    bool bIsTimedKillKnife = false;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item|TimedKnife", meta=(ClampMin="1.0", EditCondition="bIsTimedKillKnife"))
+    float TimedKillDuration = 30.0f;
 
 };
