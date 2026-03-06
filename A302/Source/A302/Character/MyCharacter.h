@@ -64,6 +64,9 @@ protected:
     UPROPERTY(EditDefaultsOnly, Category = "Input")
     UInputAction* IA_VoiceChat;
 
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TObjectPtr<UInputAction> IA_ESC = nullptr;
+
     // 상호작용 가능 거리를 설정합니다.
     UPROPERTY(EditAnywhere, Category = "Interaction")
     float InteractionDistance = 300.f;
@@ -146,9 +149,10 @@ private:
 	void OnInteractHoldCanceled(const FInputActionValue& Value);
 	
 	void OnQTEInteractStarted(const FInputActionValue& Value);
-    void OnInteractProgress(const FInputActionValue& Value);
-    void OnInteractCanceled(const FInputActionValue& Value);
-    void OnToggleVoiceChat(const FInputActionValue& Value);
+	void OnInteractProgress(const FInputActionValue& Value);
+	void OnInteractCanceled(const FInputActionValue& Value);
+	void OnToggleVoiceChat(const FInputActionValue& Value);
+	void OnEscPressed(const FInputActionValue& Value);
 
     UPROPERTY()
     AActor* LastInteractableActor = nullptr;

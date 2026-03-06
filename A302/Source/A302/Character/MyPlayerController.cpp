@@ -1,10 +1,13 @@
 #include "Character/MyPlayerController.h"
 
 #include "Blueprint/UserWidget.h"
+#include "Components/Button.h"
+#include "Components/ComboBoxString.h"
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
+#include "Kismet/KismetSystemLibrary.h"
 
 namespace
 {
@@ -198,6 +201,124 @@ void AMyPlayerController::SetItemTimerVisible(bool bVisible)
 	}
 }
 
+bool AMyPlayerController::IsInGameSettingMenuOpen() const
+{
+	return InGameSettingWidget && InGameSettingWidget->GetVisibility() == ESlateVisibility::Visible;
+}
+
+void AMyPlayerController::ToggleInGameSettingMenu()
+{
+	if (IsInGameSettingMenuOpen())
+	{
+		CloseInGameSettingMenu();
+		return;
+	}
+
+	OpenInGameSettingMenu();
+}
+
+void AMyPlayerController::InitializeInGameSettingWidget()
+{
+	if (!InGameSettingClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PC] InGameSettingClass is NULL"));
+		return;
+	}
+
+	if (!InGameSettingWidget)
+	{
+		InGameSettingWidget = CreateWidget<UUserWidget>(this, InGameSettingClass);
+		if (!InGameSettingWidget)
+		{
+			UE_LOG(LogTemp, Error, TEXT("[PC] Failed to create InGameSettingWidget"));
+			return;
+		}
+
+		InGameSettingWidget->AddToViewport(100);
+		InGameSettingWidget->SetVisibility(ESlateVisibility::Hidden);
+	}
+
+	ResolutionComboBox = Cast<UComboBoxString>(InGameSettingWidget->GetWidgetFromName(TEXT("ResolutionComboBox")));
+	ResolutionApplyBtn = Cast<UButton>(InGameSettingWidget->GetWidgetFromName(TEXT("ResolutionApplyBtn")));
+	ExitBtn = Cast<UButton>(InGameSettingWidget->GetWidgetFromName(TEXT("ExitBtn")));
+
+	if (!ResolutionComboBox)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PC] ResolutionComboBox widget not found"));
+	}
+
+	if (ResolutionApplyBtn)
+	{
+		ResolutionApplyBtn->OnClicked.RemoveDynamic(this, &AMyPlayerController::OnResolutionApplyClicked);
+		ResolutionApplyBtn->OnClicked.AddDynamic(this, &AMyPlayerController::OnResolutionApplyClicked);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PC] ResolutionApplyBtn widget not found"));
+	}
+
+	if (ExitBtn)
+	{
+		ExitBtn->OnClicked.RemoveDynamic(this, &AMyPlayerController::OnExitClicked);
+		ExitBtn->OnClicked.AddDynamic(this, &AMyPlayerController::OnExitClicked);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PC] ExitBtn widget not found"));
+	}
+
+	SyncResolutionComboToCurrent();
+}
+
+void AMyPlayerController::OpenInGameSettingMenu()
+{
+	if (!InGameSettingWidget)
+	{
+		InitializeInGameSettingWidget();
+	}
+
+	if (!InGameSettingWidget)
+	{
+		return;
+	}
+
+	SyncResolutionComboToCurrent();
+	InGameSettingWidget->SetVisibility(ESlateVisibility::Visible);
+
+	FInputModeGameAndUI InputMode;
+	InputMode.SetWidgetToFocus(InGameSettingWidget->TakeWidget());
+	InputMode.SetHideCursorDuringCapture(false);
+	SetInputMode(InputMode);
+
+	bShowMouseCursor = true;
+	bEnableClickEvents = true;
+	bEnableMouseOverEvents = true;
+	SetIgnoreLookInput(true);
+	SetIgnoreMoveInput(true);
+}
+
+void AMyPlayerController::CloseInGameSettingMenu()
+{
+	if (InGameSettingWidget)
+	{
+		InGameSettingWidget->SetVisibility(ESlateVisibility::Hidden);
+	}
+
+	FInputModeGameOnly InputMode;
+	SetInputMode(InputMode);
+
+	bShowMouseCursor = false;
+	bEnableClickEvents = false;
+	bEnableMouseOverEvents = false;
+	SetIgnoreLookInput(false);
+	SetIgnoreMoveInput(false);
+}
+
+void AMyPlayerController::OnExitClicked()
+{
+	UKismetSystemLibrary::QuitGame(this, this, EQuitPreference::Quit, false);
+}
+
 AMyPlayerController::AMyPlayerController()
 {
 }
@@ -246,6 +367,8 @@ void AMyPlayerController::BeginPlay()
 	{
 		UE_LOG(LogTemp, Error, TEXT("[PC] QuickSlotBarClass is NULL"));
 	}
+
+	InitializeInGameSettingWidget();
 }
 
 void AMyPlayerController::InitializeQuickSlotVisualState()
