@@ -70,6 +70,18 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> IA_Interact = nullptr;
 
+    UPROPERTY(EditDefaultsOnly, Category = "Input")
+    UInputAction* IA_VoiceChat;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TObjectPtr<UInputAction> IA_ESC = nullptr;
+
+    // 상호작용 가능 거리를 설정합니다.
+    UPROPERTY(EditAnywhere, Category = "Interaction")
+    float InteractionDistance = 300.f;
+
+    // 매 프레임 상호작용 대상을 체크하는 함수
+    void CheckForInteractables();
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> IA_VoiceChat = nullptr;
     
@@ -135,7 +147,12 @@ private:
 	void OnInteractHoldCanceled(const FInputActionValue& Value);
     
 	void OnQTEInteractStarted(const FInputActionValue& Value);
+	void OnInteractProgress(const FInputActionValue& Value);
+	void OnInteractCanceled(const FInputActionValue& Value);
+	void OnToggleVoiceChat(const FInputActionValue& Value);
+	void OnEscPressed(const FInputActionValue& Value);
 	void OnQTEInput(const FInputActionValue& Value);
+	
 	void OnToggleVoiceChat(const FInputActionValue& Value);
 
 	UPROPERTY()
