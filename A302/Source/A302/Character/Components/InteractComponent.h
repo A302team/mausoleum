@@ -2,10 +2,25 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "Character/MyCharacter.h"
 #include "InteractComponent.generated.h"
+
+UENUM(BlueprintType)
+enum class EQTEDirection : uint8
+{
+	Up      UMETA(DisplayName = "Up"),
+	Down    UMETA(DisplayName = "Down"),
+	Left    UMETA(DisplayName = "Left"),
+	Right   UMETA(DisplayName = "Right"),
+	None    UMETA(DisplayName = "None")
+};
 
 class AMyCharacter;
 class UUserWidget;
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnQTEStarted, const TArray<EQTEDirection>&, TargetKeys);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnQTEProgressUpdated, int32, CurrentIndex);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnQTEEnded, bool, bWasSuccessful);
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class A302_API UInteractComponent : public UActorComponent
@@ -17,16 +32,17 @@ public:
 
 	virtual void BeginPlay() override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
-
+	
 	// Called from MyCharacter::OnInteract input binding.
 	
 	// 홀드 입력
-	void HandleInteractHoldProgress(float DeltaTime); // 누르는 중 (Hold 게이지용)
+	bool HandleInteractHoldProgress(float DeltaTime); // 누르는 중 (Hold 게이지용)
 	void HandleInteractHoldComplete();  // 완료 (결과 처리)
 	void HandleInteractHoldCanceled();  // 취소 (초기화)
 	
 	// QTE
 	void HandleInteractQTEStarted();
+	void ReceiveQTEInput(EQTEDirection InputDir);
 
 	// Read by quick-slot flow right after HandleInteractInput.
 	AActor* GetLastInteractedActor() const { return LastInteractedActor; }
@@ -45,6 +61,18 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
 	TSubclassOf<UUserWidget> CrosshairWidgetClass;
+    
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<UUserWidget> QTEWidgetClass;
+    
+	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")
+	FOnQTEStarted OnQTEStarted;
+
+	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")
+	FOnQTEProgressUpdated OnQTEProgressUpdated;
+
+	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")
+	FOnQTEEnded OnQTEEnded;
 
 private:
 	AMyCharacter* GetOwnerCharacter() const;
@@ -52,7 +80,7 @@ private:
 	void ToggleHighlight(AActor* TargetActor, bool bIsOn) const;
 
 	float InteractionProgressRatio = 0.0f;
-	
+    
 	UPROPERTY()
 	TObjectPtr<AActor> LastInteractableActor = nullptr;
 
@@ -64,4 +92,17 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UUserWidget> CrosshairWidgetInstance = nullptr;
+    
+	UPROPERTY()
+	TObjectPtr<UUserWidget> QTEWidgetInstance = nullptr;
+	
+	// -- QTE --
+	UPROPERTY(BlueprintReadOnly, Category = "Interaction|QTE", meta = (AllowPrivateAccess = "true"))
+	TArray<EQTEDirection> TargetQTEKeys;
+    
+	int32 CurrentQTEIndex = 0;
+	bool bIsQTEActive = false;
+    
+	void OnQTESuccess();
+	void OnQTEFailure();
 };

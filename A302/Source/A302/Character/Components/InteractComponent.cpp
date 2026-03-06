@@ -15,7 +15,6 @@ void UInteractComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Moved from old MyCharacter::BeginPlay (interaction widget create/show-hide section).
 	if (InteractionWidgetClass)
 	{
 		InteractionWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), InteractionWidgetClass);
@@ -32,6 +31,21 @@ void UInteractComponent::BeginPlay()
 		if (CrosshairWidgetInstance)
 		{
 			CrosshairWidgetInstance->AddToViewport(20);
+		}
+	}
+    
+	if (QTEWidgetClass)
+	{
+		QTEWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), QTEWidgetClass);
+		if (QTEWidgetInstance)
+		{
+			QTEWidgetInstance->AddToViewport(50);
+			QTEWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+			UE_LOG(LogTemp, Warning, TEXT("[C++] QTE 위젯 생성 및 뷰포트 추가 완료!"));
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("[C++] QTE 위젯 생성 실패!"));
 		}
 	}
 }
@@ -54,7 +68,7 @@ void UInteractComponent::CheckForInteractables()
 	{
 		return;
 	}
-	
+    
 	const FVector Start = OwnerCharacter->GetPawnViewLocation();
 	const FVector ForwardVector = OwnerCharacter->GetViewRotation().Vector();
 	const FVector End = Start + (ForwardVector * InteractionDistance);
@@ -82,7 +96,8 @@ void UInteractComponent::CheckForInteractables()
 		{
 			CurrentHitActor = HitResult.GetActor();
 
-			const FString DebugMsg = FString::Printf(TEXT("Interactable: %s"), *Interactable->GetInteractText());
+			FString TypeStr = (Interactable->GetInteractType() == EInteractType::Hold) ? TEXT("Hold") : TEXT("QTE");
+			const FString DebugMsg = FString::Printf(TEXT("[%s] Interactable: %s"), *TypeStr, *Interactable->GetInteractText());
 			if (GEngine)
 			{
 				GEngine->AddOnScreenDebugMessage(0, 0.1f, FColor::Cyan, DebugMsg);
@@ -93,7 +108,7 @@ void UInteractComponent::CheckForInteractables()
 	if (CurrentHitActor != LastInteractableActor)
 	{
 		InteractionProgressRatio = 0.0f;
-		
+       
 		if (LastInteractableActor)
 		{
 			ToggleHighlight(LastInteractableActor, false);
@@ -106,8 +121,7 @@ void UInteractComponent::CheckForInteractables()
 
 		if (InteractionWidgetInstance)
 		{
-			const ESlateVisibility NewVisibility =
-				CurrentHitActor ? ESlateVisibility::Visible : ESlateVisibility::Hidden;
+			const ESlateVisibility NewVisibility = CurrentHitActor ? ESlateVisibility::Visible : ESlateVisibility::Hidden;
 			InteractionWidgetInstance->SetVisibility(NewVisibility);
 		}
 
@@ -117,12 +131,8 @@ void UInteractComponent::CheckForInteractables()
 
 void UInteractComponent::ToggleHighlight(AActor* TargetActor, bool bIsOn) const
 {
-	if (!TargetActor)
-	{
-		return;
-	}
+	if (!TargetActor) return;
 
-	// Moved from old MyCharacter::ToggleHighlight.
 	TArray<UMeshComponent*> MeshComps;
 	TargetActor->GetComponents<UMeshComponent>(MeshComps);
 
@@ -132,18 +142,25 @@ void UInteractComponent::ToggleHighlight(AActor* TargetActor, bool bIsOn) const
 	}
 }
 
-void UInteractComponent::HandleInteractHoldProgress(float DeltaTime)
+bool UInteractComponent::HandleInteractHoldProgress(float DeltaTime)
 {
-	if (!LastInteractableActor) return;
+	if (!LastInteractableActor) return false;
 
 	if (IInteractableInterface* Interactable = Cast<IInteractableInterface>(LastInteractableActor))
 	{
 		if (Interactable->GetInteractType() == EInteractType::Hold)
 		{
 			InteractionProgressRatio += (DeltaTime / MaxHoldTime);
-			InteractionProgressRatio = FMath::Clamp(InteractionProgressRatio, 0.0f, 1.0f);
+          
+			if (InteractionProgressRatio >= 1.0f)
+			{
+				InteractionProgressRatio = 0.0f;
+				HandleInteractHoldComplete();
+				return true;
+			}
 		}
 	}
+	return false;
 }
 
 void UInteractComponent::HandleInteractHoldComplete()
@@ -159,7 +176,6 @@ void UInteractComponent::HandleInteractHoldComplete()
 			UE_LOG(LogTemp, Warning, TEXT("[Interaction] Hold 상호작용 성공!"));
 			Interactable->Interact(OwnerCharacter);
 			LastInteractedActor = LastInteractableActor;
-			InteractionProgressRatio = 0.0f;
 		}
 	}
 }
@@ -172,16 +188,90 @@ void UInteractComponent::HandleInteractHoldCanceled()
 void UInteractComponent::HandleInteractQTEStarted()
 {
 	if (!LastInteractableActor) return;
-
+	
 	if (IInteractableInterface* Interactable = Cast<IInteractableInterface>(LastInteractableActor))
 	{
 		if (Interactable->GetInteractType() == EInteractType::QTE)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[Interaction] QTE 타입 감지"));
-          
-			// 기존 HandleInteractInput처럼 즉시 상호작용 실행(이후 QTE 기능으로 변경 예정)
-			Interactable->Interact(GetOwnerCharacter());
-			LastInteractedActor = LastInteractableActor;
+			// 1. 초기화
+			TargetQTEKeys.Empty();
+			CurrentQTEIndex = 0;
+			bIsQTEActive = true;
+
+			// 2. 입력 요구 개수 랜덤으로 결정
+			int32 QTECount = FMath::RandRange(6, 10);
+
+			// 3. 랜덤 방향 채우기
+			for (int32 i = 0; i < QTECount; ++i)
+			{
+				// Up, Down, Left, Right 중 하나 랜덤 선택
+				EQTEDirection RandomDir = static_cast<EQTEDirection>(FMath::RandRange(0, 3));
+				TargetQTEKeys.Add(RandomDir);
+			}
+			OnQTEStarted.Broadcast(TargetQTEKeys);
+			
+			// 4. 로그 출력 (디버깅용)
+			UE_LOG(LogTemp, Warning, TEXT("[QTE] %d개의 화살표 생성됨!"), QTECount);
+            
+			// TODO: UI 위젯을 띄우고 생성된 TargetQTEKeys 전달하기
+			if (AMyCharacter* Owner = GetOwnerCharacter())
+			{
+				Owner->SetQTEInputMode(true); // IMC 교체 및 이동 제한 호출
+			}
 		}
+	}
+}
+
+void UInteractComponent::ReceiveQTEInput(EQTEDirection InputDir)
+{
+	if (!bIsQTEActive || TargetQTEKeys.Num() == 0) return;
+
+	// 현재 눌러야 할 정답 방향과 비교
+	if (TargetQTEKeys[CurrentQTEIndex] == InputDir)
+	{
+		CurrentQTEIndex++;
+       
+		// [Broadcast] 진행 상황 업데이트 (현재 인덱스 전달)
+		OnQTEProgressUpdated.Broadcast(CurrentQTEIndex);
+
+		if (CurrentQTEIndex >= TargetQTEKeys.Num())
+		{
+			OnQTESuccess();
+		}
+	}
+	else
+	{
+		OnQTEFailure();
+	}
+}
+
+void UInteractComponent::OnQTESuccess()
+{
+	UE_LOG(LogTemp, Warning, TEXT("[QTE] 모든 입력 성공!"));
+	bIsQTEActive = false;
+	OnQTEEnded.Broadcast(true);
+
+	// 실제 상호작용 실행 (아이템 획득 등)
+	if (IInteractableInterface* Interactable = Cast<IInteractableInterface>(LastInteractableActor))
+	{
+		Interactable->Interact(GetOwnerCharacter());
+		LastInteractedActor = LastInteractableActor;
+	}
+    
+	if (AMyCharacter* Owner = GetOwnerCharacter())
+	{
+		Owner->SetQTEInputMode(false); // 조작권 복구
+	}
+}
+
+void UInteractComponent::OnQTEFailure()
+{
+	CurrentQTEIndex = 0;
+	bIsQTEActive = false;
+	OnQTEEnded.Broadcast(false);
+    
+	if (AMyCharacter* Owner = GetOwnerCharacter())
+	{
+		Owner->SetQTEInputMode(false); // 조작권 복구
 	}
 }
