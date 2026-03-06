@@ -9,7 +9,7 @@
 #include "Character/Components/QuickSlotComponent.h"
 #include "Character/MyPlayerController.h"
 #include "Engine/Engine.h"
-#include "Character/Components/PrivateVoiceChatComponent.h"
+#include "Voice/PrivateVoiceChatComponent.h"
 #include "EnhancedInputComponent.h"
 #include "GameData/ItemDefinition.h"
 #include "GameFramework/Controller.h"

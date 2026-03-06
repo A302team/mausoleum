@@ -1,6 +1,6 @@
 #include "Voice/Strategy/VoiceChatStrategyBase.h"
 
-#include "Character/Components/PrivateVoiceChatComponent.h"
+#include "Voice/PrivateVoiceChatComponent.h"
 
 FString UVoiceChatStrategyBase::GetServerChannelName(const UPrivateVoiceChatComponent* OwnerComp) const
 {
