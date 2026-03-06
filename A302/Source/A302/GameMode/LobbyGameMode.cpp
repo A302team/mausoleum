@@ -8,21 +8,15 @@
 #include "UI/WaitingRoomWidget.h"
 #include "Blueprint/UserWidget.h"
 #include "Kismet/GameplayStatics.h"
+#include "Network/GameNetworkSubsystem.h"
 
 ALobbyGameMode::ALobbyGameMode()
 {
-    WebSocketManager = CreateDefaultSubobject<UWebSocketManager>(TEXT("WebSocketManager"));
 }
 
 void ALobbyGameMode::BeginPlay()
 {
     Super::BeginPlay();
-
-    if (!WebSocketManager)
-    {
-        UE_LOG(LogTemp, Error, TEXT("[GameMode/LobbyGameMode] WebSocketManager가 null입니다!"));
-        return;
-    }
 
     APlayerController *PC = UGameplayStatics::GetPlayerController(this, 0);
     if (PC)
@@ -32,9 +26,22 @@ void ALobbyGameMode::BeginPlay()
         PC->SetInputMode(FInputModeUIOnly());
     }
 
-    WebSocketManager->Connect(TEXT("ws://localhost:9001"));
+    UGameNetworkSubsystem* GameNetworkSubsystem = GetGameInstance()->GetSubsystem<UGameNetworkSubsystem>();
+    if (GameNetworkSubsystem)
+    {
+        // 텍스트, 시그널링 이벤트 용 WebSocket
+        GameNetworkSubsystem->Connect(EProtocolType::WebSocket, TEXT("ws://127.0.0.1:9001"));
+        
+        // 보이스/위치 등 실시간/바이너리 데이터용 UDP
+        // 보통 로비 시점에선 사용되지 않을 수도 있으나, 추후 인게임에서 재사용하거나 일관성을 위해 설정
+        GameNetworkSubsystem->Connect(EProtocolType::UDP, TEXT("127.0.0.1:9100"));
 
-    WebSocketManager->OnMessageReceived.AddDynamic(this, &ALobbyGameMode::OnMessageReceived);
+        GameNetworkSubsystem->OnPacketReceived.AddDynamic(this, &ALobbyGameMode::OnMessageReceived);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("[GameMode/LobbyGameMode] GameNetworkSubsystem이 유효하지 않습니다!"));
+    }
 
     if (LobbyWidgetClass)
     {
@@ -50,9 +57,10 @@ void ALobbyGameMode::BeginPlay()
 
 void ALobbyGameMode::SendToServer(const FString &Message)
 {
-    if (WebSocketManager)
+    UGameNetworkSubsystem* GameNetworkSubsystem = GetGameInstance()->GetSubsystem<UGameNetworkSubsystem>();
+    if (GameNetworkSubsystem)
     {
-        WebSocketManager->SendMessage(Message);
+        GameNetworkSubsystem->SendPacket(EProtocolType::WebSocket, Message);
     }
 }
 
