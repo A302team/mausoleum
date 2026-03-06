@@ -1,7 +1,7 @@
 #include "UI/LobbyWidget.h"
 #include "UI/EnterRoomPopup.h"
 #include "UI/RoomListPopup.h"
-#include "GameMode/LobbyGameMode.h"
+#include "GameMode/A302GameInstance.h"
 #include "Components/Button.h"
 #include "Components/EditableTextBox.h"
 #include "Components/TextBlock.h"
@@ -15,7 +15,7 @@ void ULobbyWidget::NativeConstruct()
 {
     Super::NativeConstruct();
 
-    LobbyGameMode = Cast<ALobbyGameMode>(UGameplayStatics::GetGameMode(this));
+    GI = Cast<UA302GameInstance>(UGameplayStatics::GetGameInstance(this));
 
     if (Btn_CreateRoom) {
         Btn_CreateRoom->OnClicked.AddDynamic(this, &ULobbyWidget::OnCreateRoomClicked);
@@ -30,9 +30,9 @@ void ULobbyWidget::NativeConstruct()
         Btn_Exit->OnClicked.AddDynamic(this, &ULobbyWidget::OnExitClicked);
     }
 
-    if (LobbyGameMode) {
-        LobbyGameMode->OnRoomCreated.AddDynamic(this, &ULobbyWidget::OnRoomCreated);
-        LobbyGameMode->OnNicknameAvailable.AddDynamic(this, &ULobbyWidget::OnNicknameAvailable);
+    if (GI) {
+        GI->OnRoomCreated.AddDynamic(this, &ULobbyWidget::OnRoomCreated);
+        GI->OnNicknameAvailable.AddDynamic(this, &ULobbyWidget::OnNicknameAvailable);
     }
 }
 
@@ -49,7 +49,7 @@ void ULobbyWidget::CheckNickname(const FString& PlayerName)
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Output);
     FJsonSerializer::Serialize(Json.ToSharedRef(), Writer);
 
-    LobbyGameMode->SendToServer(Output);
+    GI->SendToServer(Output);
 }
 
 void ULobbyWidget::OnNicknameAvailable()
@@ -57,7 +57,7 @@ void ULobbyWidget::OnNicknameAvailable()
     if (PendingAction == EPendingAction::CreateRoom)
     {
         TSharedPtr<FJsonObject> Data = MakeShareable(new FJsonObject);
-        Data->SetStringField(TEXT("playerName"), LobbyGameMode->MyPlayerName);
+        Data->SetStringField(TEXT("playerName"), GI->MyPlayerName);
 
         TSharedPtr<FJsonObject> Json = MakeShareable(new FJsonObject);
         Json->SetStringField(TEXT("type"), TEXT("create_room"));
@@ -67,7 +67,7 @@ void ULobbyWidget::OnNicknameAvailable()
         TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Output);
         FJsonSerializer::Serialize(Json.ToSharedRef(), Writer);
 
-        LobbyGameMode->SendToServer(Output);
+        GI->SendToServer(Output);
         UE_LOG(LogTemp, Log, TEXT("[UI/LobbyWidget] Create Room"));
     }
     else if (PendingAction == EPendingAction::EnterRoom)
@@ -76,7 +76,7 @@ void ULobbyWidget::OnNicknameAvailable()
 
         TSharedPtr<FJsonObject> Data = MakeShareable(new FJsonObject);
         Data->SetStringField(TEXT("roomCode"), RoomCode);
-        Data->SetStringField(TEXT("playerName"), LobbyGameMode->MyPlayerName);
+        Data->SetStringField(TEXT("playerName"), GI->MyPlayerName);
 
         TSharedPtr<FJsonObject> Json = MakeShareable(new FJsonObject);
         Json->SetStringField(TEXT("type"), TEXT("join_room"));
@@ -86,7 +86,7 @@ void ULobbyWidget::OnNicknameAvailable()
         TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Output);
         FJsonSerializer::Serialize(Json.ToSharedRef(), Writer);
 
-        LobbyGameMode->SendToServer(Output);
+        GI->SendToServer(Output);
         UE_LOG(LogTemp, Log, TEXT("[UI/LobbyWidget] Enter Room - Code: %s"), *RoomCode);
     }
     else if (PendingAction == EPendingAction::FindRoom)
@@ -113,7 +113,7 @@ void ULobbyWidget::OnCreateRoomClicked()
     }
 
     PendingAction = EPendingAction::CreateRoom;
-    LobbyGameMode->MyPlayerName = PlayerName;
+    GI->MyPlayerName = PlayerName;
     CheckNickname(PlayerName);
 }
 
@@ -132,7 +132,7 @@ void ULobbyWidget::OnEnterRoomClicked()
     }
 
     PendingAction = EPendingAction::EnterRoom;
-    LobbyGameMode->MyPlayerName = PlayerName;
+    GI->MyPlayerName = PlayerName;
     CheckNickname(PlayerName);
 }
 
@@ -146,7 +146,7 @@ void ULobbyWidget::OnFindRoomClicked()
     }
 
     PendingAction = EPendingAction::FindRoom;
-    LobbyGameMode->MyPlayerName = PlayerName;
+    GI->MyPlayerName = PlayerName;
     CheckNickname(PlayerName);
 }
 

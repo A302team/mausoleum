@@ -4,6 +4,7 @@
 #include "UI/PlayerListItem.h"
 #include "UI/ChatWidget.h"
 #include "UI/LobbyWidget.h"
+#include "GameMode/A302GameInstance.h"
 #include "GameMode/LobbyGameMode.h"
 #include "Components/Button.h"
 #include "Components/TextBlock.h"
@@ -31,13 +32,14 @@ void UWaitingRoomWidget::NativeConstruct()
 {
     Super::NativeConstruct();
 
+    GI = Cast<UA302GameInstance>(UGameplayStatics::GetGameInstance(this));
     LobbyGameMode = Cast<ALobbyGameMode>(UGameplayStatics::GetGameMode(this));
 
     if (Btn_Ready)
     {
         Btn_Ready->OnClicked.AddDynamic(this, &UWaitingRoomWidget::OnReadyClicked);
 
-        if (LobbyGameMode && LobbyGameMode->bIsHost)
+        if (GI && GI->bIsHost)
         {
             Btn_Ready->SetVisibility(ESlateVisibility::Hidden);
         }
@@ -46,7 +48,7 @@ void UWaitingRoomWidget::NativeConstruct()
     {
         Btn_StartGame->OnClicked.AddDynamic(this, &UWaitingRoomWidget::OnStartGameClicked);
         Btn_StartGame->SetVisibility(
-            LobbyGameMode && LobbyGameMode->bIsHost
+            GI && GI->bIsHost
                 ? ESlateVisibility::Visible
                 : ESlateVisibility::Hidden);
     }
@@ -55,11 +57,11 @@ void UWaitingRoomWidget::NativeConstruct()
         Btn_Leave->OnClicked.AddDynamic(this, &UWaitingRoomWidget::OnLeaveClicked);
     }
 
-    if (LobbyGameMode)
+    if (GI)
     {
-        LobbyGameMode->OnPlayerEntered.AddDynamic(this, &UWaitingRoomWidget::OnPlayerEntered);
-        LobbyGameMode->OnPlayerReady.AddDynamic(this, &UWaitingRoomWidget::OnPlayerReady);
-        LobbyGameMode->OnPlayerLeft.AddDynamic(this, &UWaitingRoomWidget::OnPlayerLeft);
+        GI->OnPlayerEntered.AddDynamic(this, &UWaitingRoomWidget::OnPlayerEntered);
+        GI->OnPlayerReady.AddDynamic(this, &UWaitingRoomWidget::OnPlayerReady);
+        GI->OnPlayerLeft.AddDynamic(this, &UWaitingRoomWidget::OnPlayerLeft);
     }
 }
 
@@ -67,11 +69,11 @@ void UWaitingRoomWidget::NativeDestruct()
 {
     Super::NativeDestruct();
 
-    if (LobbyGameMode)
+    if (GI)
     {
-        LobbyGameMode->OnPlayerEntered.RemoveDynamic(this, &UWaitingRoomWidget::OnPlayerEntered);
-        LobbyGameMode->OnPlayerReady.RemoveDynamic(this, &UWaitingRoomWidget::OnPlayerReady);
-        LobbyGameMode->OnPlayerLeft.RemoveDynamic(this, &UWaitingRoomWidget::OnPlayerLeft);
+        GI->OnPlayerEntered.RemoveDynamic(this, &UWaitingRoomWidget::OnPlayerEntered);
+        GI->OnPlayerReady.RemoveDynamic(this, &UWaitingRoomWidget::OnPlayerReady);
+        GI->OnPlayerLeft.RemoveDynamic(this, &UWaitingRoomWidget::OnPlayerLeft);
     }
 }
 
@@ -119,12 +121,12 @@ void UWaitingRoomWidget::OnPlayerLeft(const FString &PlayerName)
 
 void UWaitingRoomWidget::OnReadyClicked()
 {
-    if (!LobbyGameMode)
+    if (!GI)
         return;
 
     TSharedPtr<FJsonObject> Data = MakeShareable(new FJsonObject);
-    Data->SetStringField(TEXT("roomCode"), LobbyGameMode->CurrentRoomCode);
-    Data->SetStringField(TEXT("playerName"), LobbyGameMode->MyPlayerName);
+    Data->SetStringField(TEXT("roomCode"), GI->CurrentRoomCode);
+    Data->SetStringField(TEXT("playerName"), GI->MyPlayerName);
 
     TSharedPtr<FJsonObject> Json = MakeShareable(new FJsonObject);
     Json->SetStringField(TEXT("type"), TEXT("ready"));
@@ -134,18 +136,18 @@ void UWaitingRoomWidget::OnReadyClicked()
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Output);
     FJsonSerializer::Serialize(Json.ToSharedRef(), Writer);
 
-    LobbyGameMode->SendToServer(Output);
+    GI->SendToServer(Output);
     UE_LOG(LogTemp, Log, TEXT("[UI/WaitingRoom] 레디!"));
 }
 
 void UWaitingRoomWidget::OnStartGameClicked()
 {
-    if (!LobbyGameMode)
+    if (!GI)
         return;
 
     TSharedPtr<FJsonObject> Data = MakeShareable(new FJsonObject);
-    Data->SetStringField(TEXT("roomCode"), LobbyGameMode->CurrentRoomCode);
-    Data->SetStringField(TEXT("playerName"), LobbyGameMode->MyPlayerName);
+    Data->SetStringField(TEXT("roomCode"), GI->CurrentRoomCode);
+    Data->SetStringField(TEXT("playerName"), GI->MyPlayerName);
 
     TSharedPtr<FJsonObject> Json = MakeShareable(new FJsonObject);
     Json->SetStringField(TEXT("type"), TEXT("start_game"));
@@ -155,22 +157,22 @@ void UWaitingRoomWidget::OnStartGameClicked()
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Output);
     FJsonSerializer::Serialize(Json.ToSharedRef(), Writer);
 
-    LobbyGameMode->SendToServer(Output);
+    GI->SendToServer(Output);
     UE_LOG(LogTemp, Log, TEXT("[UI/WaitingRoom] 게임 시작 요청!"));
 }
 
 void UWaitingRoomWidget::OnLeaveClicked()
 {
-    if (!LobbyGameMode)
+    if (!GI)
         return;
 
     UE_LOG(LogTemp, Log, TEXT("[UI/WaitingRoom] RoomCode: %s, PlayerName: %s"),
-           *LobbyGameMode->CurrentRoomCode,
-           *LobbyGameMode->MyPlayerName);
+           *GI->CurrentRoomCode,
+           *GI->MyPlayerName);
 
     TSharedPtr<FJsonObject> Data = MakeShareable(new FJsonObject);
-    Data->SetStringField(TEXT("roomCode"), LobbyGameMode->CurrentRoomCode);
-    Data->SetStringField(TEXT("playerName"), LobbyGameMode->MyPlayerName);
+    Data->SetStringField(TEXT("roomCode"), GI->CurrentRoomCode);
+    Data->SetStringField(TEXT("playerName"), GI->MyPlayerName);
 
     TSharedPtr<FJsonObject> Json = MakeShareable(new FJsonObject);
     Json->SetStringField(TEXT("type"), TEXT("leave_room"));
@@ -180,12 +182,12 @@ void UWaitingRoomWidget::OnLeaveClicked()
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Output);
     FJsonSerializer::Serialize(Json.ToSharedRef(), Writer);
 
-    LobbyGameMode->SendToServer(Output);
+    GI->SendToServer(Output);
 
     // 닉네임 초기화
-    LobbyGameMode->MyPlayerName = TEXT("");
-    LobbyGameMode->CurrentRoomCode = TEXT("");
-    LobbyGameMode->bIsHost = false;
+    GI->MyPlayerName = TEXT("");
+    GI->CurrentRoomCode = TEXT("");
+    GI->bIsHost = false;
 
     if (LobbyGameMode && LobbyGameMode->LobbyWidget)
     {
