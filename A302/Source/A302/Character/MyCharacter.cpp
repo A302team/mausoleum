@@ -5,7 +5,7 @@
 #include "Character/Components/InteractComponent.h"
 #include "Character/Components/KnifeAutoTestComponent.h"
 #include "Character/Components/QuickSlotComponent.h"
-#include "Character/Components/PrivateVoiceChatComponent.h"
+#include "Voice/PrivateVoiceChatComponent.h"
 #include "EnhancedInputComponent.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/PlayerController.h"

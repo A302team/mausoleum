@@ -24,11 +24,11 @@
 			]
 		},
 		{
-			"Name": "EOSVoiceChat",
+			"Name": "OnlineSubsystemEOS",
 			"Enabled": true
 		},
 		{
-			"Name": "OnlineSubsystemEOS",
+			"Name": "AudioCapture",
 			"Enabled": true
 		}
 	]

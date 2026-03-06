@@ -27,21 +27,34 @@ void UWebSocketManager::Connect(const FString &URL)
 
     WebSocket = FWebSocketsModule::Get().CreateWebSocket(URL, TEXT("ws"));
 
-    WebSocket -> OnConnected().AddLambda([this]() {
-        UE_LOG(LogTemp, Log, TEXT("[Network/WebSocket] WebSocket connected."));
+    TWeakObjectPtr<UWebSocketManager> WeakThis(this);
+
+    WebSocket -> OnConnected().AddLambda([WeakThis, URL]() {
+        if (WeakThis.IsValid())
+        {
+            UE_LOG(LogTemp, Log, TEXT("[Network/WebSocket] WebSocket connected to: %s"), *URL);
+        }
     });
 
-    WebSocket -> OnMessage().AddLambda([this](const FString& Message) {
-        // UE_LOG(LogTemp, Log, TEXT("[Network/WebSocket] Received : %s"), *Message);
-        OnMessageReceived.Broadcast(Message);
+    WebSocket -> OnMessage().AddLambda([WeakThis](const FString& Message) {
+        if (WeakThis.IsValid())
+        {
+            WeakThis->OnMessageReceived.Broadcast(Message);
+        }
     });
 
-    WebSocket -> OnClosed().AddLambda([](int32 Code, const FString& Reason, bool bWasClean) {
-        UE_LOG(LogTemp, Log, TEXT("[Network/WebSocket] Disconnect"));
+    WebSocket -> OnClosed().AddLambda([WeakThis](int32 Code, const FString& Reason, bool bWasClean) {
+        if (WeakThis.IsValid())
+        {
+            UE_LOG(LogTemp, Log, TEXT("[Network/WebSocket] Disconnect"));
+        }
     });
 
-    WebSocket -> OnConnectionError().AddLambda([](const FString& Error) {
-        UE_LOG(LogTemp, Log, TEXT("[Network/WebSocket] Error Connection : %s"), *Error);
+    WebSocket -> OnConnectionError().AddLambda([WeakThis](const FString& Error) {
+        if (WeakThis.IsValid())
+        {
+            UE_LOG(LogTemp, Log, TEXT("[Network/WebSocket] Error Connection : %s"), *Error);
+        }
     });
 
     WebSocket -> Connect();
