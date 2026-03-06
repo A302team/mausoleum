@@ -1,11 +1,12 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Character/MyCharacter.h"
-
 #include "Character/Components/InteractComponent.h"
 #include "Character/Components/KnifeAutoTestComponent.h"
 #include "Character/Components/QuickSlotComponent.h"
 #include "EnhancedInputComponent.h"
+#include "EnhancedInputSubsystems.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Controller.h"
 #include "InputAction.h"
 
@@ -32,21 +33,49 @@ void AMyCharacter::BeginPlay()
 	}
 }
 
+void AMyCharacter::SetQTEInputMode(bool bIsQTE)
+{
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()))
+		{
+			if (bIsQTE)
+			{
+				// 1. 기본 조작 차단 및 QTE 조작 활성화
+				if (IMC_Default) Subsystem->RemoveMappingContext(IMC_Default);
+				if (IMC_QTE) Subsystem->AddMappingContext(IMC_QTE, 1);
+
+				// 2. 물리 관성 완벽 정지
+				if (GetCharacterMovement())
+				{
+					GetCharacterMovement()->StopMovementImmediately();
+					GetCharacterMovement()->SetMovementMode(MOVE_None);
+				}
+				UE_LOG(LogMyInput, Log, TEXT("[Input] QTE 전용 입력 모드로 전환 완료"));
+			}
+			else
+			{
+				// 1. QTE 조작 차단 및 기본 조작 복구
+				if (IMC_QTE) Subsystem->RemoveMappingContext(IMC_QTE);
+				if (IMC_Default) Subsystem->AddMappingContext(IMC_Default, 0);
+
+				// 2. 물리 이동 복구
+				if (GetCharacterMovement())
+				{
+					GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+				}
+				UE_LOG(LogMyInput, Log, TEXT("[Input] 기본 입력 모드로 복구 완료"));
+			}
+		}
+	}
+}
+
 void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
-	UE_LOG(LogMyInput, Warning, TEXT("[Input] SetupPlayerInputComponent called. PC=%s"), *GetNameSafe(PlayerInputComponent));
-
 	UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(PlayerInputComponent);
-	UE_LOG(LogMyInput, Warning, TEXT("[Input] EnhancedInputComponent cast: %s"), EIC ? TEXT("OK") : TEXT("FAILED"));
-
-	UE_LOG(LogMyInput, Warning, TEXT("[Input] IA_Move=%s IA_Look=%s IA_Jump=%s"), *GetNameSafe(IA_Move), *GetNameSafe(IA_Look), *GetNameSafe(IA_Jump));
-
-	if (!EIC)
-	{
-		return;
-	}
+	if (!EIC) return;
 
 	if (IA_Move)
 	{
@@ -66,14 +95,17 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	}
 
 	if (IA_Interact)
-	{		
-		// Hold
+	{     
 		EIC->BindAction(IA_Interact, ETriggerEvent::Triggered, this, &AMyCharacter::OnInteractHoldProgress);
 		EIC->BindAction(IA_Interact, ETriggerEvent::Completed, this, &AMyCharacter::OnInteractHoldCanceled);
 		EIC->BindAction(IA_Interact, ETriggerEvent::Canceled, this, &AMyCharacter::OnInteractHoldCanceled);
-		
-		// QTE
+       
 		EIC->BindAction(IA_Interact, ETriggerEvent::Started, this, &AMyCharacter::OnQTEInteractStarted);
+	}
+    
+	if (IA_QTE_Input)
+	{
+		EIC->BindAction(IA_QTE_Input, ETriggerEvent::Started, this, &AMyCharacter::OnQTEInput);
 	}
 }
 
@@ -146,6 +178,28 @@ void AMyCharacter::OnQTEInteractStarted(const FInputActionValue& Value)
 	if (InteractionComponent)
 	{
 		InteractionComponent->HandleInteractQTEStarted();
+	}
+}
+
+void AMyCharacter::OnQTEInput(const FInputActionValue& Value)
+{
+	if (!InteractionComponent) return;
+
+	FVector2D InputVector = Value.Get<FVector2D>();
+	EQTEDirection FinalDir = EQTEDirection::None;
+
+	if (FMath::Abs(InputVector.X) > FMath::Abs(InputVector.Y))
+	{
+		FinalDir = (InputVector.X > 0) ? EQTEDirection::Right : EQTEDirection::Left;
+	}
+	else
+	{
+		FinalDir = (InputVector.Y > 0) ? EQTEDirection::Up : EQTEDirection::Down;
+	}
+
+	if (FinalDir != EQTEDirection::None)
+	{
+		InteractionComponent->ReceiveQTEInput(FinalDir);
 		InteractionCompleteResult();
 	}
 }
