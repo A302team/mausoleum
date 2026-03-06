@@ -2,13 +2,11 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "TimerManager.h"
 #include "DummyCharacter.generated.h"
 
 class UCombatStatusComponent;
 class UItemDefinition;
-class UItemActionFactory;
-class UItemInstance;
-class UBaseItem;
 
 UCLASS()
 class A302_API ADummyCharacter : public ACharacter
@@ -40,17 +38,22 @@ protected:
     UPROPERTY(EditAnywhere, Category="Item|Test", meta=(ClampMin="0"))
     int32 InitialShieldStack = 1;
 
+    UPROPERTY(EditAnywhere, Category="Combat|Test")
+    bool bEnableAutoAttack = true;
+
+    UPROPERTY(EditAnywhere, Category="Combat|Test", meta=(ClampMin="0.1"))
+    float AutoAttackInterval = 3.0f;
+
+    UPROPERTY(EditAnywhere, Category="Combat|Test", meta=(ClampMin="0.0"))
+    float AutoAttackRange = 300.0f;
+
+    UPROPERTY(EditAnywhere, Category="Combat|Test", meta=(ClampMin="0.0"))
+    float AutoAttackDamage = 9999.0f;
+
 private:
     void SetupInitialShield();
-
-    UPROPERTY()
-    TObjectPtr<UItemActionFactory> ItemActionFactory;
-
-    UPROPERTY()
-    TObjectPtr<UItemInstance> ShieldInstance;
-
-    UPROPERTY()
-    TObjectPtr<UBaseItem> ShieldLogic;
+    void TryAutoAttackPlayer();
 
     bool bIsDead = false;
+    FTimerHandle AutoAttackTimerHandle;
 };
