@@ -8,6 +8,7 @@
 #include "MyCharacter.generated.h"
 
 class UInputAction;
+class UInputMappingContext;
 class UKnifeAutoTestComponent;
 class UInteractComponent;
 class UQuickSlotComponent;
@@ -15,47 +16,59 @@ class UQuickSlotComponent;
 UCLASS()
 class A302_API AMyCharacter : public ACharacter
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
 public:
-	AMyCharacter();
+    AMyCharacter();
 
-	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+    virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+    
+    void SetQTEInputMode(bool bIsQTE);
 
 protected:
-	virtual void BeginPlay() override;
+    virtual void BeginPlay() override;
 
 private:
-	void OnMove(const FInputActionValue& Value);
-	void OnLook(const FInputActionValue& Value);
-	void OnJump(const FInputActionValue& Value);
-	void OnJumpReleased(const FInputActionValue& Value);
-	
-	void InteractionCompleteResult();
-	
-	void OnInteractHoldProgress(const FInputActionValue& Value);
-	void OnInteractHoldCanceled(const FInputActionValue& Value);
-	
-	void OnQTEInteractStarted(const FInputActionValue& Value);
+    void OnMove(const FInputActionValue& Value);
+    void OnLook(const FInputActionValue& Value);
+    void OnJump(const FInputActionValue& Value);
+    void OnJumpReleased(const FInputActionValue& Value);
+    
+    void InteractionCompleteResult();
+    
+    void OnInteractHoldProgress(const FInputActionValue& Value);
+    void OnInteractHoldCanceled(const FInputActionValue& Value);
+    
+    void OnQTEInteractStarted(const FInputActionValue& Value);
+    void OnQTEInput(const FInputActionValue& Value);
 
-	UPROPERTY(EditDefaultsOnly, Category = "Input")
-	TObjectPtr<UInputAction> IA_Move = nullptr;
+    UPROPERTY(EditDefaultsOnly, Category = "Input")
+    TObjectPtr<UInputMappingContext> IMC_Default = nullptr;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Input")
-	TObjectPtr<UInputAction> IA_Look = nullptr;
+    UPROPERTY(EditDefaultsOnly, Category = "Input")
+    TObjectPtr<UInputMappingContext> IMC_QTE = nullptr;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Input")
-	TObjectPtr<UInputAction> IA_Jump = nullptr;
+    UPROPERTY(EditDefaultsOnly, Category = "Input")
+    TObjectPtr<UInputAction> IA_Move = nullptr;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Input")
-	TObjectPtr<UInputAction> IA_Interact = nullptr;
+    UPROPERTY(EditDefaultsOnly, Category = "Input")
+    TObjectPtr<UInputAction> IA_Look = nullptr;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UInteractComponent> InteractionComponent = nullptr;
+    UPROPERTY(EditDefaultsOnly, Category = "Input")
+    TObjectPtr<UInputAction> IA_Jump = nullptr;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|QuickSlot", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UQuickSlotComponent> QuickSlotComponent = nullptr;
+    UPROPERTY(EditDefaultsOnly, Category = "Input")
+    TObjectPtr<UInputAction> IA_Interact = nullptr;
+    
+    UPROPERTY(EditDefaultsOnly, Category = "Input")
+    TObjectPtr<UInputAction> IA_QTE_Input = nullptr;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|Test", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UKnifeAutoTestComponent> KnifeAutoTestComponent = nullptr;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true"))
+    TObjectPtr<UInteractComponent> InteractionComponent = nullptr;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|QuickSlot", meta = (AllowPrivateAccess = "true"))
+    TObjectPtr<UQuickSlotComponent> QuickSlotComponent = nullptr;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|Test", meta = (AllowPrivateAccess = "true"))
+    TObjectPtr<UKnifeAutoTestComponent> KnifeAutoTestComponent = nullptr;
 };
