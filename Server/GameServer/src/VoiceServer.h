@@ -1,97 +1,251 @@
 #pragma once
-#include <uwebsockets/App.h>
-#include <nlohmann/json.hpp>
-#include <unordered_map>
-#include <unordered_set>
 #include <iostream>
+#include <string>
+#include <unordered_map>
+#include <vector>
+#include <chrono>
 
-using json = nlohmann::json;
-using WebSocketType = uWS::WebSocket<false, true, int>;
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <mswsock.h>
+
+// #include "VoicePacket.pb.h" // Removed Protobuf dependency
+
+#pragma comment(lib, "ws2_32.lib")
+
+// 고정 크기 헤더 (Zero-copy UDP 전송용)
+#pragma pack(push, 1)
+struct VoicePacketHeader {
+    uint8_t packetType;       // 0: Join, 1: Voice Data, 2: Leave
+    char roomCode[16];        // 룸 코드 (가변 가능하지만 고정 크기 16바이트로 제한)
+    char speakerName[32];     // 발화자 이름 고정 (최대 32바이트)
+    uint32_t payloadSize;     // 뒤에 따라오는 음성 데이터 
+};
+#pragma pack(pop)
+
+struct ClientEndpoint {
+    sockaddr_in addr;
+    std::chrono::steady_clock::time_point lastSeen;
+
+    bool operator==(const ClientEndpoint& other) const {
+        return addr.sin_addr.s_addr == other.addr.sin_addr.s_addr &&
+               addr.sin_port == other.addr.sin_port;
+    }
+};
 
 class VoiceServer {
 private:
-    std::unordered_map<std::string, std::unordered_set<WebSocketType*>> roomSockets;
-    std::unordered_map<WebSocketType*, std::string> socketToRoom;
-    // 모든 유저들을 모아놓은
-    std::unordered_set<WebSocketType*> allSockets;
+    SOCKET udpSocket;
+    // Map of roomCode -> (speakerName -> ClientEndpoint)
+    std::unordered_map<std::string, std::unordered_map<std::string, ClientEndpoint>> rooms;
+    // Server에 접속한 모든 클라이언트
+    std::vector<ClientEndpoint> connectedClients;
+    // Timeout in seconds for inactive clients
+    const int CLIENT_TIMEOUT_SEC = 300; // 5분 타임아웃
+
 public:
+    VoiceServer() : udpSocket(INVALID_SOCKET) {}
+
     void run(int port) {
-        uWS::App().ws<int>("/*", {
-            .maxPayloadLength = 16 * 1024 * 1024,
-            .idleTimeout = 120,
-            .open = [this](auto* ws) {
-                std::cout << "[Voice] 클라이언트 접속!" << std::endl;
-                allSockets.insert(ws);
-            },
-            .message = [this](auto* ws, std::string_view msg, uWS::OpCode opCode) {
-                this->onMessage(ws, msg, opCode);
-            },
-            .close = [this](auto* ws, int, std::string_view) {
-                this->onDisconnect(ws);
-            }
-        }).listen(port, [port](auto* token) {
-            if (token) std::cout << "[Voice] 서버 시작! 포트: " << port << std::endl;
-        }).run();
+        // Initialize Winsock
+        WSADATA wsaData;
+        int iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+        if (iResult != 0) {
+            std::cerr << "[Voice] WSAStartup failed: " << iResult << std::endl;
+            return;
+        }
+
+        // Create a UDP socket
+        udpSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+        if (udpSocket == INVALID_SOCKET) {
+            std::cerr << "[Voice] Socket creation failed: " << WSAGetLastError() << std::endl;
+            WSACleanup();
+            return;
+        }
+
+        // Windows에서 WSAECONNRESET(10054) 오류 방지
+        // 종료된 클라이언트에게 sendto 할 때 발생하는 ICMP 에러가
+        // 다음 recvfrom에 전파되는 것을 억제합니다.
+        BOOL bNewBehavior = FALSE;
+        DWORD dwBytesReturned = 0;
+        WSAIoctl(udpSocket, SIO_UDP_CONNRESET, &bNewBehavior, sizeof(bNewBehavior),
+                 NULL, 0, &dwBytesReturned, NULL, NULL);
+
+        // Bind the socket
+        sockaddr_in serverAddr{};
+        serverAddr.sin_family = AF_INET;
+        serverAddr.sin_addr.s_addr = INADDR_ANY;
+        serverAddr.sin_port = htons(port);
+
+        if (bind(udpSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
+            std::cerr << "[Voice] Bind failed: " << WSAGetLastError() << std::endl;
+            closesocket(udpSocket);
+            WSACleanup();
+            return;
+        }
+
+        std::cout << "[Voice] UDP 서버 시작! 포트: " << port << std::endl;
+
+        runReceiveLoop();
+
+        closesocket(udpSocket);
+        WSACleanup();
     }
 
 private:
-    void onMessage(WebSocketType* ws, std::string_view msg, uWS::OpCode opCode) {
-        try {
-            json received = json::parse(msg);
-            std::string type = received["type"];
-            
-            if (type == "join_voice") {
-                std::string roomCode = received["roomCode"];
-                if (socketToRoom.count(ws)) {
-                    std::string oldRoom = socketToRoom[ws];
-                    roomSockets[oldRoom].erase(ws);
+    void runReceiveLoop() {
+        char buffer[65536];
+        sockaddr_in clientAddr;
+        int clientAddrLen = sizeof(clientAddr);
+
+        while (true) {
+            int bytesReceived = recvfrom(udpSocket, buffer, sizeof(buffer), 0,
+                                         (SOCKADDR*)&clientAddr, &clientAddrLen);
+                                         
+            if (bytesReceived == SOCKET_ERROR) {
+                int err = WSAGetLastError();
+                if (err == WSAECONNRESET) {
+                    // 10054: 이미 종료된 클라이언트에 대한 ICMP 에러 → 무시
+                    continue;
                 }
-                socketToRoom[ws] = roomCode;
-                roomSockets[roomCode].insert(ws);
-                std::cout << "[Voice] 클라이언트가 [" << roomCode << "] 채널 합류" << std::endl;
+                std::cerr << "[Voice] recvfrom failed: " << err << std::endl;
+                continue;
             }
-            else if (type == "voice_data") {
-                // if (socketToRoom.find(ws) == socketToRoom.end()) return;
 
-                std::string roomCode = socketToRoom[ws];
-
-                std::cout << "[Voice] 음성 수신 중... (방: " << roomCode << " / 크기: " << msg.length() << " bytes)" << std::endl;
-                // // 릴레이 (본인 제외)
-
-                BroadcastToAll(ws, msg, opCode);
-                // for (auto* client : roomSockets[roomCode]) {
-                //     if (client != ws) {
-                //         std::cout << "[Voice] 음성 릴레이 중... (방: " << roomCode << " / 크기: " << msg.length() << " bytes)" << std::endl;
-                //         client->send(msg, opCode);
-                //     }
-                // }
+            // 아주 작은 패킷 무시 (최소 헤더 크기)
+            if (bytesReceived < sizeof(VoicePacketHeader)) {
+                std::cerr << "[Voice] 패킷 크기가 헤더보다 작음: " << bytesReceived << std::endl;
+                continue;
             }
-        } catch (const std::exception& e) {
-            std::cerr << "[Voice] JSON 파싱 오류: " << e.what() << std::endl;
+
+            // Cleanup stale clients occasionally to prevent memory leaks
+            cleanupStaleClients();
+
+            // 패킷 앞부분을 헤더 구조체로 캐스팅
+            VoicePacketHeader* header = reinterpret_cast<VoicePacketHeader*>(buffer);
+
+            // 문자열을 C++ string으로 변환
+            std::string roomCode(header->roomCode);
+            std::string speakerName(header->speakerName);
+            
+            auto now = std::chrono::steady_clock::now();
+
+            // ===== connectedClients 갱신 (모든 패킷 타입 공통) =====
+            auto upsertClient = [&]() {
+                for (auto& client : connectedClients) {
+                    if (client.addr.sin_addr.s_addr == clientAddr.sin_addr.s_addr &&
+                        client.addr.sin_port == clientAddr.sin_port) {
+                        client.lastSeen = now;
+                        return;
+                    }
+                }
+                connectedClients.push_back({clientAddr, now});
+            };
+
+            // ===== packetType == 0: Join =====
+            if (header->packetType == 0) {
+                rooms[roomCode][speakerName] = {clientAddr, now};
+                upsertClient();
+                std::cout << "[Voice] " << speakerName << " 클라이언트가 [" << roomCode << "] 채널에 참여 (UDP - Raw Struct)" 
+                          << " | 현재 접속자 수: " << connectedClients.size() << std::endl;
+                continue; // Join 패킷은 브로드캐스트하지 않음
+            }
+
+            // ===== packetType == 2: Leave =====
+            if (header->packetType == 2) {
+                std::cout << "[Voice] " << speakerName << " 클라이언트가 [" << roomCode << "] 채널에서 나감 (Leave)" << std::endl;
+                
+                // rooms에서 제거
+                if (rooms.count(roomCode)) {
+                    rooms[roomCode].erase(speakerName);
+                    if (rooms[roomCode].empty()) {
+                        rooms.erase(roomCode);
+                    }
+                }
+                
+                // connectedClients에서 제거
+                connectedClients.erase(
+                    std::remove_if(connectedClients.begin(), connectedClients.end(),
+                        [&](const ClientEndpoint& ep) {
+                            return ep.addr.sin_addr.s_addr == clientAddr.sin_addr.s_addr &&
+                                   ep.addr.sin_port == clientAddr.sin_port;
+                        }),
+                    connectedClients.end()
+                );
+                std::cout << "[Voice] Leave 처리 완료 | 남은 접속자 수: " << connectedClients.size() << std::endl;
+                continue; // Leave 패킷은 브로드캐스트하지 않음
+            }
+
+            // ===== packetType == 1: Voice Data (브로드캐스트) =====
+            if (header->packetType == 1) {
+                rooms[roomCode][speakerName] = {clientAddr, now};
+                upsertClient();
+
+                // 수신 로그 (페이로드 2바이트 이하는 Silence이므로 생략)
+                if (header->payloadSize > 2) {
+                    std::cout << "[Voice] 음성 수신 (방: " << roomCode << " / 화자: " << speakerName 
+                              << " / 전체: " << bytesReceived << "B / 페이로드: " << header->payloadSize 
+                              << "B) | 브로드캐스트 대상: " << (connectedClients.size() - 1) << "명" << std::endl;
+                }
+
+                // 브로드캐스트: connectedClients에 있는 나를 제외한 모든 유저에게
+                int broadcastCount = 0;
+                for (const auto& endpoint : connectedClients) {
+                    if (!(endpoint.addr.sin_addr.s_addr == clientAddr.sin_addr.s_addr && 
+                          endpoint.addr.sin_port == clientAddr.sin_port)) {
+                        int sentBytes = sendto(udpSocket, buffer, bytesReceived, 0, (SOCKADDR*)&endpoint.addr, sizeof(endpoint.addr));
+                        if (sentBytes == SOCKET_ERROR) {
+                            std::cerr << "[Voice] sendto 실패! 대상: " << inet_ntoa(endpoint.addr.sin_addr) 
+                                      << ":" << ntohs(endpoint.addr.sin_port) 
+                                      << " 에러: " << WSAGetLastError() << std::endl;
+                        } else {
+                            broadcastCount++;
+                        }
+                    }
+                }
+                // 실제 브로드캐스트 로그 (Silence 제외)
+                if (header->payloadSize > 2) {
+                    std::cout << "[Voice] 브로드캐스트 완료: " << broadcastCount << "명에게 " << bytesReceived << "B 전송" << std::endl;
+                }
+            }
         }
     }
 
-    void onDisconnect(WebSocketType* ws) {
-        if (socketToRoom.count(ws)) {
-            std::string roomCode = socketToRoom[ws];
-            roomSockets[roomCode].erase(ws);
-            
-            if (roomSockets[roomCode].empty()) {
-                roomSockets.erase(roomCode);
-            }
-            
-            socketToRoom.erase(ws);
-            std::cout << "[Voice] 클라이언트 연결 해제 (방: " << roomCode << ")" << std::endl;
-        }
-        allSockets.erase(ws);
-    }
+    void cleanupStaleClients() {
+        auto now = std::chrono::steady_clock::now();
 
-    void BroadcastToAll(WebSocketType* ws,const std::string_view& message, uWS::OpCode opCode) {
-        for (auto* client : allSockets) {
-            if (client != ws) { // 본인 제외
-                std::cout << "[Voice] 전체 릴레이 중... (크기: " << message.length() << " bytes)" << std::endl;
-                client->send(message, opCode);
+        // 1. rooms 맵에서 타임아웃된 클라이언트 제거
+        for (auto itRoom = rooms.begin(); itRoom != rooms.end(); ) {
+            auto& clientsMap = itRoom->second;
+            for (auto itClient = clientsMap.begin(); itClient != clientsMap.end(); ) {
+                auto duration = std::chrono::duration_cast<std::chrono::seconds>(now - itClient->second.lastSeen).count();
+                if (duration > CLIENT_TIMEOUT_SEC) {
+                    std::cout << "[Voice] 클라이언트 연결 타임아웃 종료 (방: " << itRoom->first << " / 화자: " << itClient->first << ")" << std::endl;
+                    itClient = clientsMap.erase(itClient);
+                } else {
+                    ++itClient;
+                }
+            }
+            if (clientsMap.empty()) {
+                itRoom = rooms.erase(itRoom);
+            } else {
+                ++itRoom;
             }
         }
+
+        // 2. connectedClients 벡터에서도 타임아웃된 클라이언트 제거
+        connectedClients.erase(
+            std::remove_if(connectedClients.begin(), connectedClients.end(),
+                [&](const ClientEndpoint& ep) {
+                    auto duration = std::chrono::duration_cast<std::chrono::seconds>(now - ep.lastSeen).count();
+                    if (duration > CLIENT_TIMEOUT_SEC) {
+                        std::cout << "[Voice] connectedClients에서 타임아웃 클라이언트 제거: "
+                                  << inet_ntoa(ep.addr.sin_addr) << ":" << ntohs(ep.addr.sin_port) << std::endl;
+                        return true;
+                    }
+                    return false;
+                }),
+            connectedClients.end()
+        );
     }
 };

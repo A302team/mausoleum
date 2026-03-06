@@ -9,15 +9,13 @@
 #include "Character/MyPlayerController.h"
 #include "Manager/SpawnManager.h"
 #include "Kismet/GameplayStatics.h"
-#include "Network/WebSocketManager.h"
+#include "Network/GameNetworkSubsystem.h"
 #include "UI/ChatWidget.h"
 #include "Blueprint/UserWidget.h"
 
 
 AA302GameMode::AA302GameMode()
 {
-    WebSocketManager = CreateDefaultSubobject<UWebSocketManager>(TEXT("WebSocketManager"));
-
     DefaultPawnClass = nullptr;
     // C++에서 StaticClass로 덮어씌우면 블루프린트로 설정한 입력 맵핑 등이 모두 날아갑니다.
     // 블루프린트 게임모드(BP_A302GameMode)에서 PlayerControllerClass 등을 직접 세팅해주세요.
@@ -40,14 +38,16 @@ void AA302GameMode::BeginPlay()
     TArray<AActor *> FoundActors;
     UGameplayStatics::GetAllActorsOfClass(GetWorld(), ASpawnManager::StaticClass(), FoundActors);
 
-    if (WebSocketManager)
+    UGameNetworkSubsystem* GameNetworkSubsystem = GetGameInstance()->GetSubsystem<UGameNetworkSubsystem>();
+    if (GameNetworkSubsystem)
     {
-        WebSocketManager->Connect(TEXT("ws://localhost:9001"));
-        WebSocketManager->OnMessageReceived.AddDynamic(this, &AA302GameMode::OnMessageReceived);
+        // 인게임 진입 시엔 보이스/위치 동기화를 위한 UDP 통신만 연결합니다.
+        GameNetworkSubsystem->Connect(EProtocolType::UDP, TEXT("127.0.0.1:9100"));
+        GameNetworkSubsystem->OnPacketReceived.AddDynamic(this, &AA302GameMode::OnMessageReceived);
     }
     else
     {
-        UE_LOG(LogTemp, Warning, TEXT("[GameMode/A302GameMode] No WebSocketManager. You CAN'T use chat."));
+        UE_LOG(LogTemp, Warning, TEXT("[GameMode/A302GameMode] No GameNetworkSubsystem. You CAN'T use chat."));
     }
 
     if (FoundActors.Num() > 0)
@@ -114,9 +114,10 @@ void AA302GameMode::SpawnPlayer(APlayerController *PlayerController)
 
 void AA302GameMode::SendToServer(const FString &Message)
 {
-    if (WebSocketManager)
+    UGameNetworkSubsystem* GameNetworkSubsystem = GetGameInstance()->GetSubsystem<UGameNetworkSubsystem>();
+    if (GameNetworkSubsystem)
     {
-        WebSocketManager->SendMessage(Message);
+        GameNetworkSubsystem->SendPacket(EProtocolType::WebSocket, Message);
     }
 }
 

@@ -1,15 +1,14 @@
 #include "Voice/PrivateVoiceChatComponent.h"
-#include "Voice/VoiceCaptureProcessor.h"
-#include "Voice/VoiceAudioReceiver.h"
-#include "Voice/VoiceNetworkClient.h"
+#include "Voice/Capture/VoiceCaptureProcessor.h"
+#include "Voice/Playback/VoiceAudioReceiver.h"
+#include "Voice/Network/VoiceNetworkClient.h"
+#include "Voice/Codec/VoiceCodec.h"
 #include "Voice/Strategy/DistanceVoiceChatStrategy.h"
 #include "Voice/Strategy/LobbyVoiceChatStrategy.h"
 #include "Voice/Strategy/VoiceChatStrategyBase.h"
 #include "GameMode/A302GameInstance.h"
+#include "GameMode/LobbyGameMode.h"
 #include "Kismet/GameplayStatics.h"
-#include "Serialization/JsonReader.h"
-#include "Serialization/JsonSerializer.h"
-#include "Dom/JsonObject.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerState.h"
 #include "EngineUtils.h"
@@ -43,7 +42,14 @@ void UPrivateVoiceChatComponent::BeginPlay()
     if (NetworkClient)
     {
         NetworkClient->Initialize(this);
-        NetworkClient->OnPacketReceived.BindUObject(this, &UPrivateVoiceChatComponent::OnNetworkMessageReceived);
+        NetworkClient->OnBinaryPacketReceived.BindUObject(this, &UPrivateVoiceChatComponent::OnNetworkBinaryMessageReceived);
+    }
+
+    // Opus 디코더 초기화 (수신 시 Opus→PCM 변환용)
+    ReceiveCodec = NewObject<UVoiceCodec>(this);
+    if (ReceiveCodec)
+    {
+        ReceiveCodec->Init();
     }
 
     if (!LobbyStrategy)
@@ -55,10 +61,23 @@ void UPrivateVoiceChatComponent::BeginPlay()
     if (DistanceStrategy)
         DistanceStrategy->SetHearingDistance(DefaultInGameHearingDistance);
 
-    if (InitialVoiceMode == EVoiceChatMode::Lobby)
-        SetLobbyMode();
-    else
-        SetDistanceMode(DefaultInGameHearingDistance);
+    // GameMode에 따라 자동 보이스 모드 결정
+    // LobbyGameMode → 로비 모드 (전체 통화)
+    // InGameGameMode → 거리 기반 모드
+    if (UWorld* World = GetWorld())
+    {
+        AGameModeBase* GM = World->GetAuthGameMode();
+        if (GM && GM->IsA<ALobbyGameMode>())
+        {
+            SetLobbyMode();
+            UE_LOG(LogTemp, Log, TEXT("[Voice] GameMode=Lobby → 로비 보이스 모드 적용"));
+        }
+        else
+        {
+            SetDistanceMode(DefaultInGameHearingDistance);
+            UE_LOG(LogTemp, Log, TEXT("[Voice] GameMode=InGame → 거리 보이스 모드 적용 (%.0f)"), DefaultInGameHearingDistance);
+        }
+    }
 
     if (bAutoConnectOnBeginPlay)
     {
@@ -83,6 +102,8 @@ void UPrivateVoiceChatComponent::EndPlay(const EEndPlayReason::Type EndPlayReaso
 
     Super::EndPlay(EndPlayReason);
 }
+
+// ===== 마이크 제어 =====
 
 void UPrivateVoiceChatComponent::StartMicrophone()
 {
@@ -109,11 +130,18 @@ bool UPrivateVoiceChatComponent::ChangeMicrophone(const FString& DeviceName)
     return CaptureProcessor ? CaptureProcessor->ChangeMicrophone(DeviceName) : false;
 }
 
+// ===== 서버 연결 =====
+
 void UPrivateVoiceChatComponent::ConnectToVoiceServer()
 {
     if (NetworkClient && !VoiceServerUrl.IsEmpty())
     {
         NetworkClient->Connect(VoiceServerUrl);
+        
+        // 서버 connectedClients에 즉시 등록 (마이크를 켜지 않아도 수신 가능하도록)
+        TArray<uint8> EmptyPayload;
+        NetworkClient->SendVoiceData(EmptyPayload, roomCode, TEXT("join_voice"), GetMyPlayerName());
+        UE_LOG(LogTemp, Log, TEXT("[Voice] ConnectToVoiceServer: join_voice 초기 가입 패킷 전송 완료."));
     }
 }
 
@@ -121,6 +149,8 @@ void UPrivateVoiceChatComponent::DisconnectFromVoiceServer()
 {
     if (NetworkClient) NetworkClient->Disconnect();
 }
+
+// ===== 전략(Strategy) 관리 =====
 
 void UPrivateVoiceChatComponent::SetLobbyMode()
 {
@@ -157,24 +187,6 @@ bool UPrivateVoiceChatComponent::CanHearActor(const AActor* SpeakerActor) const
     return ActiveStrategy->CanReceiveVoice(this, SpeakerComp);
 }
 
-void UPrivateVoiceChatComponent::SendVoicePayload(const FString& EncodedPayload)
-{
-    if (!NetworkClient || !ActiveStrategy) return;
-
-    const FString ModeString = (GetCurrentMode() == EVoiceChatMode::Lobby) ? TEXT("lobby") : TEXT("distance");
-
-    FString MyName = GetNameSafe(GetOwner());
-    if (UA302GameInstance* GI = Cast<UA302GameInstance>(UGameplayStatics::GetGameInstance(this)))
-    {
-        if (!GI->MyPlayerName.IsEmpty())
-        {
-            MyName = GI->MyPlayerName;
-        }
-    }
-
-    NetworkClient->SendVoiceData(EncodedPayload, roomCode, ModeString, MyName);
-}
-
 void UPrivateVoiceChatComponent::ApplyStrategy(UVoiceChatStrategyBase* NewStrategy)
 {
     if (!NewStrategy) return;
@@ -182,92 +194,107 @@ void UPrivateVoiceChatComponent::ApplyStrategy(UVoiceChatStrategyBase* NewStrate
     OnVoiceModeChanged.Broadcast(ActiveStrategy->GetMode());
 }
 
-void UPrivateVoiceChatComponent::OnVoiceDataCaptured(const FString& EncodedPayload)
+// ===== 헬퍼 =====
+
+FString UPrivateVoiceChatComponent::GetMyPlayerName() const
 {
-    SendVoicePayload(EncodedPayload);
-}
-
-void UPrivateVoiceChatComponent::OnNetworkMessageReceived(const FString& JsonMessage)
-{
-    OnVoiceServerMessage.Broadcast(JsonMessage);
-
-    TSharedPtr<FJsonObject> JsonObject;
-    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonMessage);
-
-    if (FJsonSerializer::Deserialize(Reader, JsonObject) && JsonObject.IsValid())
+    // 1순위: PlayerState에서 가져오기
+    if (APawn* MyPawn = Cast<APawn>(GetOwner()))
     {
-        FString ServerRoomCode;
-        if (JsonObject->TryGetStringField(TEXT("roomCode"), ServerRoomCode) && !ServerRoomCode.IsEmpty())
+        if (IsValid(MyPawn))
         {
-            if (roomCode != ServerRoomCode)
+            if (APlayerState* PS = MyPawn->GetPlayerState())
             {
-                SetRoomCode(ServerRoomCode);
-            }
-        }
-
-        FString MsgType;
-        if (JsonObject->TryGetStringField(TEXT("type"), MsgType) && MsgType == TEXT("voice_data"))
-        {
-            // 자신이름도 PlayerState에서 가져와야 일관됨.
-            FString MyName = TEXT("Unknown");
-            if (APawn* MyPawn = Cast<APawn>(GetOwner()))
-            {
-                if (IsValid(MyPawn))
+                if (IsValid(PS))
                 {
-                    if (APlayerState* PS = MyPawn->GetPlayerState())
-                    {
-                        if (IsValid(PS)) 
-                        {
-                            MyName = PS->GetPlayerName();
-                        }
-                    }
-                }
-            }
-
-            FString SpeakerName;
-            if (JsonObject->TryGetStringField(TEXT("speaker"), SpeakerName))
-            {
-                // 로컬의 메아리 방지
-                if (SpeakerName == MyName) return; 
-            }
-
-            FString EncodedPayload;
-            if (JsonObject->TryGetStringField(TEXT("payload"), EncodedPayload))
-            {
-                // 상대방 위치에서 소리를 재생하도록 발화자를 찾아 라우팅합니다.
-                bool bPlayed = false;
-                if (UWorld* World = GetWorld())
-                {
-                    for (TActorIterator<APawn> It(World); It; ++It)
-                    {
-                        APawn* CurrentPawn = *It;
-                        if (IsValid(CurrentPawn))
-                        {
-                            if (APlayerState* PS = CurrentPawn->GetPlayerState())
-                            {
-                                if (IsValid(PS) && PS->GetPlayerName() == SpeakerName) // 맞는 발화자 발견!
-                                {
-                                    if (UPrivateVoiceChatComponent* OtherComp = CurrentPawn->FindComponentByClass<UPrivateVoiceChatComponent>())
-                                    {
-                                        if (IsValid(OtherComp) && OtherComp->AudioReceiver)
-                                        {
-                                            OtherComp->AudioReceiver->PlayVoice(EncodedPayload);
-                                            bPlayed = true;
-                                        }
-                                    }
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                // 만약 발화자를 못 찾았다면(아직 거리가 멀어 리플리케이트 안됐거나 등) fallback 재생
-                if (!bPlayed && AudioReceiver)
-                {
-                    AudioReceiver->PlayVoice(EncodedPayload);
+                    return PS->GetPlayerName();
                 }
             }
         }
     }
+
+    // 2순위: GameInstance에서 가져오기
+    if (UA302GameInstance* GI = Cast<UA302GameInstance>(UGameplayStatics::GetGameInstance(this)))
+    {
+        if (!GI->MyPlayerName.IsEmpty())
+        {
+            return GI->MyPlayerName;
+        }
+    }
+
+    // Fallback
+    return GetNameSafe(GetOwner());
 }
+
+// ===== 송신 콜백 =====
+
+void UPrivateVoiceChatComponent::OnVoiceDataCaptured(const TArray<uint8>& VoiceData)
+{
+    if (!NetworkClient || !ActiveStrategy) return;
+
+    const FString ModeString = (GetCurrentMode() == EVoiceChatMode::Lobby) ? TEXT("lobby") : TEXT("distance");
+
+    NetworkClient->SendVoiceData(VoiceData, roomCode, ModeString, GetMyPlayerName());
+}
+
+// ===== 수신 콜백 =====
+
+void UPrivateVoiceChatComponent::OnNetworkBinaryMessageReceived(const FString& InRoomCode, const FString& SpeakerName, const TArray<uint8>& VoiceData)
+{
+    // 본인 목소리 메아리 방지
+    if (SpeakerName == GetMyPlayerName()) return; 
+
+    // Opus → PCM 디코딩
+    TArray<uint8> PCMData;
+    if (ReceiveCodec && ReceiveCodec->IsInitialized())
+    {
+        if (!ReceiveCodec->Decode(VoiceData, PCMData))
+        {
+            return; // 디코딩 실패 → 깨진 패킷 드롭 (Opus 데이터를 PCM으로 재생하면 노이즈 발생)
+        }
+    }
+    else
+    {
+        // 코덱 미초기화 → 원본 데이터가 이미 PCM이라 가정 (fallback)
+        PCMData = VoiceData;
+    }
+
+    // 상대방 위치 찾아서 재생 라우팅
+    bool bPlayed = false;
+    if (UWorld* World = GetWorld())
+    {
+        for (TActorIterator<APawn> It(World); It; ++It)
+        {
+            APawn* CurrentPawn = *It;
+            if (!IsValid(CurrentPawn)) continue;
+
+            APlayerState* PS = CurrentPawn->GetPlayerState();
+            if (!IsValid(PS) || PS->GetPlayerName() != SpeakerName) continue;
+
+            // 발화자 발견!
+            if (UPrivateVoiceChatComponent* OtherComp = CurrentPawn->FindComponentByClass<UPrivateVoiceChatComponent>())
+            {
+                if (CanHearActor(CurrentPawn))
+                {
+                    if (IsValid(OtherComp) && OtherComp->AudioReceiver)
+                    {
+                        OtherComp->AudioReceiver->PlayVoice(PCMData);
+                        bPlayed = true;
+                    }
+                }
+                else
+                {
+                    bPlayed = true; // 전략에 의해 차단 → Fallback 방지
+                }
+            }
+            break;
+        }
+    }
+    
+    // 발화자 미발견 시 Fallback
+    if (!bPlayed && AudioReceiver)
+    {
+        AudioReceiver->PlayVoice(PCMData);
+    }
+}
+

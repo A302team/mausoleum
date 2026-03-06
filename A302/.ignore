@@ -1,6 +1,8 @@
 /.vs
 /.vscode
 /Content
+/DerivedDataCache
 /Intermediate
+/Proto
 /Saved
 /scripts

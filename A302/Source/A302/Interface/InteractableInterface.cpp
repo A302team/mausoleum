@@ -1,2 +1,2 @@
-﻿#include "Interface/InteractableInterface.h"
+#include "Interface/InteractableInterface.h"
 
