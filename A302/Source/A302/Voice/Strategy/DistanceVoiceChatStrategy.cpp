@@ -1,6 +1,6 @@
 #include "Voice/Strategy/DistanceVoiceChatStrategy.h"
 
-#include "Character/Components/PrivateVoiceChatComponent.h"
+#include "Voice/PrivateVoiceChatComponent.h"
 #include "GameFramework/Actor.h"
 
 bool UDistanceVoiceChatStrategy::CanReceiveVoice(const UPrivateVoiceChatComponent* ListenerComp, const UPrivateVoiceChatComponent* SpeakerComp) const

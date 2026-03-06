@@ -58,7 +58,7 @@ private:
                 std::cout << "[Voice] 음성 수신 중... (방: " << roomCode << " / 크기: " << msg.length() << " bytes)" << std::endl;
                 // // 릴레이 (본인 제외)
 
-                BroadcastToAll(msg, opCode);
+                BroadcastToAll(ws, msg, opCode);
                 // for (auto* client : roomSockets[roomCode]) {
                 //     if (client != ws) {
                 //         std::cout << "[Voice] 음성 릴레이 중... (방: " << roomCode << " / 크기: " << msg.length() << " bytes)" << std::endl;
@@ -86,10 +86,12 @@ private:
         allSockets.erase(ws);
     }
 
-    void BroadcastToAll(const std::string_view& message, uWS::OpCode opCode) {
+    void BroadcastToAll(WebSocketType* ws,const std::string_view& message, uWS::OpCode opCode) {
         for (auto* client : allSockets) {
-            std::cout << "[Voice] 전체 릴레이 중... (크기: " << message.length() << " bytes)" << std::endl;
-            client->send(message, opCode);
+            if (client != ws) { // 본인 제외
+                std::cout << "[Voice] 전체 릴레이 중... (크기: " << message.length() << " bytes)" << std::endl;
+                client->send(message, opCode);
+            }
         }
     }
 };
