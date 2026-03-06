@@ -42,7 +42,7 @@ public:
 	
 	// QTE
 	void HandleInteractQTEStarted();
-	void ReceiveQTEInput(EQTEDirection InputDir);
+	bool ReceiveQTEInput(EQTEDirection InputDir);
 
 	// Read by quick-slot flow right after HandleInteractInput.
 	AActor* GetLastInteractedActor() const { return LastInteractedActor; }

@@ -189,6 +189,8 @@ void UInteractComponent::HandleInteractQTEStarted()
 {
 	if (!LastInteractableActor) return;
 	
+	LastInteractedActor = nullptr;
+	
 	if (IInteractableInterface* Interactable = Cast<IInteractableInterface>(LastInteractableActor))
 	{
 		if (Interactable->GetInteractType() == EInteractType::QTE)
@@ -222,27 +224,26 @@ void UInteractComponent::HandleInteractQTEStarted()
 	}
 }
 
-void UInteractComponent::ReceiveQTEInput(EQTEDirection InputDir)
+bool UInteractComponent::ReceiveQTEInput(EQTEDirection InputDir)
 {
-	if (!bIsQTEActive || TargetQTEKeys.Num() == 0) return;
+	if (!bIsQTEActive || TargetQTEKeys.Num() == 0) return false;
 
-	// 현재 눌러야 할 정답 방향과 비교
 	if (TargetQTEKeys[CurrentQTEIndex] == InputDir)
 	{
 		CurrentQTEIndex++;
-       
-		// [Broadcast] 진행 상황 업데이트 (현재 인덱스 전달)
 		OnQTEProgressUpdated.Broadcast(CurrentQTEIndex);
 
 		if (CurrentQTEIndex >= TargetQTEKeys.Num())
 		{
 			OnQTESuccess();
+			return true; // 🚩 성공적으로 끝났음을 알림!
 		}
 	}
 	else
 	{
 		OnQTEFailure();
 	}
+	return false;
 }
 
 void UInteractComponent::OnQTESuccess()

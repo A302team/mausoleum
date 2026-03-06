@@ -1,7 +1,6 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Character/MyCharacter.h"
-
 #include "Character/Components/CombatStatusComponent.h"
 #include "Character/Components/InteractComponent.h"
 #include "Character/Components/KnifeAutoTestComponent.h"
@@ -40,17 +39,13 @@ namespace
 AMyCharacter::AMyCharacter()
 {
 	PrimaryActorTick.bCanEverTick = false;
-	
+    
 	InteractionComponent = CreateDefaultSubobject<UInteractComponent>(TEXT("InteractionComponent"));
 	QuickSlotComponent = CreateDefaultSubobject<UQuickSlotComponent>(TEXT("QuickSlotComponent"));
 	CombatStatusComponent = CreateDefaultSubobject<UCombatStatusComponent>(TEXT("CombatStatusComponent"));
 	MaliceComponent = CreateDefaultSubobject<UMaliceComponent>(TEXT("MaliceComponent"));
-	KnifeAutoTestComponent = CreateDefaultSubobject<UKnifeAutoTestComponent>(
-		TEXT("KnifeAutoTestComponent")
-	);
-	PrivateVoiceChatComponent = CreateDefaultSubobject<UPrivateVoiceChatComponent>(
-		TEXT("VoiceChatComponent")
-	);
+	KnifeAutoTestComponent = CreateDefaultSubobject<UKnifeAutoTestComponent>(TEXT("KnifeAutoTestComponent"));
+	PrivateVoiceChatComponent = CreateDefaultSubobject<UPrivateVoiceChatComponent>(TEXT("VoiceChatComponent"));
 }
 
 void AMyCharacter::BeginPlay()
@@ -213,6 +208,10 @@ void AMyCharacter::ClearTimedKnifeState(bool bHideTimer)
 		if (AMyPlayerController* MyPlayerController = Cast<AMyPlayerController>(GetController()))
 		{
 			MyPlayerController->SetItemTimerVisible(false);
+		}
+	}
+}
+
 void AMyCharacter::SetQTEInputMode(bool bIsQTE)
 {
 	if (APlayerController* PC = Cast<APlayerController>(GetController()))
@@ -313,7 +312,7 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 		EIC->BindAction(IA_Interact, ETriggerEvent::Triggered, this, &AMyCharacter::OnInteractHoldProgress);
 		EIC->BindAction(IA_Interact, ETriggerEvent::Completed, this, &AMyCharacter::OnInteractHoldCanceled);
 		EIC->BindAction(IA_Interact, ETriggerEvent::Canceled, this, &AMyCharacter::OnInteractHoldCanceled);
-       
+        
 		EIC->BindAction(IA_Interact, ETriggerEvent::Started, this, &AMyCharacter::OnQTEInteractStarted);
 	}
 
@@ -354,6 +353,7 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	if (IA_VoiceChat)
 	{
 		EIC->BindAction(IA_VoiceChat, ETriggerEvent::Started, this, &AMyCharacter::OnToggleVoiceChat);
+	}
     
 	if (IA_QTE_Input)
 	{
@@ -394,6 +394,7 @@ void AMyCharacter::OnJumpReleased(const FInputActionValue& Value)
 void AMyCharacter::InteractionCompleteResult()
 {
 	AActor* InteractedActor = InteractionComponent->GetLastInteractedActor();
+	UE_LOG(LogTemp, Warning, TEXT("Interaction Result Started! Actor: %s"), InteractedActor ? *InteractedActor->GetName() : TEXT("None"));
 	if (!InteractedActor)
 	{
 		return;
@@ -604,7 +605,9 @@ void AMyCharacter::OnQTEInput(const FInputActionValue& Value)
 
 	if (FinalDir != EQTEDirection::None)
 	{
-		InteractionComponent->ReceiveQTEInput(FinalDir);
-		InteractionCompleteResult();
+		if (InteractionComponent->ReceiveQTEInput(FinalDir))
+		{
+			InteractionCompleteResult();
+		}
 	}
 }
