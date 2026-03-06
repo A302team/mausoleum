@@ -22,7 +22,8 @@ public class A302 : ModuleRules
 			"JsonUtilities",
 			"SlateCore",
 			"UMG",
-			"Voice"
+			"Voice",
+			"AudioCapture" 
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
