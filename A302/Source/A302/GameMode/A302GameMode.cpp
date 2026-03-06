@@ -11,15 +11,16 @@
 #include "Kismet/GameplayStatics.h"
 #include "Network/WebSocketManager.h"
 #include "UI/ChatWidget.h"
+#include "Blueprint/UserWidget.h"
+
 
 AA302GameMode::AA302GameMode()
 {
     WebSocketManager = CreateDefaultSubobject<UWebSocketManager>(TEXT("WebSocketManager"));
 
     DefaultPawnClass = nullptr;
-    PlayerControllerClass = AMyPlayerController::StaticClass();
-    GameStateClass = AA302GameState::StaticClass();
-    PlayerStateClass = AA302PlayerState::StaticClass();
+    // C++에서 StaticClass로 덮어씌우면 블루프린트로 설정한 입력 맵핑 등이 모두 날아갑니다.
+    // 블루프린트 게임모드(BP_A302GameMode)에서 PlayerControllerClass 등을 직접 세팅해주세요.
 }
 
 void AA302GameMode::BeginPlay()

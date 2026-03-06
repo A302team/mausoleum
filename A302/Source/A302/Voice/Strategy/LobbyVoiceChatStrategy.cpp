@@ -1,6 +1,6 @@
 #include "Voice/Strategy/LobbyVoiceChatStrategy.h"
 
-#include "Character/Components/PrivateVoiceChatComponent.h"
+#include "Voice/PrivateVoiceChatComponent.h"
 
 bool ULobbyVoiceChatStrategy::CanReceiveVoice(const UPrivateVoiceChatComponent* ListenerComp, const UPrivateVoiceChatComponent* SpeakerComp) const
 {
