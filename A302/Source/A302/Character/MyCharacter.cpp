@@ -18,6 +18,7 @@
 #include "GamePlay/Items/ItemShield.h"
 #include "GamePlay/Items/ItemTimeKnife.h"
 #include "InputCoreTypes.h"
+#include "Net/UnrealNetwork.h"
 #include "InputAction.h"
 #include "Object/BaseInteractable.h"
 
@@ -38,6 +39,8 @@ namespace
 AMyCharacter::AMyCharacter()
 {
 	PrimaryActorTick.bCanEverTick = false;
+	bReplicates = true;
+    SetReplicateMovement(true);
 	
 	InteractionComponent = CreateDefaultSubobject<UInteractComponent>(TEXT("InteractionComponent"));
 	QuickSlotComponent = CreateDefaultSubobject<UQuickSlotComponent>(TEXT("QuickSlotComponent"));
@@ -71,6 +74,11 @@ void AMyCharacter::BeginPlay()
 	{
 		KnifeAutoTestComponent->StartAutoKnifeTest();
 	}
+}
+
+void AMyCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 }
 
 void AMyCharacter::HandleShieldChanged(int32 NewCount)
