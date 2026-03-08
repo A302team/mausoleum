@@ -20,7 +20,6 @@ void UMyAnimInstance::NativeInitializeAnimation()
     }
 }
 
-// 애니메이션 업데이트 함수 (매 프레임 호출)
 void UMyAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 {
     Super::NativeUpdateAnimation(DeltaSeconds);
@@ -50,7 +49,8 @@ void UMyAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
     MoveDirection = FMath::RadiansToDegrees(FMath::Atan2(RightDot, ForwardDot));
     MoveDirection = FMath::Clamp(MoveDirection, -45.f, 45.f);
 
-    // Detect Shield Use → Play Block Animation
+    /** Shield Block Detect */
+
     if (CachedCombatComponent)
     {
         int32 CurrentShieldCount = CachedCombatComponent->ShieldBlockCount;
@@ -64,16 +64,38 @@ void UMyAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
     }
 }
 
-// 블록 몽타주 재생 함수 (방패 사용 시 호출)
+// 공격 애니메이션 재생 함수
+void UMyAnimInstance::PlayAttackMontage()
+{
+    if (!AttackMontage) return;
+
+    if (!Montage_IsPlaying(AttackMontage))
+    {
+        bIsAttacking = true;
+        Montage_Play(AttackMontage);
+    }
+}
+
+// 방어 애니메이션 재생 함수
 void UMyAnimInstance::PlayBlockMontage()
 {
-    if (!BlockMontage)
-    {
-        return;
-    }
+    if (!BlockMontage) return;
 
     if (!Montage_IsPlaying(BlockMontage))
     {
+        bIsBlocking = true;
         Montage_Play(BlockMontage);
+    }
+}
+
+// 상호작용 애니메이션 재생 함수
+void UMyAnimInstance::PlayInteractMontage()
+{
+    if (!InteractMontage) return;
+
+    if (!Montage_IsPlaying(InteractMontage))
+    {
+        bIsInteracting = true;
+        Montage_Play(InteractMontage);
     }
 }
