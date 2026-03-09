@@ -1,23 +1,23 @@
 #pragma once
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#include <mswsock.h>
+#include "Platform.h"
 #include "Logger.h"
-
-#pragma comment(lib, "ws2_32.lib")
 
 class IServer {
 public:
     virtual ~IServer() = default;
     virtual void run(int port){
+#ifdef _WIN32
         WSADATA wsaData;
         if(WSAStartup(MAKEWORD(2, 2), &wsaData) != 0){
             LOG_ERROR(tag(), "WSAStartup failed");
             return;
         }
+#endif
 
         if(!initSocket(port)){
+#ifdef _WIN32
             WSACleanup();
+#endif
             return;
         }
 
@@ -25,13 +25,15 @@ public:
         onStarted(port);
         runLoop();
 
-        closesocket(sock);
+        CLOSE_SOCKET(sock);
+#ifdef _WIN32
         WSACleanup();
+#endif
     }
     virtual void shutdown() {running = false;}
 
 protected:
-    SOCKET sock = INVALID_SOCKET;
+    SocketType sock = INVALID_SOCK;
     bool running = true;
 
     virtual const char* tag() const = 0;
