@@ -1,7 +1,7 @@
 #include <thread>
-#include "LobbyServer.h"
+#include "lobby/LobbyServer.h"
 #include "voice/VoiceServer.h"
-#include "common/Logger.h"
+#include "common/logging/Logger.h"
 
 int main()
 {
