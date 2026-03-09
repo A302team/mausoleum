@@ -15,7 +15,7 @@ public:
     void Initialize(UObject* OuterObj);
     
     void Connect(const FString& URL);
-    void Disconnect();
+    void Disconnect(const FString& RoomCode, const FString& SpeakerName);
     bool IsConnected() const;
 
     void SendVoiceData(const TArray<uint8>& Payload, const FString& RoomCode, const FString& Mode, const FString& SpeakerName);
@@ -25,7 +25,7 @@ public:
 private:
     void HandleBinaryMessage(const TArray<uint8>& BinaryData);
 
-    void SendLeavePacket();
+    void SendLeavePacket(const FString& RoomCode, const FString& SpeakerName);
 
     UPROPERTY()
     class UGameNetworkSubsystem* GameNetworkSubsystem = nullptr;

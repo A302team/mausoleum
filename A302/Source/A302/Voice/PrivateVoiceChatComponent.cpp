@@ -9,6 +9,7 @@
 #include "Voice/Strategy/VoiceChatStrategyBase.h"
 #include "GameMode/A302GameInstance.h"
 #include "GameMode/LobbyGameMode.h"
+#include "Network/GameNetworkSubsystem.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerState.h"
@@ -23,6 +24,19 @@ UPrivateVoiceChatComponent::UPrivateVoiceChatComponent()
 void UPrivateVoiceChatComponent::BeginPlay()
 {
     Super::BeginPlay();
+
+    // 중앙 설정(GameNetworkSubsystem)에서 서버 주소 가져오기 (클라이언트에서만 유효)
+    if (GetNetMode() == NM_Client || GetNetMode() == NM_Standalone)
+    {
+        if (UGameInstance* GI = UGameplayStatics::GetGameInstance(this))
+        {
+            if (UGameNetworkSubsystem* NetworkSubsystem = GI->GetSubsystem<UGameNetworkSubsystem>())
+            {
+                VoiceServerUrl = NetworkSubsystem->GetVoiceURL();
+            }
+        }
+    }
+
     UE_LOG(LogVoiceChat, Log, TEXT("[Voice] BeginPlay - Facade Initialize"));
 
     // 모듈 생성 및 초기화
@@ -143,7 +157,18 @@ void UPrivateVoiceChatComponent::ConnectToVoiceServer()
 
 void UPrivateVoiceChatComponent::DisconnectFromVoiceServer()
 {
-    if (NetworkClient) NetworkClient->Disconnect();
+    if (APawn* OwnerPawn = Cast<APawn>(GetOwner()))
+    {
+        if (!OwnerPawn->IsLocallyControlled())
+        {
+            return; // 로컬 컨트롤러가 아닌 타 유저 아바타 파괴 시에는 서버 연결을 끊지 않음
+        }
+    }
+
+    if (NetworkClient) 
+    {
+        NetworkClient->Disconnect(roomCode, GetMyPlayerName());
+    }
 }
 
 // ===== 전략(Strategy) 관리 =====

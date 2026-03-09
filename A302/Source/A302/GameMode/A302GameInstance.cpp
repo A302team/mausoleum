@@ -1,6 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "GameMode/A302GameInstance.h"
+#include "Network/GameNetworkSubsystem.h"
 #include "Dom/JsonObject.h"
 #include "UI/LobbyWidget.h"
 #include "UI/WaitingRoomWidget.h"
@@ -8,25 +9,17 @@
 #include "Kismet/GameplayStatics.h"
 #include "GameMode/LobbyGameMode.h"
 #include "Character/MyPlayerController.h"
-#include "Network/GameNetworkSubsystem.h"
-#include "Network/WebSocketHandler.h"
 
 void UA302GameInstance::Init()
 {
     Super::Init();
-
-    GameNetworkSubsystem = NewObject<UGameNetworkSubsystem>(this, TEXT("GameNetworkSubsystem"));
-    if (!GameNetworkSubsystem)
+    
+    GameNetworkSubsystem = GetSubsystem<UGameNetworkSubsystem>();
+    if (GameNetworkSubsystem)
     {
-        UE_LOG(LogTemp, Warning, TEXT("[GameMode/A302GameInstance] No GameNetworkSubsystem"));
+        GameNetworkSubsystem->Connect(EProtocolType::WebSocket, GameNetworkSubsystem->GetLobbyURL());
+        GameNetworkSubsystem->OnPacketReceived.AddDynamic(this, &UA302GameInstance::OnMessageReceived);
     }
-    WebSocketHandler = NewObject<UWebSocketHandler>(this, TEXT("WebSocketHandler"));
-    WebSocketHandler->OnMessageReceived.AddDynamic(this, &UA302GameInstance::OnMessageReceived);
-
-    GameNetworkSubsystem->Connect(EProtocolType::WebSocket, TEXT("ws://j14a302.p.ssafy.io:8001"));
-
-    UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] Init - WebSocket 연결 시도"));
-
     FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(this, &UA302GameInstance::OnMapLoaded);
 }
 
@@ -103,9 +96,9 @@ void UA302GameInstance::ConnectToServer(const FString &URL)
 
 void UA302GameInstance::SendToServer(const FString &Message)
 {
-    if (WebSocketHandler)
+    if (GameNetworkSubsystem)
     {
-        WebSocketHandler->SendMessage(Message);
+        GameNetworkSubsystem->SendPacket(EProtocolType::WebSocket, Message);
     }
 }
 

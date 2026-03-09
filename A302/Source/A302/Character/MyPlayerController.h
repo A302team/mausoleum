@@ -90,4 +90,5 @@ private:
 	UPROPERTY()
 	TObjectPtr<UButton> ExitBtn = nullptr;
 
+public:
 };

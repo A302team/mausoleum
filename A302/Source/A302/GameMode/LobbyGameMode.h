@@ -4,7 +4,11 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
+#include "GameMode/A302GameInstance.h" // For FRoomInfo
 #include "LobbyGameMode.generated.h"
+
+class ULobbyWidget;
+class UWaitingRoomWidget;
 
 UCLASS()
 class A302_API ALobbyGameMode : public AGameModeBase
@@ -13,6 +17,6 @@ class A302_API ALobbyGameMode : public AGameModeBase
 
 public:
     ALobbyGameMode();
-
     virtual void BeginPlay() override;
+
 };
