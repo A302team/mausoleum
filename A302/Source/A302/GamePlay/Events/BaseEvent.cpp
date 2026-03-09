@@ -1,33 +1,35 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
-#include "BaseEvent.h"
+#include "GamePlay/Events/BaseEvent.h"
 #include "Engine/World.h"
 #include "Character/MyCharacter.h"
+#include "Character/MyPlayerController.h"
 
 void UBaseEvent::ExecuteEvent_Implementation(AMyCharacter* InstigatorCharacter)
-{
+{	
+	if (!InstigatorCharacter) return;
+
+	// C++ 기본 동작: 플레이어 컨트롤러를 찾아 UI를 띄우라고 지시합니다.
+	if (AMyPlayerController* PC = Cast<AMyPlayerController>(InstigatorCharacter->GetController()))
+	{
+		// 서버 측 컨트롤러에 현재 진행 중인 이벤트를 등록합니다.
+		PC->ActivePersonalEvent = this;
+        
+		// 클라이언트 RPC를 호출하여 화면에 띄웁니다.
+		PC->Client_ShowPersonalEvent(EventID, EventTitle, EventDescription, bIsCancelable);
+	}
 	UE_LOG(LogTemp, Warning, TEXT("[Event] %s 실행됨! (C++ 기본 구현)"), *EventID.ToString());
 }
 
-void UBaseEvent::FinishEvent(bool bWasSuccessful)
+void UBaseEvent::OnEventResolved_Implementation(AMyCharacter* TargetCharacter, bool bIsConfirmed)
 {
-	// TODO: GameMode나 GameState에 이벤트 종료를 알리고, 원래 입력 상태(IMC)로 복구하는 처리
-	UE_LOG(LogTemp, Log, TEXT("[Event] %s 종료. 성공 여부: %d"), *EventID.ToString(), bWasSuccessful);
+	// C++ 기본 구현부 (보통은 비워두고 블루프린트에서 노드로 구현합니다)
+	UE_LOG(LogTemp, Warning, TEXT("[Event] %s 이벤트가 확인되었습니다! (보상 지급 로직 실행)"), *EventID.ToString());
 }
 
 UWorld* UBaseEvent::GetWorld() const
 {
-	// 에디터의 Class Default Object(CDO)인 경우 예외 처리
-	if (HasAnyFlags(RF_ClassDefaultObject))
-	{
-		return nullptr;
-	}
-    
-	// 이 오브젝트를 생성한 부모(보통 GameMode)의 World를 반환
-	if (GetOuter())
-	{
-		return GetOuter()->GetWorld();
-	}
-
+	if (HasAnyFlags(RF_ClassDefaultObject)) return nullptr;
+	if (GetOuter()) return GetOuter()->GetWorld();
 	return nullptr;
 }

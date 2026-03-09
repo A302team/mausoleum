@@ -20,6 +20,8 @@ class UImage;
 class UTexture2D;
 class UComboBoxString;
 class UButton;
+class UBaseEvent;
+class UPersonalEventWidget;
 
 UCLASS()
 class A302_API AMyPlayerController : public APlayerController
@@ -37,6 +39,25 @@ public:
 	void SetItemTimerVisible(bool bVisible);
 	void ToggleInGameSettingMenu();
 	bool IsInGameSettingMenuOpen() const;
+	
+	// Event UI 위젯 클래스 (블루프린트에서 세팅)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI|Event")
+	TSubclassOf<class UPersonalEventWidget> PersonalEventWidgetClass;
+
+	UPROPERTY()
+	TObjectPtr<UPersonalEventWidget> PersonalEventWidgetInstance;
+
+	// 서버가 이 플레이어의 현재 진행 중인 이벤트를 기억해두기 위한 포인터
+	UPROPERTY()
+	TObjectPtr<UBaseEvent> ActivePersonalEvent;
+
+	// 클라이언트의 화면에 이벤트를 띄우는 함수
+	UFUNCTION(Client, Reliable)
+	void Client_ShowPersonalEvent(FName EventID, const FText& EventTitle, const FText& EventDescription, bool bIsCancelable);
+
+	// 클라이언트가 확인 버튼을 눌렀을 때 서버로 알리는 함수
+	UFUNCTION(Server, Reliable)
+	void Server_ResolvePersonalEvent(FName EventID, bool bIsConfirmed);
 
 protected:
 	virtual void BeginPlay() override;
