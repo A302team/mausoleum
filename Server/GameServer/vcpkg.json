@@ -1,0 +1,6 @@
+{
+  "name": "gameserver",
+  "version": "1.0.0",
+  "description": "GameServer with WebSockets and UDP Voice Chat",
+  "dependencies": ["uwebsockets", "nlohmann-json", "protobuf"]
+}

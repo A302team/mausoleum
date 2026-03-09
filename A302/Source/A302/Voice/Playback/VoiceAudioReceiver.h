@@ -13,7 +13,7 @@ class A302_API UVoiceAudioReceiver : public UObject
 
 public:
     void Initialize(UActorComponent* OuterComp);
-    void PlayVoice(const FString& EncodedPayload);
+    void PlayVoice(const TArray<uint8>& VoiceData);
 
 private:
     UPROPERTY(VisibleAnywhere, Category = "Voice|Audio")

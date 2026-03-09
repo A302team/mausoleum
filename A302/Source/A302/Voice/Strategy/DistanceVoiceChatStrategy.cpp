@@ -10,13 +10,14 @@ bool UDistanceVoiceChatStrategy::CanReceiveVoice(const UPrivateVoiceChatComponen
         return false;
     }
 
-    const FString& ListenerRoom = ListenerComp->GetRoomCode();
-    const FString& SpeakerRoom = SpeakerComp->GetRoomCode();
-
-    if (ListenerRoom.IsEmpty() || SpeakerRoom.IsEmpty() || ListenerRoom != SpeakerRoom)
-    {
-        return false;
-    }
+    // 임시: RoomCode 검사 로직 제거
+    // const FString& ListenerRoom = ListenerComp->GetRoomCode();
+    // const FString& SpeakerRoom = SpeakerComp->GetRoomCode();
+    //
+    // if (ListenerRoom.IsEmpty() || SpeakerRoom.IsEmpty() || ListenerRoom != SpeakerRoom)
+    // {
+    //     return false;
+    // }
 
     const AActor* ListenerActor = ListenerComp->GetOwner();
     const AActor* SpeakerActor = SpeakerComp->GetOwner();

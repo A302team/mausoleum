@@ -8,7 +8,7 @@
 #include "AudioCaptureComponent.h"
 #include "VoiceCaptureProcessor.generated.h"
 
-DECLARE_DELEGATE_OneParam(FOnVoiceDataCaptured, const FString& /*EncodedPayload*/);
+DECLARE_DELEGATE_OneParam(FOnVoiceDataCaptured, const TArray<uint8>& /*VoiceData*/);
 
 UCLASS()
 class A302_API UVoiceCaptureProcessor : public UObject
@@ -35,4 +35,7 @@ private:
     TSharedPtr<IVoiceCapture> VoiceCapture;
     FTimerHandle CaptureTimer;
     bool bIsMicActive = false;
+
+    UPROPERTY()
+    TObjectPtr<class UVoiceCodec> Codec = nullptr;
 };

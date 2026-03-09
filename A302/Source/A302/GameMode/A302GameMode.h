@@ -41,9 +41,6 @@ private:
     UPROPERTY()
     TObjectPtr<class ASpawnManager> SpawnManager;
 
-    UPROPERTY()
-    TObjectPtr<class UWebSocketManager> WebSocketManager;
-
     UPROPERTY(EditDefaultsOnly)
     TSubclassOf<class UChatWidget> ChatWidgetClass;
 
