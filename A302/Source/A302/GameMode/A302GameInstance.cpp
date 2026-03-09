@@ -9,6 +9,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "GameMode/LobbyGameMode.h"
 #include "Character/MyPlayerController.h"
+#include "Network/LobbyConstants.h"
 
 void UA302GameInstance::Init()
 {
@@ -111,62 +112,62 @@ void UA302GameInstance::OnMessageReceived(const FString &Message)
     if (!FJsonSerializer::Deserialize(Reader, JsonObject))
         return;
 
-    FString Type = JsonObject->GetStringField(TEXT("type"));
-    TSharedPtr<FJsonObject> Data = JsonObject->GetObjectField(TEXT("data"));
+    FString Type = JsonObject->GetStringField(LobbyProtocol::KeyType);
+    TSharedPtr<FJsonObject> Data = JsonObject->GetObjectField(LobbyProtocol::KeyData);
 
-    if (Type == TEXT("room_created"))
+    if (Type == LobbyProtocol::ResRoomCreated)
     {
-        CurrentRoomCode = Data->GetStringField(TEXT("roomCode"));
-        MyPlayerName = Data->GetStringField(TEXT("playerName"));
+        CurrentRoomCode = Data->GetStringField(LobbyProtocol::KeyRoomCode);
+        MyPlayerName = Data->GetStringField(LobbyProtocol::KeyPlayerName);
         bIsHost = true;
         UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] 방 생성: %s"), *CurrentRoomCode);
         OnRoomCreated.Broadcast(CurrentRoomCode);
         ShowWaitingRoom(CurrentRoomCode);
     }
-    else if (Type == TEXT("room_joined"))
+    else if (Type == LobbyProtocol::ResRoomJoined)
     {
-        CurrentRoomCode = Data->GetStringField(TEXT("roomCode"));
-        MyPlayerName = Data->GetStringField(TEXT("playerName"));
-        bIsHost = Data->GetBoolField(TEXT("isHost"));
+        CurrentRoomCode = Data->GetStringField(LobbyProtocol::KeyRoomCode);
+        MyPlayerName = Data->GetStringField(LobbyProtocol::KeyPlayerName);
+        bIsHost = Data->GetBoolField(LobbyProtocol::KeyIsHost);
         UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] 방 입장: %s"), *CurrentRoomCode);
         OnRoomJoined.Broadcast();
         ShowWaitingRoom(CurrentRoomCode);
     }
-    else if (Type == TEXT("player_entered"))
+    else if (Type == LobbyProtocol::ResPlayerEntered)
     {
-        FString EnteredName = Data->GetStringField(TEXT("playerName"));
+        FString EnteredName = Data->GetStringField(LobbyProtocol::KeyPlayerName);
         UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] 플레이어 입장: %s"), *EnteredName);
         OnPlayerEntered.Broadcast(EnteredName);
     }
-    else if (Type == TEXT("room_list"))
+    else if (Type == LobbyProtocol::ResRoomList)
     {
         TArray<FRoomInfo> RoomList;
         const TArray<TSharedPtr<FJsonValue>> *Rooms;
-        if (Data->TryGetArrayField(TEXT("rooms"), Rooms))
+        if (Data->TryGetArrayField(LobbyProtocol::KeyRooms, Rooms))
         {
             for (auto &Room : *Rooms)
             {
                 FRoomInfo Info;
-                Info.RoomCode = Room->AsObject()->GetStringField(TEXT("roomCode"));
-                Info.PlayerCount = Room->AsObject()->GetIntegerField(TEXT("playerCount"));
+                Info.RoomCode = Room->AsObject()->GetStringField(LobbyProtocol::KeyRoomCode);
+                Info.PlayerCount = Room->AsObject()->GetIntegerField(LobbyProtocol::KeyPlayerCount);
                 RoomList.Add(Info);
             }
         }
         OnRoomListReceived.Broadcast(RoomList);
     }
-    else if (Type == TEXT("player_ready"))
+    else if (Type == LobbyProtocol::ResPlayerReady)
     {
-        FString ReadyName = Data->GetStringField(TEXT("playerName"));
+        FString ReadyName = Data->GetStringField(LobbyProtocol::KeyPlayerName);
         UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] 플레이어 레디: %s"), *ReadyName);
         OnPlayerReady.Broadcast(ReadyName);
     }
-    else if (Type == TEXT("player_left"))
+    else if (Type == LobbyProtocol::ResPlayerLeft)
     {
-        FString LeftName = Data->GetStringField(TEXT("playerName"));
+        FString LeftName = Data->GetStringField(LobbyProtocol::KeyPlayerName);
         UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] 플레이어 퇴장: %s"), *LeftName);
         OnPlayerLeft.Broadcast(LeftName);
     }
-    else if (Type == TEXT("game_started"))
+    else if (Type == LobbyProtocol::ResGameStarted)
     {
         UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] 게임 시작!"));
         OnGameStarted.Broadcast();
@@ -194,15 +195,15 @@ void UA302GameInstance::OnMessageReceived(const FString &Message)
         //     }
         // }
     }
-    else if (Type == TEXT("nickname_available"))
+    else if (Type == LobbyProtocol::ResNicknameAvailable)
     {
         UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] 닉네임 사용 가능"));
         OnNicknameAvailable.Broadcast();
     }
-    else if (Type == TEXT("chat_message"))
+    else if (Type == LobbyProtocol::ResChatMessage)
     {
-        FString PlayerName = Data->GetStringField(TEXT("playerName"));
-        FString ChatMessage = Data->GetStringField(TEXT("message"));
+        FString PlayerName = Data->GetStringField(LobbyProtocol::KeyPlayerName);
+        FString ChatMessage = Data->GetStringField(LobbyProtocol::KeyMessage);
         UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] 채팅: %s: %s"), *PlayerName, *ChatMessage);
         OnChatMessageReceived.Broadcast(PlayerName, ChatMessage);
     }
@@ -213,9 +214,9 @@ void UA302GameInstance::OnMessageReceived(const FString &Message)
         UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] 아이템 수신: %s → %s"), *PlayerName, *ItemType);
         OnItemReceived.Broadcast(PlayerName, ItemType);
     }
-    else if (Type == TEXT("error"))
+    else if (Type == LobbyProtocol::ResError)
     {
-        FString ErrorMsg = Data->GetStringField(TEXT("message"));
+        FString ErrorMsg = Data->GetStringField(LobbyProtocol::KeyMessage);
         UE_LOG(LogTemp, Warning, TEXT("[GameMode/A302GameInstance] 에러: %s"), *ErrorMsg);
     }
     else

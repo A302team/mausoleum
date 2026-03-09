@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <string>
 #include <iostream>
+#include <memory>
 #include <uwebsockets/App.h>
 #include "domain/RoomManager.h"
 #include "LobbyClientManager.h"
@@ -20,27 +21,15 @@ private:
     RoomManager& roomManager;
     LobbyClientManager& clientManager;
 
+    class Impl;
+    std::unique_ptr<Impl> pImpl;
+
 public:
     LobbyPacketRouter(RoomManager& rm, LobbyClientManager& cm);
+    ~LobbyPacketRouter();
 
     void dispatch(WebSocketType* ws, std::string_view msg);
 
 private:
     void registerHandlers();
-    auto createSendFunc(WebSocketType* ws);
-
-    // 공통 로직 추출을 위한 헬퍼 함수
-    void sendError(WebSocketType* ws, const std::string& message);
-    bool checkNameAndSendErrorIfTaken(WebSocketType* ws, const std::string& playerName);
-    bool extractContext(const json& data, std::string& outRoomCode, std::string& outPlayerName, Room*& outRoom);
-
-    // 핸들러
-    void handleCreateRoom(WebSocketType* ws, const json& data);
-    void handleJoinRoom(WebSocketType* ws, const json& data);
-    void handleReady(WebSocketType* ws, const json& data);
-    void handleStartGame(WebSocketType* ws, const json& data);
-    void handleGetRoomList(WebSocketType* ws, const json& data);
-    void handleCheckNickname(WebSocketType* ws, const json& data);
-    void handleLeaveRoom(WebSocketType* ws, const json& data);
-    void handleChatMessage(WebSocketType* ws, const json& data);
 };

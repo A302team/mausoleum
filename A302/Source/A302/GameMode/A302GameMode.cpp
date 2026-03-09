@@ -11,6 +11,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "UI/ChatWidget.h"
 #include "Blueprint/UserWidget.h"
+#include "Network/LobbyConstants.h"
 
 AA302GameMode::AA302GameMode()
 {
@@ -140,13 +141,13 @@ void AA302GameMode::OnMessageReceived(const FString &Message)
     if (!FJsonSerializer::Deserialize(Reader, JsonObject))
         return;
 
-    FString Type = JsonObject->GetStringField(TEXT("type"));
-    TSharedPtr<FJsonObject> Data = JsonObject->GetObjectField(TEXT("data"));
+    FString Type = JsonObject->GetStringField(LobbyProtocol::KeyType);
+    TSharedPtr<FJsonObject> Data = JsonObject->GetObjectField(LobbyProtocol::KeyData);
 
-    if (Type == TEXT("chat_message"))
+    if (Type == LobbyProtocol::ResChatMessage)
     {
-        FString PlayerName = Data->GetStringField(TEXT("playerName"));
-        FString ChatMessage = Data->GetStringField(TEXT("message"));
+        FString PlayerName = Data->GetStringField(LobbyProtocol::KeyPlayerName);
+        FString ChatMessage = Data->GetStringField(LobbyProtocol::KeyMessage);
         UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] Chatting Log >> %s: %s"), *PlayerName, *ChatMessage);
         OnInGameChatReceived.Broadcast(PlayerName, ChatMessage);
     }
