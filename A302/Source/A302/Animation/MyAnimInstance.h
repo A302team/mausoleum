@@ -5,8 +5,8 @@
 #include "MyAnimInstance.generated.h"
 
 class AMyCharacter;
-class UCombatStatusComponent;
 class UAnimMontage;
+class UCombatStatusComponent;
 
 UCLASS()
 class A302_API UMyAnimInstance : public UAnimInstance
@@ -56,7 +56,7 @@ public:
     UAnimMontage* InteractMontage;
 
 
-    // Play Functions (AnimBP에서 호출)
+    // Gameplay → AnimInstance 호출용 함수
 
     UFUNCTION(BlueprintCallable)
     void PlayAttackMontage();
@@ -76,5 +76,8 @@ private:
     UPROPERTY()
     UCombatStatusComponent* CachedCombatComponent = nullptr;
 
+    // 방어 애니메이션 재생 시, 이전 방어 횟수와 비교하여 방어 횟수가 증가했을 때만 애니메이션이 재생되도록 하기 위한 변수
     int32 PreviousShieldCount = 0;
+
+    bool bAnimInitialized = false;
 };

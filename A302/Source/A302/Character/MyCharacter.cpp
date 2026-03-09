@@ -20,6 +20,7 @@
 #include "InputCoreTypes.h"
 #include "InputAction.h"
 #include "Object/BaseInteractable.h"
+#include "Animation/MyAnimInstance.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogMyInput, Log, All);
 
@@ -371,6 +372,13 @@ void AMyCharacter::OnInteractHoldComplete(const FInputActionValue& Value)
 	InteractionComponent->HandleInteractHoldComplete();
 
 	AActor* InteractedActor = InteractionComponent->GetLastInteractedActor();
+
+	// 상호작용 애니메이션 재생
+	if (UMyAnimInstance* Anim = Cast<UMyAnimInstance>(GetMesh()->GetAnimInstance()))
+	{
+		Anim->PlayInteractMontage();
+	}
+
 	if (!InteractedActor)
 	{
 		return;
@@ -517,6 +525,12 @@ void AMyCharacter::OnAttack(const FInputActionValue& Value)
 		}
 
 		BP_OnPrimaryItemUsed(UsedItemDefinition, UsedSlotIndex + 1);
+
+		// 공격 애니메이션 재생
+		if (UMyAnimInstance* Anim = Cast<UMyAnimInstance>(GetMesh()->GetAnimInstance()))
+		{
+				Anim->PlayAttackMontage();
+		}
 	}
 }
 

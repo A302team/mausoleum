@@ -9,15 +9,20 @@ void UMyAnimInstance::NativeInitializeAnimation()
 
     CachedCharacter = Cast<AMyCharacter>(TryGetPawnOwner());
 
-    if (CachedCharacter)
+    // 캐릭터와 CombatStatusComponent를 캐싱하여 방어 애니메이션 재생 시 매번 컴포넌트를 찾는 비용을 줄임
+    if (CachedCombatComponent)
     {
-        CachedCombatComponent = CachedCharacter->FindComponentByClass<UCombatStatusComponent>();
+        int32 CurrentShieldCount = CachedCombatComponent->ShieldBlockCount;
 
-        if (CachedCombatComponent)
+        if (bAnimInitialized && CurrentShieldCount < PreviousShieldCount)
         {
-            PreviousShieldCount = CachedCombatComponent->ShieldBlockCount;
+            PlayBlockMontage();
         }
+
+        PreviousShieldCount = CurrentShieldCount;
     }
+
+    bAnimInitialized = true;
 }
 
 void UMyAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
@@ -51,6 +56,11 @@ void UMyAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 
     /** Shield Block Detect */
 
+    if (!CachedCombatComponent && CachedCharacter)
+    {
+        CachedCombatComponent = CachedCharacter->FindComponentByClass<UCombatStatusComponent>();
+    }
+
     if (CachedCombatComponent)
     {
         int32 CurrentShieldCount = CachedCombatComponent->ShieldBlockCount;
@@ -64,7 +74,8 @@ void UMyAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
     }
 }
 
-// 공격 애니메이션 재생 함수
+
+// 공격 애니메이션 재생
 void UMyAnimInstance::PlayAttackMontage()
 {
     if (!AttackMontage) return;
@@ -76,9 +87,10 @@ void UMyAnimInstance::PlayAttackMontage()
     }
 }
 
-// 방어 애니메이션 재생 함수
+
+// 방어 애니메이션 재생
 void UMyAnimInstance::PlayBlockMontage()
-{
+{   
     if (!BlockMontage) return;
 
     if (!Montage_IsPlaying(BlockMontage))
@@ -88,7 +100,8 @@ void UMyAnimInstance::PlayBlockMontage()
     }
 }
 
-// 상호작용 애니메이션 재생 함수
+
+// 상호작용 애니메이션 재생
 void UMyAnimInstance::PlayInteractMontage()
 {
     if (!InteractMontage) return;
