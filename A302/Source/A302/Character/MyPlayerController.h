@@ -34,6 +34,10 @@ public:
 	bool UpdateItemTimerText(float RemainingSeconds);
 	void SetItemTimerVisible(bool bVisible);
 
+    // 클라이언트에서 호출 → 서버에서 실행
+    UFUNCTION(Server, Reliable, WithValidation)
+    void ServerRequestGameStart();
+
 protected:
 	virtual void BeginPlay() override;
 
