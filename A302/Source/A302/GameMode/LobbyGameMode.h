@@ -4,105 +4,86 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
+#include "GameMode/A302GameInstance.h" // For FRoomInfo
 #include "LobbyGameMode.generated.h"
 
-USTRUCT(BlueprintType)
-struct FRoomInfo
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	FString RoomCode;
-
-	UPROPERTY()
-	int32 PlayerCount = 0;
-};
-
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlayerEntered, const FString &, PlayerName);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlayerReady, const FString &, PlayerName);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnGameStarted);
-
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnRoomCreated, const FString &, RoomCode);
-
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnRoomListReceived, const TArray<FRoomInfo> &, RoomList);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnRoomJoined);
-
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnNicknameAvailable);
-
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlayerLeft, const FString &, PlayerName);
-
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnChatMessageReceived, const FString &, PlayerName, const FString &, Message);
+class ULobbyWidget;
+class UWaitingRoomWidget;
 
 UCLASS()
 class A302_API ALobbyGameMode : public AGameModeBase
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
 public:
-	ALobbyGameMode();
+    ALobbyGameMode();
 
-	virtual void BeginPlay() override;
+    virtual void BeginPlay() override;
 
-	// Send Message to Server
-	UFUNCTION(BlueprintCallable)
-	void SendToServer(const FString &Message);
+    // Lobby properties
+    UPROPERTY(EditDefaultsOnly, Category = "UI")
+    TSubclassOf<ULobbyWidget> LobbyWidgetClass;
 
-	// Received Server Message
-	UFUNCTION()
-	void OnMessageReceived(const FString &Message);
+    UPROPERTY()
+    TObjectPtr<ULobbyWidget> LobbyWidget;
 
-	UFUNCTION()
-	void ShowWaitingRoom(const FString &RoomCode);
+    UPROPERTY(EditDefaultsOnly, Category = "UI")
+    TSubclassOf<UWaitingRoomWidget> WaitingRoomWidgetClass;
 
-	// Widget Class
-	UPROPERTY(EditDefaultsOnly)
-	TSubclassOf<class ULobbyWidget> LobbyWidgetClass;
+    UPROPERTY()
+    TObjectPtr<UWaitingRoomWidget> WaitingRoomWidget;
 
-	UPROPERTY()
-	TObjectPtr<class ULobbyWidget> LobbyWidget;
+    UPROPERTY(BlueprintReadWrite, Category = "Lobby")
+    FString CurrentRoomCode;
 
-	// Delegate For Widget
-	UPROPERTY(BlueprintAssignable)
-	FOnPlayerEntered OnPlayerEntered;
+    UPROPERTY(BlueprintReadWrite, Category = "Lobby")
+    FString MyPlayerName;
 
-	UPROPERTY(BlueprintAssignable)
-	FOnPlayerReady OnPlayerReady;
+    UPROPERTY(BlueprintReadWrite, Category = "Lobby")
+    bool bIsHost = false;
 
-	UPROPERTY(BlueprintAssignable)
-	FOnGameStarted OnGameStarted;
+    // Delegates
+    DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnRoomCreatedLocal, const FString&, RoomCode);
+    UPROPERTY(BlueprintAssignable, Category = "Lobby|Events")
+    FOnRoomCreatedLocal OnRoomCreated;
 
-	// Room 관련 델리게이드 4개
-	UPROPERTY(BlueprintAssignable)
-	FOnRoomCreated OnRoomCreated;
+    DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnRoomJoinedLocal);
+    UPROPERTY(BlueprintAssignable, Category = "Lobby|Events")
+    FOnRoomJoinedLocal OnRoomJoined;
 
-	UPROPERTY(BlueprintAssignable)
-	FOnRoomListReceived OnRoomListReceived;
+    DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnRoomListReceivedLocal, const TArray<FRoomInfo>&, RoomList);
+    UPROPERTY(BlueprintAssignable, Category = "Lobby|Events")
+    FOnRoomListReceivedLocal OnRoomListReceived;
 
-	UPROPERTY(BlueprintAssignable)
-	FOnRoomJoined OnRoomJoined;
+    DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlayerEnteredLocal, const FString&, PlayerName);
+    UPROPERTY(BlueprintAssignable, Category = "Lobby|Events")
+    FOnPlayerEnteredLocal OnPlayerEntered;
 
-	UPROPERTY(BlueprintAssignable)
-	FOnPlayerLeft OnPlayerLeft;
+    DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlayerReadyLocal, const FString&, PlayerName);
+    UPROPERTY(BlueprintAssignable, Category = "Lobby|Events")
+    FOnPlayerReadyLocal OnPlayerReady;
 
-	UPROPERTY(BlueprintAssignable)
-	FOnChatMessageReceived OnChatMessageReceived;
+    DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnGameStartedLocal);
+    UPROPERTY(BlueprintAssignable, Category = "Lobby|Events")
+    FOnGameStartedLocal OnGameStarted;
 
-	UPROPERTY(BlueprintReadOnly)
-	FString CurrentRoomCode;
+    DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnNicknameAvailableLocal);
+    UPROPERTY(BlueprintAssignable, Category = "Lobby|Events")
+    FOnNicknameAvailableLocal OnNicknameAvailable;
 
-	UPROPERTY(BlueprintReadOnly)
-	FString MyPlayerName;
+    DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlayerLeftLocal, const FString&, PlayerName);
+    UPROPERTY(BlueprintAssignable, Category = "Lobby|Events")
+    FOnPlayerLeftLocal OnPlayerLeft;
 
-	UPROPERTY(BlueprintReadOnly)
-	bool bIsHost = false;
+    DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnChatMessageReceivedLocal, const FString&, PlayerName, const FString&, Message);
+    UPROPERTY(BlueprintAssignable, Category = "Lobby|Events")
+    FOnChatMessageReceivedLocal OnChatMessageReceived;
 
-	// 닉네임 체크
-	UPROPERTY(BlueprintAssignable)
-	FOnNicknameAvailable OnNicknameAvailable;
+    UFUNCTION(BlueprintCallable, Category = "Lobby")
+    void SendToServer(const FString& Message);
 
-	UPROPERTY(EditDefaultsOnly)
-	TSubclassOf<class UWaitingRoomWidget> WaitingRoomWidgetClass;
+    UFUNCTION()
+    void OnMessageReceived(const FString& Message);
 
-	UPROPERTY()
-	TObjectPtr<class UWaitingRoomWidget> WaitingRoomWidget;
+    void ShowWaitingRoom(const FString& RoomCode);
 };

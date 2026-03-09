@@ -69,4 +69,15 @@ public:
         }
         return code;
     }
+
+    void broadcastExcept(const std::string& exceptName, const json& message)
+    {
+        for(auto& [name, player] : players)
+        {
+            if(name != exceptName)
+            {
+                player.send(message);
+            }
+        }
+    }
 };

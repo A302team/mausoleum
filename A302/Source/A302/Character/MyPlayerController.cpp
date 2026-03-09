@@ -8,13 +8,32 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "GameMode/A302GameMode.h"
+#include "UI/ChatWidget.h"
+#include "Kismet/GameplayStatics.h"
+#include "Engine/World.h"
+#include "Net/UnrealNetwork.h"
 
 namespace
 {
 	constexpr int32 PlayerControllerQuickSlotCount = 5;
 }
 
-UUserWidget* AMyPlayerController::FindQuickSlotWidget(int32 SlotIndex) const
+bool AMyPlayerController::ServerRequestGameStart_Validate()
+{
+    return true;
+}
+
+void AMyPlayerController::ServerRequestGameStart_Implementation()
+{
+    UWorld* World = GetWorld();
+    if (!World) return;
+    
+    UE_LOG(LogTemp, Log, TEXT("[PC] ServerRequestGameStart - NetMode: %d"), (int32)World->GetNetMode());
+    World->ServerTravel(TEXT("/Game/PersonalWorkSpace/sikk806/MyTestLevel?listen"));
+}
+
+UUserWidget *AMyPlayerController::FindQuickSlotWidget(int32 SlotIndex) const
 {
 	if (!QuickSlotBarWidget || SlotIndex < 0 || SlotIndex >= PlayerControllerQuickSlotCount)
 	{
@@ -25,9 +44,9 @@ UUserWidget* AMyPlayerController::FindQuickSlotWidget(int32 SlotIndex) const
 	return Cast<UUserWidget>(QuickSlotBarWidget->GetWidgetFromName(SlotWidgetName));
 }
 
-UTextBlock* AMyPlayerController::FindQuickSlotItemNameText(int32 SlotIndex) const
+UTextBlock *AMyPlayerController::FindQuickSlotItemNameText(int32 SlotIndex) const
 {
-	if (UUserWidget* QuickSlotWidget = FindQuickSlotWidget(SlotIndex))
+	if (UUserWidget *QuickSlotWidget = FindQuickSlotWidget(SlotIndex))
 	{
 		return Cast<UTextBlock>(QuickSlotWidget->GetWidgetFromName(TEXT("ItemName")));
 	}
@@ -35,11 +54,11 @@ UTextBlock* AMyPlayerController::FindQuickSlotItemNameText(int32 SlotIndex) cons
 	return nullptr;
 }
 
-UImage* AMyPlayerController::FindQuickSlotItemIconImage(int32 SlotIndex) const
+UImage *AMyPlayerController::FindQuickSlotItemIconImage(int32 SlotIndex) const
 {
-	if (UUserWidget* QuickSlotWidget = FindQuickSlotWidget(SlotIndex))
+	if (UUserWidget *QuickSlotWidget = FindQuickSlotWidget(SlotIndex))
 	{
-		if (UImage* KnifeIcon = Cast<UImage>(QuickSlotWidget->GetWidgetFromName(TEXT("KnifeIcon"))))
+		if (UImage *KnifeIcon = Cast<UImage>(QuickSlotWidget->GetWidgetFromName(TEXT("KnifeIcon"))))
 		{
 			return KnifeIcon;
 		}
@@ -50,9 +69,9 @@ UImage* AMyPlayerController::FindQuickSlotItemIconImage(int32 SlotIndex) const
 	return nullptr;
 }
 
-UImage* AMyPlayerController::FindQuickSlotItemSelectedImage(int32 SlotIndex) const
+UImage *AMyPlayerController::FindQuickSlotItemSelectedImage(int32 SlotIndex) const
 {
-	if (UUserWidget* QuickSlotWidget = FindQuickSlotWidget(SlotIndex))
+	if (UUserWidget *QuickSlotWidget = FindQuickSlotWidget(SlotIndex))
 	{
 		return Cast<UImage>(QuickSlotWidget->GetWidgetFromName(TEXT("ItemSelected")));
 	}
@@ -60,7 +79,7 @@ UImage* AMyPlayerController::FindQuickSlotItemSelectedImage(int32 SlotIndex) con
 	return nullptr;
 }
 
-UTextBlock* AMyPlayerController::FindShieldCountText() const
+UTextBlock *AMyPlayerController::FindShieldCountText() const
 {
 	if (!QuickSlotBarWidget)
 	{
@@ -70,7 +89,7 @@ UTextBlock* AMyPlayerController::FindShieldCountText() const
 	return Cast<UTextBlock>(QuickSlotBarWidget->GetWidgetFromName(TEXT("ShieldCount")));
 }
 
-UTextBlock* AMyPlayerController::FindMaliceCountText() const
+UTextBlock *AMyPlayerController::FindMaliceCountText() const
 {
 	if (!QuickSlotBarWidget)
 	{
@@ -80,7 +99,7 @@ UTextBlock* AMyPlayerController::FindMaliceCountText() const
 	return Cast<UTextBlock>(QuickSlotBarWidget->GetWidgetFromName(TEXT("MaliceCount")));
 }
 
-UTextBlock* AMyPlayerController::FindItemTimerText() const
+UTextBlock *AMyPlayerController::FindItemTimerText() const
 {
 	if (!QuickSlotBarWidget)
 	{
@@ -90,20 +109,20 @@ UTextBlock* AMyPlayerController::FindItemTimerText() const
 	return Cast<UTextBlock>(QuickSlotBarWidget->GetWidgetFromName(TEXT("ItemTimer")));
 }
 
-bool AMyPlayerController::UpdateQuickSlotItemVisual(int32 SlotIndex, const FText& ItemName, UTexture2D* ItemIcon)
+bool AMyPlayerController::UpdateQuickSlotItemVisual(int32 SlotIndex, const FText &ItemName, UTexture2D *ItemIcon)
 {
 	bool bNameUpdated = false;
 	bool bIconWidgetFound = false;
 	bool bIconTextureSet = false;
 
-	if (UTextBlock* ItemNameText = FindQuickSlotItemNameText(SlotIndex))
+	if (UTextBlock *ItemNameText = FindQuickSlotItemNameText(SlotIndex))
 	{
 		ItemNameText->SetText(ItemName);
 		ItemNameText->SetVisibility(ESlateVisibility::Visible);
 		bNameUpdated = true;
 	}
 
-	if (UImage* ItemIconImage = FindQuickSlotItemIconImage(SlotIndex))
+	if (UImage *ItemIconImage = FindQuickSlotItemIconImage(SlotIndex))
 	{
 		bIconWidgetFound = true;
 		ItemIconImage->SetBrushFromTexture(ItemIcon, true);
@@ -133,7 +152,7 @@ bool AMyPlayerController::UpdateQuickSlotItemVisual(int32 SlotIndex, const FText
 	return bNameUpdated || bIconWidgetFound || bIconTextureSet;
 }
 
-bool AMyPlayerController::UpdateQuickSlotItemName(int32 SlotIndex, const FText& ItemName)
+bool AMyPlayerController::UpdateQuickSlotItemName(int32 SlotIndex, const FText &ItemName)
 {
 	return UpdateQuickSlotItemVisual(SlotIndex, ItemName, nullptr);
 }
@@ -142,18 +161,17 @@ void AMyPlayerController::UpdateQuickSlotSelectionVisual(int32 SelectedSlotIndex
 {
 	for (int32 SlotIndex = 0; SlotIndex < PlayerControllerQuickSlotCount; ++SlotIndex)
 	{
-		if (UImage* SelectedImage = FindQuickSlotItemSelectedImage(SlotIndex))
+		if (UImage *SelectedImage = FindQuickSlotItemSelectedImage(SlotIndex))
 		{
 			SelectedImage->SetVisibility(
-				SlotIndex == SelectedSlotIndex ? ESlateVisibility::Visible : ESlateVisibility::Hidden
-			);
+				SlotIndex == SelectedSlotIndex ? ESlateVisibility::Visible : ESlateVisibility::Hidden);
 		}
 	}
 }
 
 bool AMyPlayerController::UpdateShieldCountText(int32 ShieldCount)
 {
-	UTextBlock* ShieldCountText = FindShieldCountText();
+	UTextBlock *ShieldCountText = FindShieldCountText();
 	if (!ShieldCountText)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[PC] ShieldCount text widget not found. Expected name: ShieldCount"));
@@ -167,7 +185,7 @@ bool AMyPlayerController::UpdateShieldCountText(int32 ShieldCount)
 
 bool AMyPlayerController::UpdateMaliceCountText(int32 MaliceCount)
 {
-	UTextBlock* MaliceCountText = FindMaliceCountText();
+	UTextBlock *MaliceCountText = FindMaliceCountText();
 	if (!MaliceCountText)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[PC] MaliceCount text widget not found. Expected name: MaliceCount"));
@@ -181,7 +199,7 @@ bool AMyPlayerController::UpdateMaliceCountText(int32 MaliceCount)
 
 bool AMyPlayerController::UpdateItemTimerText(float RemainingSeconds)
 {
-	UTextBlock* ItemTimerText = FindItemTimerText();
+	UTextBlock *ItemTimerText = FindItemTimerText();
 	if (!ItemTimerText)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[PC] ItemTimer text widget not found. Expected name: ItemTimer"));
@@ -195,7 +213,7 @@ bool AMyPlayerController::UpdateItemTimerText(float RemainingSeconds)
 
 void AMyPlayerController::SetItemTimerVisible(bool bVisible)
 {
-	if (UTextBlock* ItemTimerText = FindItemTimerText())
+	if (UTextBlock *ItemTimerText = FindItemTimerText())
 	{
 		ItemTimerText->SetVisibility(bVisible ? ESlateVisibility::Visible : ESlateVisibility::Hidden);
 	}
@@ -327,27 +345,36 @@ void AMyPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
-	if (ULocalPlayer* LP = GetLocalPlayer())
+	// 로컬 컨트롤러에서만 실행
+	if (!IsLocalController())
+		return;
+
+	if (ULocalPlayer *LP = GetLocalPlayer())
 	{
-		if (UEnhancedInputLocalPlayerSubsystem* Subsys = LP->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
+		if (UEnhancedInputLocalPlayerSubsystem *Subsys = LP->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
 		{
 			if (DefaultMappingContext)
 			{
 				Subsys->AddMappingContext(DefaultMappingContext, MappingPriority);
 			}
-			else
-			{
-				UE_LOG(LogTemp, Error, TEXT("[PC] DefaultMappingContext is NULL"));
-			}
-		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("[PC] EnhancedInputLocalPlayerSubsystem NULL"));
 		}
 	}
-	else
+
+	// 인게임 레벨일 때만 ChatWidget 생성
+	FString MapName = GetWorld()->GetMapName();
+	if (MapName.Contains(TEXT("MyTestLevel")))
 	{
-		UE_LOG(LogTemp, Error, TEXT("[PC] LocalPlayer NULL"));
+		AA302GameMode *GameMode = Cast<AA302GameMode>(UGameplayStatics::GetGameMode(this));
+		if (GameMode && GameMode->ChatWidgetClass)
+		{
+			UChatWidget *ChatWidget = CreateWidget<UChatWidget>(this, GameMode->ChatWidgetClass);
+			if (ChatWidget)
+			{
+				ChatWidget->AddToViewport();
+				GameMode->ChatWidget = ChatWidget;
+				UE_LOG(LogTemp, Log, TEXT("[PC] ChatWidget 생성 성공"));
+			}
+		}
 	}
 
 	if (QuickSlotBarClass)
@@ -375,19 +402,19 @@ void AMyPlayerController::InitializeQuickSlotVisualState()
 {
 	for (int32 SlotIndex = 0; SlotIndex < PlayerControllerQuickSlotCount; ++SlotIndex)
 	{
-		if (UTextBlock* ItemNameText = FindQuickSlotItemNameText(SlotIndex))
+		if (UTextBlock *ItemNameText = FindQuickSlotItemNameText(SlotIndex))
 		{
 			ItemNameText->SetText(FText::GetEmpty());
 			ItemNameText->SetVisibility(ESlateVisibility::Hidden);
 		}
 
-		if (UImage* ItemIconImage = FindQuickSlotItemIconImage(SlotIndex))
+		if (UImage *ItemIconImage = FindQuickSlotItemIconImage(SlotIndex))
 		{
 			ItemIconImage->SetBrushFromTexture(nullptr, true);
 			ItemIconImage->SetVisibility(ESlateVisibility::Hidden);
 		}
 
-		if (UImage* SelectedImage = FindQuickSlotItemSelectedImage(SlotIndex))
+		if (UImage *SelectedImage = FindQuickSlotItemSelectedImage(SlotIndex))
 		{
 			SelectedImage->SetVisibility(ESlateVisibility::Hidden);
 		}

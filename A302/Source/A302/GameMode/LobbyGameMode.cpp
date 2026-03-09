@@ -1,12 +1,10 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "LobbyGameMode.h"
-#include "Dom/JsonObject.h"
-#include "GameMode/A302GameInstance.h"
-#include "Serialization/JsonSerializer.h"
 #include "UI/LobbyWidget.h"
 #include "UI/WaitingRoomWidget.h"
 #include "Blueprint/UserWidget.h"
+#include "GameMode/A302GameInstance.h"
 #include "Kismet/GameplayStatics.h"
 #include "Network/GameNetworkSubsystem.h"
 
@@ -29,13 +27,18 @@ void ALobbyGameMode::BeginPlay()
     UGameNetworkSubsystem* GameNetworkSubsystem = GetGameInstance()->GetSubsystem<UGameNetworkSubsystem>();
     if (GameNetworkSubsystem)
     {
-        // 텍스트, 시그널링 이벤트 용 WebSocket (중앙 설정 주소 사용)
-        GameNetworkSubsystem->Connect(EProtocolType::WebSocket, GameNetworkSubsystem->GetLobbyURL());
-        
-        // 보이스/위치 등 실시간/바이너리 데이터용 UDP (중앙 설정 주소 사용)
-        GameNetworkSubsystem->Connect(EProtocolType::UDP, GameNetworkSubsystem->GetVoiceURL());
+        // 서버 환경(Dedicated/Listen)에서는 클라이언트 소켓 연결을 하지 않도록 보호
+        if (GetNetMode() == NM_Client || GetNetMode() == NM_Standalone)
+        {
+            // 텍스트, 시그널링 이벤트 용 WebSocket (중앙 설정 주소 사용)
+            GameNetworkSubsystem->Connect(EProtocolType::WebSocket, GameNetworkSubsystem->GetLobbyURL());
+            
+            // 보이스/위치 등 실시간/바이너리 데이터용 UDP (중앙 설정 주소 사용)
+            GameNetworkSubsystem->Connect(EProtocolType::UDP, GameNetworkSubsystem->GetVoiceURL());
 
-        GameNetworkSubsystem->OnPacketReceived.AddDynamic(this, &ALobbyGameMode::OnMessageReceived);
+            GameNetworkSubsystem->OnPacketReceived.AddDynamic(this, &ALobbyGameMode::OnMessageReceived);
+            UE_LOG(LogTemp, Log, TEXT("[GameMode/LobbyGameMode] Client connected to Servers."));
+        }
     }
     else
     {
@@ -51,12 +54,12 @@ void ALobbyGameMode::BeginPlay()
         }
     }
 
-    UE_LOG(LogTemp, Log, TEXT("[GameMode/LobbyGameMode] Begin Play."))
+    UE_LOG(LogTemp, Log, TEXT("[GameMode/LobbyGameMode] Begin Play."));
 }
 
 void ALobbyGameMode::SendToServer(const FString &Message)
 {
-    UGameNetworkSubsystem* GameNetworkSubsystem = GetGameInstance()->GetSubsystem<UGameNetworkSubsystem>();
+    UGameNetworkSubsystem* GameNetworkSubsystem = GetGameInstance() ? GetGameInstance()->GetSubsystem<UGameNetworkSubsystem>() : nullptr;
     if (GameNetworkSubsystem)
     {
         GameNetworkSubsystem->SendPacket(EProtocolType::WebSocket, Message);

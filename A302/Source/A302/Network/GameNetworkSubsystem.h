@@ -34,10 +34,10 @@ public:
 	FString ServerIP = TEXT("127.0.0.1");
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Network|Config")
-	int32 LobbyPort = 9001;
+	int32 LobbyPort = 8001;
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Network|Config")
-	int32 VoicePort = 9100;
+	int32 VoicePort = 8100;
 
 	UFUNCTION(BlueprintPure, Category = "Network")
 	FString GetLobbyURL() const { return FString::Printf(TEXT("ws://%s:%d"), *ServerIP, LobbyPort); }
