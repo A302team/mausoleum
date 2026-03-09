@@ -1,6 +1,7 @@
 #pragma once
 #include "common/IServer.h"
 #include "common/logging/Logger.h"  
+#include "common/Platform.h"
 #include "VoiceClientManager.h"
 #include "VoicePacketRouter.h"
 #include "VoicePacketType.h"
