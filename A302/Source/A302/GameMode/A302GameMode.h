@@ -8,6 +8,8 @@
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInGameChatReceived, const FString &, PlayerName, const FString &, Message);
 
+class AMyCharacter;
+
 UCLASS()
 class A302_API AA302GameMode : public AGameMode
 {
@@ -15,6 +17,15 @@ class A302_API AA302GameMode : public AGameMode
 
 public:
     AA302GameMode();
+
+    UPROPERTY(EditDefaultsOnly)
+    TSubclassOf<class UChatWidget> ChatWidgetClass;
+
+    UPROPERTY()
+    TObjectPtr<class UChatWidget> ChatWidget;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Spawn")
+    TSubclassOf<AMyCharacter> CharacterClass;
 
     UPROPERTY(BlueprintReadWrite)
     FString MyPlayerName;
@@ -43,12 +54,6 @@ private:
 
     UPROPERTY()
     TObjectPtr<class UWebSocketManager> WebSocketManager;
-
-    UPROPERTY(EditDefaultsOnly)
-    TSubclassOf<class UChatWidget> ChatWidgetClass;
-
-    UPROPERTY()
-    TObjectPtr<class UChatWidget> ChatWidget;
 
     UFUNCTION()
     void OnMessageReceived(const FString &Message);

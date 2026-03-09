@@ -8,6 +8,7 @@
 #include "Serialization/JsonSerializer.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameMode/LobbyGameMode.h"
+#include "Character/MyPlayerController.h"
 
 void UA302GameInstance::Init()
 {
@@ -20,7 +21,7 @@ void UA302GameInstance::Init()
     }
     WebSocketManager->OnMessageReceived.AddDynamic(this, &UA302GameInstance::OnMessageReceived);
 
-    ConnectToServer(TEXT("ws://localhost:9001"));
+    ConnectToServer(TEXT("ws://j14a302.p.ssafy.io:8001"));
 
     UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] Init - WebSocket 연결 시도"));
 
@@ -175,21 +176,27 @@ void UA302GameInstance::OnMessageReceived(const FString &Message)
         UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] 게임 시작!"));
         OnGameStarted.Broadcast();
 
-        UWorld *World = GetWorld();
-        if (!World)
-        {
-            UE_LOG(LogTemp, Error, TEXT("[GameMode/A302GameInstance] World가 NULL!"));
+        UWorld *MyWorld = GetWorld();
+        if (!MyWorld)
             return;
-        }
 
-        ENetMode NetMode = World->GetNetMode();
-        UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] NetMode: %d"), (int32)NetMode);
-        // 0=Standalone, 1=DedicatedServer, 2=ListenServer, 3=Client
+        ENetMode NetMode = MyWorld->GetNetMode();
+        UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] 내 NetMode: %d"), (int32)NetMode);
 
-        if (NetMode == NM_ListenServer || NetMode == NM_DedicatedServer || NetMode == NM_Standalone)
+        APlayerController *PC = MyWorld->GetFirstPlayerController();
+        UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] PC: %s"), *GetNameSafe(PC));
+
+        AMyPlayerController *MyPC = Cast<AMyPlayerController>(PC);
+        UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] MyPC: %s"), *GetNameSafe(MyPC));
+
+        if (MyPC)
         {
-            UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] ServerTravel 호출!"));
-            World->ServerTravel(TEXT("/Game/PersonalWorkSpace/sikk806/MyTestLevel"));
+            UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] IsLocalController: %d"), (int32)MyPC->IsLocalController());
+            if (MyPC->IsLocalController())
+            {
+                UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] ServerRequestGameStart 호출!"));
+                MyPC->ServerRequestGameStart();
+            }
         }
     }
     else if (Type == TEXT("nickname_available"))
