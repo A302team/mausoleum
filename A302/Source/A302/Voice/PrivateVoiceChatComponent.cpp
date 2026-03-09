@@ -25,12 +25,15 @@ void UPrivateVoiceChatComponent::BeginPlay()
 {
     Super::BeginPlay();
 
-    // 중앙 설정(GameNetworkSubsystem)에서 서버 주소 가져오기
-    if (UGameInstance* GI = UGameplayStatics::GetGameInstance(this))
+    // 중앙 설정(GameNetworkSubsystem)에서 서버 주소 가져오기 (클라이언트에서만 유효)
+    if (GetNetMode() == NM_Client || GetNetMode() == NM_Standalone)
     {
-        if (UGameNetworkSubsystem* NetworkSubsystem = GI->GetSubsystem<UGameNetworkSubsystem>())
+        if (UGameInstance* GI = UGameplayStatics::GetGameInstance(this))
         {
-            VoiceServerUrl = NetworkSubsystem->GetVoiceURL();
+            if (UGameNetworkSubsystem* NetworkSubsystem = GI->GetSubsystem<UGameNetworkSubsystem>())
+            {
+                VoiceServerUrl = NetworkSubsystem->GetVoiceURL();
+            }
         }
     }
 
