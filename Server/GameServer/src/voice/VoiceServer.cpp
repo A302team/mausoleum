@@ -1,5 +1,6 @@
 #include "VoiceServer.h"
 
+
 bool VoiceServer::initSocket(int port) {
     sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if(sock == INVALID_SOCK){
@@ -83,7 +84,7 @@ void VoiceServer::handleVoiceData(ParsedPacket& packet){
     for(const auto& [otherKey, otherClient] : clientManager.getClients()){
         if(otherKey != packet.senderKey){
             int r = sendto(sock, packet.rawBuffer, packet.rawSize, 0, (sockaddr*)&otherClient.addr, sizeof(otherClient.addr));
-            if(r != SOCKET_ERROR) cnt++;
+            if(r != SOCK_ERROR) cnt++;
         }
     }
 
