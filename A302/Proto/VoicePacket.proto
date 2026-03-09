@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package A302;
+
+// 보이스 데이터 및 네트워크 처리를 위한 Protobuf 스키마
+message VoicePacket {
+  string roomCode = 1;      // 현재 방 코드
+  string mode = 2;          // 모드 (Distance, Lobby 등)
+  string speakerName = 3;   // 발화자 닉네임 (식별자)
+  
+  // 압축되었거나 원시 상태의 음성 바이너리 페이로드
+  bytes payload = 4;        
+
+  // 순서 보장을 위한 타임스탬프 혹은 시퀀스 넘버 (UDP 통신용)
+  int64 timestamp = 5;
+}

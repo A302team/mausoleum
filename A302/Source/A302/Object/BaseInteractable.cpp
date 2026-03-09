@@ -1,4 +1,4 @@
-﻿#include "Object/BaseInteractable.h"
+#include "Object/BaseInteractable.h"
 #include "Math/UnrealMathUtility.h"
 #include "Character/MyCharacter.h"
 #include "GameData/ItemDefinition.h"
