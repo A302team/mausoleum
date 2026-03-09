@@ -1,5 +1,6 @@
 #include "Voice/Network/VoiceNetworkClient.h"
 #include "Network/GameNetworkSubsystem.h"
+#include "Voice/Profiling/VoiceProfiler.h"
 
 #pragma pack(push, 1)
 struct FVoicePacketHeader {
@@ -49,6 +50,7 @@ bool UVoiceNetworkClient::IsConnected() const
 
 void UVoiceNetworkClient::SendVoiceData(const TArray<uint8>& Payload, const FString& RoomCode, const FString& Mode, const FString& SpeakerName)
 {
+    VOICE_PROFILE_NET_SEND();
     if (!GameNetworkSubsystem || !IsConnected()) return;
 
     // 헤더 값 설정
@@ -78,7 +80,7 @@ void UVoiceNetworkClient::SendVoiceData(const TArray<uint8>& Payload, const FStr
 
     if (Header.payloadSize > 2 || Header.packetType == 1)
     {
-        UE_LOG(LogTemp, Warning, TEXT("[Voice] 음성 전송 중... (방: %s / 화자: %s / 전체 바이트: %d / 페이로드: %d)"), *RoomCode, *SpeakerName, BinaryData.Num(), Header.payloadSize);
+        UE_LOG(LogVoiceChat, Verbose, TEXT("Send: room=%s speaker=%s total=%dB payload=%dB"), *RoomCode, *SpeakerName, BinaryData.Num(), Header.payloadSize);
     }
     GameNetworkSubsystem->SendBinaryPacket(EProtocolType::UDP, BinaryData);
 }
@@ -96,12 +98,13 @@ void UVoiceNetworkClient::SendLeavePacket()
     BinaryData.SetNumUninitialized(sizeof(FVoicePacketHeader));
     FMemory::Memcpy(BinaryData.GetData(), &Header, sizeof(FVoicePacketHeader));
 
-    UE_LOG(LogTemp, Log, TEXT("[Voice] Leave 패킷 전송"));
+    UE_LOG(LogVoiceChat, Log, TEXT("[Voice] Leave 패킷 전송"));
     GameNetworkSubsystem->SendBinaryPacket(EProtocolType::UDP, BinaryData);
 }
 
 void UVoiceNetworkClient::HandleBinaryMessage(const TArray<uint8>& BinaryData)
 {
+    VOICE_PROFILE_NET_RECV();
     if (BinaryData.Num() < sizeof(FVoicePacketHeader)) return;
 
     const FVoicePacketHeader* Header = reinterpret_cast<const FVoicePacketHeader*>(BinaryData.GetData());

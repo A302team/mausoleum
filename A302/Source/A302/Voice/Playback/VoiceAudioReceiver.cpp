@@ -1,5 +1,7 @@
 #include "Voice/Playback/VoiceAudioReceiver.h"
+#include "Voice/Profiling/VoiceProfiler.h"
 #include "Sound/SoundAttenuation.h"
+#include "Async/Async.h"
 
 void UVoiceAudioReceiver::Initialize(UActorComponent* OuterComp)
 {
@@ -12,7 +14,7 @@ void UVoiceAudioReceiver::Initialize(UActorComponent* OuterComp)
         SoundWave->NumChannels = 1;
         SoundWave->Duration = 10000.f;
         SoundWave->SoundGroup = SOUNDGROUP_Voice;
-        SoundWave->bLooping = false;
+        SoundWave->bLooping = true;
         SoundWave->bProcedural = true;
     }
 
@@ -53,14 +55,17 @@ void UVoiceAudioReceiver::Initialize(UActorComponent* OuterComp)
 
 void UVoiceAudioReceiver::PlayVoice(const TArray<uint8>& VoiceData)
 {
+    VOICE_PROFILE_PLAYBACK();
     if (SoundWave && VoiceData.Num() > 0)
     {
+        // 1. 오디오 큐잉 (QueueAudio는 내부적으로 Thread-Safe)
         SoundWave->QueueAudio(VoiceData.GetData(), VoiceData.Num());
-        UE_LOG(LogTemp, Log, TEXT("[VoiceAudioReceiver] 재생 큐 추가: %d 바이트"), VoiceData.Num());
+        UE_LOG(LogVoiceChat, Verbose, TEXT("PlayVoice: QueueAudio %dB"), VoiceData.Num());
         
+        // 2. AudioComponent 제어
         if (AudioComponent && !AudioComponent->IsPlaying())
         {
-            UE_LOG(LogTemp, Log, TEXT("[VoiceAudioReceiver] 오디오 재생 시작!"));
+            UE_LOG(LogVoiceChat, Log, TEXT("AudioComponent::Play 시작"));
             AudioComponent->Play();
         }
     }

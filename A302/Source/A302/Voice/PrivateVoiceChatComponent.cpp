@@ -1,4 +1,5 @@
 #include "Voice/PrivateVoiceChatComponent.h"
+#include "Voice/Profiling/VoiceProfiler.h"
 #include "Voice/Capture/VoiceCaptureProcessor.h"
 #include "Voice/Playback/VoiceAudioReceiver.h"
 #include "Voice/Network/VoiceNetworkClient.h"
@@ -22,7 +23,7 @@ UPrivateVoiceChatComponent::UPrivateVoiceChatComponent()
 void UPrivateVoiceChatComponent::BeginPlay()
 {
     Super::BeginPlay();
-    UE_LOG(LogTemp, Log, TEXT("[Voice] BeginPlay - Facade Initialize"));
+    UE_LOG(LogVoiceChat, Log, TEXT("[Voice] BeginPlay - Facade Initialize"));
 
     // 모듈 생성 및 초기화
     CaptureProcessor = NewObject<UVoiceCaptureProcessor>(this);
@@ -45,12 +46,7 @@ void UPrivateVoiceChatComponent::BeginPlay()
         NetworkClient->OnBinaryPacketReceived.BindUObject(this, &UPrivateVoiceChatComponent::OnNetworkBinaryMessageReceived);
     }
 
-    // Opus 디코더 초기화 (수신 시 Opus→PCM 변환용)
-    ReceiveCodec = NewObject<UVoiceCodec>(this);
-    if (ReceiveCodec)
-    {
-        ReceiveCodec->Init();
-    }
+    // 개별 화자용 디코더는 패킷 수신 시(OnNetworkBinaryMessageReceived) 동적으로 생성하여 맵(SpeakerCodecs)에 저장합니다.
 
     if (!LobbyStrategy)
         LobbyStrategy = NewObject<ULobbyVoiceChatStrategy>(this);
@@ -70,12 +66,12 @@ void UPrivateVoiceChatComponent::BeginPlay()
         if (GM && GM->IsA<ALobbyGameMode>())
         {
             SetLobbyMode();
-            UE_LOG(LogTemp, Log, TEXT("[Voice] GameMode=Lobby → 로비 보이스 모드 적용"));
+            UE_LOG(LogVoiceChat, Log, TEXT("[Voice] GameMode=Lobby → 로비 보이스 모드 적용"));
         }
         else
         {
             SetDistanceMode(DefaultInGameHearingDistance);
-            UE_LOG(LogTemp, Log, TEXT("[Voice] GameMode=InGame → 거리 보이스 모드 적용 (%.0f)"), DefaultInGameHearingDistance);
+            UE_LOG(LogVoiceChat, Log, TEXT("[Voice] GameMode=InGame → 거리 보이스 모드 적용 (%.0f)"), DefaultInGameHearingDistance);
         }
     }
 
@@ -141,7 +137,7 @@ void UPrivateVoiceChatComponent::ConnectToVoiceServer()
         // 서버 connectedClients에 즉시 등록 (마이크를 켜지 않아도 수신 가능하도록)
         TArray<uint8> EmptyPayload;
         NetworkClient->SendVoiceData(EmptyPayload, roomCode, TEXT("join_voice"), GetMyPlayerName());
-        UE_LOG(LogTemp, Log, TEXT("[Voice] ConnectToVoiceServer: join_voice 초기 가입 패킷 전송 완료."));
+        UE_LOG(LogVoiceChat, Log, TEXT("[Voice] ConnectToVoiceServer: join_voice 초기 가입 패킷 전송 완료."));
     }
 }
 
@@ -168,7 +164,7 @@ void UPrivateVoiceChatComponent::SetDistanceMode(float NewDistance)
 
 void UPrivateVoiceChatComponent::SetRoomCode(const FString& InRoomCode)
 {
-    UE_LOG(LogTemp, Warning, TEXT("[Voice] SetRoomCode Called: Old='%s' New='%s'"), *roomCode, *InRoomCode);
+    UE_LOG(LogVoiceChat, Warning, TEXT("[Voice] SetRoomCode Called: Old='%s' New='%s'"), *roomCode, *InRoomCode);
     roomCode = InRoomCode;
 }
 
@@ -244,23 +240,26 @@ void UPrivateVoiceChatComponent::OnNetworkBinaryMessageReceived(const FString& I
     // 본인 목소리 메아리 방지
     if (SpeakerName == GetMyPlayerName()) return; 
 
-    // Opus → PCM 디코딩
-    TArray<uint8> PCMData;
-    if (ReceiveCodec && ReceiveCodec->IsInitialized())
+    // 발화자 전용 독립 코덱 탐색 및 생성 (GameThread에서 수행하므로 맵 접근 안전성 보장)
+    UVoiceCodec* SpeakerCodec = nullptr;
+    if (TObjectPtr<UVoiceCodec>* FoundCodec = SpeakerCodecs.Find(SpeakerName))
     {
-        if (!ReceiveCodec->Decode(VoiceData, PCMData))
-        {
-            return; // 디코딩 실패 → 깨진 패킷 드롭 (Opus 데이터를 PCM으로 재생하면 노이즈 발생)
-        }
+        SpeakerCodec = *FoundCodec;
     }
     else
     {
-        // 코덱 미초기화 → 원본 데이터가 이미 PCM이라 가정 (fallback)
-        PCMData = VoiceData;
+        SpeakerCodec = NewObject<UVoiceCodec>(this);
+        if (SpeakerCodec)
+        {
+            SpeakerCodec->Init();
+            SpeakerCodecs.Add(SpeakerName, SpeakerCodec);
+        }
     }
 
-    // 상대방 위치 찾아서 재생 라우팅
+    // 상대방 오디오 리시버(스피커 객체) 확보 (액터 검색은 GameThread에서 로직 수행 필수)
     bool bPlayed = false;
+    UVoiceAudioReceiver* TargetReceiver = nullptr;
+
     if (UWorld* World = GetWorld())
     {
         for (TActorIterator<APawn> It(World); It; ++It)
@@ -276,25 +275,57 @@ void UPrivateVoiceChatComponent::OnNetworkBinaryMessageReceived(const FString& I
             {
                 if (CanHearActor(CurrentPawn))
                 {
-                    if (IsValid(OtherComp) && OtherComp->AudioReceiver)
-                    {
-                        OtherComp->AudioReceiver->PlayVoice(PCMData);
-                        bPlayed = true;
-                    }
+                    TargetReceiver = OtherComp->AudioReceiver;
                 }
                 else
                 {
-                    bPlayed = true; // 전략에 의해 차단 → Fallback 방지
+                    bPlayed = true; // 전략에 의해 차단됨 (조기 종료 플래그)
                 }
             }
             break;
         }
     }
     
-    // 발화자 미발견 시 Fallback
-    if (!bPlayed && AudioReceiver)
+    // 전략에 의해 명시적으로 차단되었다면 디코딩 연산 자체를 스킵
+    if (bPlayed && !TargetReceiver) return;
+
+    // 발화자를 월드에서 찾지 못했을 때의 Fallback (내 리시버에서 재생)
+    if (!TargetReceiver)
     {
-        AudioReceiver->PlayVoice(PCMData);
+        TargetReceiver = AudioReceiver;
     }
+
+    if (!TargetReceiver || !SpeakerCodec) return;
+
+    // =========================================================================
+    // 비동기 디코딩 (Async Pipeline)
+    // - opus_decode는 UObject 미접근 → 백그라운드 스레드에서 실행 가능
+    // - PlayVoice(QueueAudio)는 GameThread에서 실행 필수
+    // =========================================================================
+    TWeakObjectPtr<UVoiceCodec> WeakCodec = SpeakerCodec;
+    TWeakObjectPtr<UVoiceAudioReceiver> WeakReceiver = TargetReceiver;
+    TArray<uint8> VoiceCopy = VoiceData;
+
+    AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask,
+        [WeakCodec, WeakReceiver, VoiceCopy = MoveTemp(VoiceCopy)]()
+    {
+        if (!WeakCodec.IsValid()) return;
+
+        TArray<uint8> PCMData;
+        if (!WeakCodec->Decode(VoiceCopy, PCMData) || PCMData.Num() == 0)
+        {
+            return; // 디코딩 실패 → 깨진 패킷 드롭
+        }
+
+        // 디코딩된 PCM을 GameThread로 전달하여 재생
+        AsyncTask(ENamedThreads::GameThread,
+            [WeakReceiver, PCMData = MoveTemp(PCMData)]()
+        {
+            if (WeakReceiver.IsValid())
+            {
+                WeakReceiver->PlayVoice(PCMData);
+            }
+        });
+    });
 }
 

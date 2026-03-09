@@ -1,4 +1,5 @@
 #include "Voice/Capture/VoiceCaptureProcessor.h"
+#include "Voice/Profiling/VoiceProfiler.h"
 #include "Voice/Codec/VoiceCodec.h"
 #include "VoiceModule.h"
 #include "Misc/Base64.h"
@@ -29,7 +30,7 @@ void UVoiceCaptureProcessor::Start(UWorld* World)
     VoiceCapture->Start();
     bIsMicActive = true;
 
-    World->GetTimerManager().SetTimer(CaptureTimer, this, &UVoiceCaptureProcessor::ProcessCapture, 0.02f, false);
+    World->GetTimerManager().SetTimer(CaptureTimer, this, &UVoiceCaptureProcessor::ProcessCapture, 0.02f, true);
 }
 
 void UVoiceCaptureProcessor::Stop(UWorld* World)
@@ -51,7 +52,7 @@ void UVoiceCaptureProcessor::ToggleMicrophone(UWorld* World)
 
     if (bIsMicActive)
     {
-        UE_LOG(LogTemp, Warning, TEXT("[VoiceCaptureProcessor] 마이크 끄기 (OFF)"));
+        UE_LOG(LogVoiceChat, Log, TEXT("마이크 OFF"));
         Stop(World);
     }
     else
@@ -59,11 +60,11 @@ void UVoiceCaptureProcessor::ToggleMicrophone(UWorld* World)
         Start(World);
         if (bIsMicActive)
         {
-            UE_LOG(LogTemp, Warning, TEXT("[VoiceCaptureProcessor] 마이크 켜기 성공 (ON)"));
+            UE_LOG(LogVoiceChat, Log, TEXT("마이크 ON"));
         }
         else
         {
-            UE_LOG(LogTemp, Error, TEXT("[VoiceCaptureProcessor] 마이크 켜기 실패! VoiceCapture가 유효하지 않습니다. 마이크 장치를 확인하세요."));
+            UE_LOG(LogVoiceChat, Error, TEXT("[VoiceCaptureProcessor] 마이크 켜기 실패! VoiceCapture가 유효하지 않습니다. 마이크 장치를 확인하세요."));
         }
     }
 }
@@ -80,7 +81,7 @@ bool UVoiceCaptureProcessor::ChangeMicrophone(const FString& DeviceName)
 
     if (VoiceCapture.IsValid())
     {
-        UE_LOG(LogTemp, Warning, TEXT("[VoiceCaptureProcessor] 마이크 장치 변경 성공: %s"), *DeviceName);
+        UE_LOG(LogVoiceChat, Log, TEXT("마이크 장치 변경: %s"), *DeviceName);
         // 이미 켜져 있던 상태면 다시 시작 (단, 이 시점엔 World Timer 갱신은 상위에서 챙겨야 하거나 Capture 시도함. 일단 Start만 호출)
         if (bIsMicActive)
         {
@@ -90,7 +91,7 @@ bool UVoiceCaptureProcessor::ChangeMicrophone(const FString& DeviceName)
     }
     else
     {
-        UE_LOG(LogTemp, Error, TEXT("[VoiceCaptureProcessor] 마이크 장치 변경 실패: %s"), *DeviceName);
+        UE_LOG(LogVoiceChat, Error, TEXT("[VoiceCaptureProcessor] 마이크 장치 변경 실패: %s"), *DeviceName);
         return false;
     }
 }
@@ -99,11 +100,11 @@ void UVoiceCaptureProcessor::OnAudioDevicesObtained(const TArray<FAudioInputDevi
 {
     if (AvailableDevices.Num() > 0)
     {
-        UE_LOG(LogTemp, Log, TEXT("[VoiceCaptureProcessor] 감지된 마이크: '%s'"), *AvailableDevices[0].DeviceName);
+        UE_LOG(LogVoiceChat, Log, TEXT("[VoiceCaptureProcessor] 감지된 마이크: '%s'"), *AvailableDevices[0].DeviceName);
     }
     else
     {
-        UE_LOG(LogTemp, Warning, TEXT("[VoiceCaptureProcessor] 감지된 마이크 없음"));
+        UE_LOG(LogVoiceChat, Warning, TEXT("감지된 마이크 없음"));
     }
 
     // ※ 중요: CreateVoiceCapture는 DirectSound 디바이스 ID를 기대합니다.
@@ -113,16 +114,17 @@ void UVoiceCaptureProcessor::OnAudioDevicesObtained(const TArray<FAudioInputDevi
 
     if (VoiceCapture.IsValid())
     {
-        UE_LOG(LogTemp, Log, TEXT("[VoiceCaptureProcessor] 마이크 캡처 객체 생성 완료!"));
+        UE_LOG(LogVoiceChat, Log, TEXT("[VoiceCaptureProcessor] 마이크 캡처 객체 생성 완료!"));
     }
     else
     {
-        UE_LOG(LogTemp, Error, TEXT("[VoiceCaptureProcessor] 마이크 캡처 실패! Windows 설정 > 마이크 액세스 권한을 확인하세요."));
+        UE_LOG(LogVoiceChat, Error, TEXT("[VoiceCaptureProcessor] 마이크 캡처 실패! Windows 설정 > 마이크 액세스 권한을 확인하세요."));
     }
 }
 
 void UVoiceCaptureProcessor::ProcessCapture()
 {
+    VOICE_PROFILE_CAPTURE();
     if (!bIsMicActive || !VoiceCapture.IsValid()) return;
     
     uint32 AvailableData = 0;
@@ -159,12 +161,4 @@ void UVoiceCaptureProcessor::ProcessCapture()
         }
     }
 
-    // 다음 호출 등록
-    if (bIsMicActive)
-    {
-        if (UWorld* World = GetWorld())
-        {
-            World->GetTimerManager().SetTimer(CaptureTimer, this, &UVoiceCaptureProcessor::ProcessCapture, 0.02f, false);
-        }
-    }
 }
