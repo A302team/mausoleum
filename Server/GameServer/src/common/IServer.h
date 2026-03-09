@@ -1,6 +1,6 @@
 #pragma once
 #include "Platform.h"
-#include "Logger.h"
+#include "logging/Logger.h"
 
 class IServer {
 public:

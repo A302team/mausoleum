@@ -1,7 +1,7 @@
 #include <functional>
 #include <unordered_map>
 #include "common/Platform.h"
-#include "common/Logger.h"
+#include "common/logging/Logger.h"
 #include "VoicePacketType.h"
 
 #pragma pack(push, 1)

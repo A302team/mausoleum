@@ -5,7 +5,7 @@
 
 #include "common/Platform.h"
 #include "common/IClientManager.h"
-#include "common/Logger.h"
+#include "common/logging/Logger.h"
 #include "common/ScopedTimer.h"
 
 struct ClientInfo {
