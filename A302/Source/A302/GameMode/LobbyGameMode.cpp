@@ -29,12 +29,11 @@ void ALobbyGameMode::BeginPlay()
     UGameNetworkSubsystem* GameNetworkSubsystem = GetGameInstance()->GetSubsystem<UGameNetworkSubsystem>();
     if (GameNetworkSubsystem)
     {
-        // 텍스트, 시그널링 이벤트 용 WebSocket
-        GameNetworkSubsystem->Connect(EProtocolType::WebSocket, TEXT("ws://127.0.0.1:9001"));
+        // 텍스트, 시그널링 이벤트 용 WebSocket (중앙 설정 주소 사용)
+        GameNetworkSubsystem->Connect(EProtocolType::WebSocket, GameNetworkSubsystem->GetLobbyURL());
         
-        // 보이스/위치 등 실시간/바이너리 데이터용 UDP
-        // 보통 로비 시점에선 사용되지 않을 수도 있으나, 추후 인게임에서 재사용하거나 일관성을 위해 설정
-        GameNetworkSubsystem->Connect(EProtocolType::UDP, TEXT("127.0.0.1:9100"));
+        // 보이스/위치 등 실시간/바이너리 데이터용 UDP (중앙 설정 주소 사용)
+        GameNetworkSubsystem->Connect(EProtocolType::UDP, GameNetworkSubsystem->GetVoiceURL());
 
         GameNetworkSubsystem->OnPacketReceived.AddDynamic(this, &ALobbyGameMode::OnMessageReceived);
     }
