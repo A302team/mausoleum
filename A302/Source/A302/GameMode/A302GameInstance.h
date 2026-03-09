@@ -53,6 +53,11 @@ public:
 	UFUNCTION()
 	void OnMapLoaded(UWorld *LoadedWorld);
 
+	// WebSocket
+	UPROPERTY()
+	TObjectPtr<class UGameNetworkSubsystem> GameNetworkSubsystem;
+
+
 	UFUNCTION(BlueprintCallable)
 	void ConnectToServer(const FString &URL);
 

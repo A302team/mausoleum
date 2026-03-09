@@ -5,6 +5,18 @@
 #include "GameNetworkSubsystem.generated.h"
 
 UENUM(BlueprintType)
+enum class EAddress : uint8
+{
+	LOCAL,
+	SERVER
+};
+
+inline FString GetServerAddress(EAddress Type)
+{
+	return Type == EAddress::LOCAL ? TEXT("127.0.0.1") : TEXT("j14a302.p.ssafy.io");
+}
+
+UENUM(BlueprintType)
 enum class EProtocolType : uint8
 {
     WebSocket UMETA(DisplayName = "WebSocket (TCP)"),
@@ -31,7 +43,7 @@ public:
 
 	// 서버 주소 설정 (DefaultEngine.ini 등에서 오버라이드 가능)
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Network|Config")
-	FString ServerIP = TEXT("127.0.0.1");
+	FString ServerIP = GetServerAddress(EAddress::LOCAL);
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Network|Config")
 	int32 LobbyPort = 8001;

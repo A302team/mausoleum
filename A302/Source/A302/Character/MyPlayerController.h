@@ -91,6 +91,4 @@ private:
 	TObjectPtr<UButton> ExitBtn = nullptr;
 
 public:
-	UFUNCTION(Server, Reliable, WithValidation)
-	void ServerRequestGameStart();
 };
