@@ -15,5 +15,5 @@ target_link_libraries(Server
     PRIVATE 
     unofficial::uwebsockets::uwebsockets
     nlohmann_json::nlohmann_json
-    ws2_32
+    $<$<PLATFORM_ID:Windows>:ws2_32>
 )

@@ -1,7 +1,6 @@
-#pragma once
 #include <functional>
 #include <unordered_map>
-#include <winsock2.h>
+#include "common/Platform.h"
 #include "common/Logger.h"
 #include "VoicePacketType.h"
 

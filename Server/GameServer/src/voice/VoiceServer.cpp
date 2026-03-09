@@ -2,38 +2,41 @@
 
 bool VoiceServer::initSocket(int port) {
     sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-        if(sock == INVALID_SOCKET){
-            LOG_ERROR(tag(), "소켓 생성 실패");
-            return false;
-        }
+    if(sock == INVALID_SOCK){
+        LOG_ERROR(tag(), "소켓 생성 실패: " << GET_LAST_ERROR());
+        return false;
+    }
 
-        BOOL bFalse = FALSE;
-        DWORD dwBtyes = 0;
-        WSAIoctl(sock, SIO_UDP_CONNRESET, &bFalse, sizeof(bFalse), 
-        NULL, 0, &dwBtyes, NULL, NULL);
+#ifdef _WIN32
+    BOOL bFalse = FALSE;
+    DWORD dwBtyes = 0;
+    WSAIoctl(sock, SIO_UDP_CONNRESET, &bFalse, sizeof(bFalse), 
+             NULL, 0, &dwBtyes, NULL, NULL);
+#endif
 
-        sockaddr_in addr{};
-        addr.sin_family = AF_INET;
-        addr.sin_addr.s_addr = INADDR_ANY;
-        addr.sin_port = htons(port);
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = INADDR_ANY;
+    addr.sin_port = htons(port);
 
-        if(bind(sock, (sockaddr*)&addr,sizeof(addr)) == SOCKET_ERROR){
-            LOG_ERROR(tag(), "소켓 바인딩 실패");
-            closesocket(sock);
-            return false;
-        }
-        return true;
- } 
-
+    if(bind(sock, (sockaddr*)&addr, sizeof(addr)) == SOCK_ERROR){
+        LOG_ERROR(tag(), "소켓 바인딩 실패: " << GET_LAST_ERROR());
+        CLOSE_SOCKET(sock);
+        return false;
+    }
+    return true;
+}
 void VoiceServer::runLoop() {
     char buffer[65536];
     sockaddr_in clinetAddr;
-    int addrLen = sizeof(clinetAddr);
+    SockLenType addrLen = sizeof(clinetAddr);
     while(running){
         int bytesRecv = recvfrom(sock, buffer, sizeof(buffer), 
                                 0, (sockaddr*)&clinetAddr, &addrLen);
-        if(bytesRecv == SOCKET_ERROR){
-            LOG_ERROR(tag(), "데이터 수신 실패");
+        if(bytesRecv == SOCK_ERROR){
+            int err = GET_LAST_ERROR();
+            if(err == ERR_CONNRESET || err == ERR_WOULDBLOCK) continue;
+            LOG_ERROR(tag(), "데이터 수신 실패: " << err);
             continue;
         }
         auto now = std::chrono::steady_clock::now();

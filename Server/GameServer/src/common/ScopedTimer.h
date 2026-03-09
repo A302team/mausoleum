@@ -47,4 +47,4 @@ private:
 };
 
 #define PROFILE_SCOPE(name) ScopedTimer _timer_##__LINE__(name)
-#define PROFILE_FUNCTION() PROFILE_SCOPE(__FUNCSIG__)
+#define PROFILE_FUNCTION() PROFILE_SCOPE(FUNC_SIG)
