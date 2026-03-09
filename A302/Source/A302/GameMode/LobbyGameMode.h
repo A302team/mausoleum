@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
-#include "Network/WebSocketManager.h"
 #include "LobbyGameMode.generated.h"
 
 UCLASS()

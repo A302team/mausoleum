@@ -18,6 +18,8 @@ class UUserWidget;
 class UTextBlock;
 class UImage;
 class UTexture2D;
+class UComboBoxString;
+class UButton;
 
 UCLASS()
 class A302_API AMyPlayerController : public APlayerController
@@ -33,10 +35,8 @@ public:
 	bool UpdateMaliceCountText(int32 MaliceCount);
 	bool UpdateItemTimerText(float RemainingSeconds);
 	void SetItemTimerVisible(bool bVisible);
-
-    // 클라이언트에서 호출 → 서버에서 실행
-    UFUNCTION(Server, Reliable, WithValidation)
-    void ServerRequestGameStart();
+	void ToggleInGameSettingMenu();
+	bool IsInGameSettingMenuOpen() const;
 
 protected:
 	virtual void BeginPlay() override;
@@ -47,6 +47,12 @@ protected:
 	// 런타임에 생성된 위젯 인스턴스(화면에 띄운 객체)
 	UPROPERTY()
 	TObjectPtr<UUserWidget> QuickSlotBarWidget;
+
+	UPROPERTY(EditDefaultsOnly, Category="UI")
+	TSubclassOf<UUserWidget> InGameSettingClass;
+
+	UPROPERTY()
+	TObjectPtr<UUserWidget> InGameSettingWidget;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	UInputMappingContext *DefaultMappingContext;
@@ -63,4 +69,25 @@ private:
 	class UTextBlock *FindMaliceCountText() const;
 	class UTextBlock *FindItemTimerText() const;
 	void InitializeQuickSlotVisualState();
+	void InitializeInGameSettingWidget();
+	void OpenInGameSettingMenu();
+	void CloseInGameSettingMenu();
+	void SyncResolutionComboToCurrent();
+	bool TryParseResolutionString(const FString& InOption, FIntPoint& OutResolution) const;
+
+	UFUNCTION()
+	void OnResolutionApplyClicked();
+
+	UFUNCTION()
+	void OnExitClicked();
+
+	UPROPERTY()
+	TObjectPtr<UComboBoxString> ResolutionComboBox = nullptr;
+
+	UPROPERTY()
+	TObjectPtr<UButton> ResolutionApplyBtn = nullptr;
+
+	UPROPERTY()
+	TObjectPtr<UButton> ExitBtn = nullptr;
+
 };

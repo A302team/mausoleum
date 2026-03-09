@@ -13,7 +13,6 @@ class UVoiceAudioReceiver;
 class UVoiceNetworkClient;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnVoiceModeChanged, EVoiceChatMode, NewMode);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnVoiceServerMessage, const FString&, Message);
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class A302_API UPrivateVoiceChatComponent : public UActorComponent
@@ -50,11 +49,8 @@ public:
     UFUNCTION(BlueprintPure, Category = "Voice|Debug")
     bool CanHearActor(const AActor* SpeakerActor) const;
 
-    UFUNCTION(BlueprintCallable, Category = "Voice|Server")
-    void SendVoicePayload(const FString& EncodedPayload);
-
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voice|Server")
-    FString VoiceServerUrl = TEXT("ws://127.0.0.1:9100");
+    FString VoiceServerUrl = TEXT("127.0.0.1:9100");
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voice|Room")
     FString roomCode;
@@ -62,17 +58,11 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voice|Mode", meta=(ClampMin="100.0"))
     float DefaultInGameHearingDistance = 1800.f;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voice|Mode")
-    EVoiceChatMode InitialVoiceMode = EVoiceChatMode::Lobby;
-
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voice|Server")
     bool bAutoConnectOnBeginPlay = true;
 
     UPROPERTY(BlueprintAssignable, Category = "Voice")
     FOnVoiceModeChanged OnVoiceModeChanged;
-
-    UPROPERTY(BlueprintAssignable, Category = "Voice")
-    FOnVoiceServerMessage OnVoiceServerMessage;
 
     UFUNCTION(BlueprintCallable, Category = "Voice|Capture")
     void StartMicrophone();
@@ -92,8 +82,11 @@ public:
 private:
     void ApplyStrategy(UVoiceChatStrategyBase* NewStrategy);
 
-    void OnVoiceDataCaptured(const FString& EncodedPayload);
-    void OnNetworkMessageReceived(const FString& JsonMessage);
+    // 내 플레이어 이름을 가져오는 헬퍼 (PlayerState → GameInstance 순서로 탐색)
+    FString GetMyPlayerName() const;
+
+    void OnVoiceDataCaptured(const TArray<uint8>& VoiceData);
+    void OnNetworkBinaryMessageReceived(const FString& RoomCode, const FString& SpeakerName, const TArray<uint8>& VoiceData);
 
     UPROPERTY()
     TObjectPtr<UVoiceCaptureProcessor> CaptureProcessor = nullptr;
@@ -112,4 +105,7 @@ private:
 
     UPROPERTY(Transient)
     TObjectPtr<UVoiceChatStrategyBase> ActiveStrategy = nullptr;
+
+    UPROPERTY()
+    TMap<FString, TObjectPtr<class UVoiceCodec>> SpeakerCodecs;
 };
