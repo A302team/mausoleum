@@ -6,6 +6,7 @@
 #include "Blueprint/UserWidget.h"
 #include "GameMode/A302GameInstance.h"
 #include "Kismet/GameplayStatics.h"
+#include "Network/GameNetworkSubsystem.h"
 
 ALobbyGameMode::ALobbyGameMode()
 {

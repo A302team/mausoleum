@@ -1,9 +1,12 @@
 #include <thread>
 #include "LobbyServer.h"
-#include "VoiceServer.h"
+#include "voice/VoiceServer.h"
+#include "common/Logger.h"
 
 int main()
 {
+    Logger::Init("server.log");
+
     // 로비 서버 스레드 (포트 9001)
     std::thread lobbyThread([]() {
         LobbyServer lobbyServer;
@@ -19,5 +22,6 @@ int main()
     lobbyThread.join();
     voiceThread.join();
 
+    Logger::Shutdown();
     return 0;
 }

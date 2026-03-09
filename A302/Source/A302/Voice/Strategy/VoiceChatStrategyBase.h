@@ -15,5 +15,4 @@ class A302_API UVoiceChatStrategyBase : public UObject
 public:
     virtual EVoiceChatMode GetMode() const PURE_VIRTUAL(UVoiceChatStrategyBase::GetMode, return EVoiceChatMode::Lobby;);
     virtual bool CanReceiveVoice(const UPrivateVoiceChatComponent* ListenerComp, const UPrivateVoiceChatComponent* SpeakerComp) const PURE_VIRTUAL(UVoiceChatStrategyBase::CanReceiveVoice, return false;);
-    virtual FString GetServerChannelName(const UPrivateVoiceChatComponent* OwnerComp) const;
 };
