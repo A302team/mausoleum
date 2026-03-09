@@ -17,19 +17,19 @@ namespace
 	constexpr int32 PlayerControllerQuickSlotCount = 5;
 }
 
-bool AMyPlayerController::ServerRequestGameStart_Validate()
-{
-    return true;
-}
+// bool AMyPlayerController::ServerRequestGameStart_Validate()
+// {
+//     return true;
+// }
 
-void AMyPlayerController::ServerRequestGameStart_Implementation()
-{
-    UWorld* World = GetWorld();
-    if (!World) return;
+// void AMyPlayerController::ServerRequestGameStart_Implementation()
+// {
+//     UWorld* World = GetWorld();
+//     if (!World) return;
     
-    UE_LOG(LogTemp, Log, TEXT("[PC] ServerRequestGameStart - NetMode: %d"), (int32)World->GetNetMode());
-    World->ServerTravel(TEXT("/Game/PersonalWorkSpace/sikk806/MyTestLevel?listen"));
-}
+//     UE_LOG(LogTemp, Log, TEXT("[PC] ServerRequestGameStart - NetMode: %d"), (int32)World->GetNetMode());
+//     World->ServerTravel(TEXT("/Game/PersonalWorkSpace/sikk806/MyTestLevel?listen"));
+// }
 
 UUserWidget *AMyPlayerController::FindQuickSlotWidget(int32 SlotIndex) const
 {
