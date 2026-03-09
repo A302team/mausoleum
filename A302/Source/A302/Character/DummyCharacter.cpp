@@ -113,18 +113,18 @@ void ADummyCharacter::TryAutoAttackPlayer()
     ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(World, 0);
     if (!PlayerCharacter)
     {
-        LogAndScreenDummy(TEXT("[DummyCharacter] Auto attack skipped: PlayerCharacter not found."), FColor::Orange, 1.0f);
+        // LogAndScreenDummy(TEXT("[DummyCharacter] Auto attack skipped: PlayerCharacter not found."), FColor::Orange, 1.0f);
         return;
     }
 
     const float Distance = FVector::Dist(PlayerCharacter->GetActorLocation(), GetActorLocation());
     if (Distance > AutoAttackRange)
     {
-        LogAndScreenDummy(
-            FString::Printf(TEXT("[DummyCharacter] Auto attack skipped: out of range (%.0f/%.0f)"), Distance, AutoAttackRange),
-            FColor::Silver,
-            0.8f
-        );
+        // LogAndScreenDummy(
+        //     FString::Printf(TEXT("[DummyCharacter] Auto attack skipped: out of range (%.0f/%.0f)"), Distance, AutoAttackRange),
+        //     FColor::Silver,
+        //     0.8f
+        // );
         return;
     }
 

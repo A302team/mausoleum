@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
-#include "Network/WebSocketManager.h"
 #include "LobbyGameMode.generated.h"
 
 USTRUCT(BlueprintType)
@@ -41,9 +40,6 @@ class A302_API ALobbyGameMode : public AGameModeBase
 
 public:
 	ALobbyGameMode();
-
-	UPROPERTY()
-	TObjectPtr<UWebSocketManager> WebSocketManager;
 
 	virtual void BeginPlay() override;
 

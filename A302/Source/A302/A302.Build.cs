@@ -18,12 +18,16 @@ public class A302 : ModuleRules
 			"EnhancedInput",
 			"NetCore",
 			"WebSockets",
+			"Sockets",
+			"Networking",
 			"Json",
 			"JsonUtilities",
 			"SlateCore",
 			"UMG",
 			"Voice",
-			"AudioCapture" 
+			"AudioCapture",
+			"AudioMixer",
+			"libOpus"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
