@@ -14,6 +14,9 @@ UInteractComponent::UInteractComponent()
 void UInteractComponent::BeginPlay()
 {
 	Super::BeginPlay();
+	
+	// 시작할 때 한 번만 오너 캐릭터를 찾아 캐싱합니다.
+	CachedOwnerCharacter = Cast<AMyCharacter>(GetOwner());
 
 	if (InteractionWidgetClass)
 	{
@@ -58,7 +61,7 @@ void UInteractComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 
 AMyCharacter* UInteractComponent::GetOwnerCharacter() const
 {
-	return Cast<AMyCharacter>(GetOwner());
+	return CachedOwnerCharacter;
 }
 
 void UInteractComponent::CheckForInteractables()
@@ -73,16 +76,11 @@ void UInteractComponent::CheckForInteractables()
 	const FVector ForwardVector = OwnerCharacter->GetViewRotation().Vector();
 	const FVector End = Start + (ForwardVector * InteractionDistance);
 
-	DrawDebugLine(
-		GetWorld(),
-		Start,
-		End,
-		FColor::Red,
-		false,
-		-1.0f,
-		0,
-		0.0f
-	);
+	// 디버그 옵션이 켜져 있을 때만 라인을 그립니다.
+	if (bDrawDebug)
+	{
+		DrawDebugLine(GetWorld(), Start, End, FColor::Red, false, -1.0f, 0, 0.0f);
+	}
 
 	FHitResult HitResult;
 	FCollisionQueryParams Params;
@@ -96,10 +94,11 @@ void UInteractComponent::CheckForInteractables()
 		{
 			CurrentHitActor = HitResult.GetActor();
 
-			FString TypeStr = (Interactable->GetInteractType() == EInteractType::Hold) ? TEXT("Hold") : TEXT("QTE");
-			const FString DebugMsg = FString::Printf(TEXT("[%s] Interactable: %s"), *TypeStr, *Interactable->GetInteractText());
-			if (GEngine)
+			// 디버그 옵션이 켜져 있을 때만 텍스트를 출력합니다.
+			if (bDrawDebug && GEngine)
 			{
+				FString TypeStr = (Interactable->GetInteractType() == EInteractType::Hold) ? TEXT("Hold") : TEXT("QTE");
+				const FString DebugMsg = FString::Printf(TEXT("[%s] Interactable: %s"), *TypeStr, *Interactable->GetInteractText());
 				GEngine->AddOnScreenDebugMessage(0, 0.1f, FColor::Cyan, DebugMsg);
 			}
 		}
