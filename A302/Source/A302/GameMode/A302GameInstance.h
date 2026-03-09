@@ -6,8 +6,6 @@
 #include "Engine/GameInstance.h"
 #include "A302GameInstance.generated.h"
 
-class UWebSocketManager;
-
 USTRUCT(BlueprintType)
 struct FRoomInfo
 {
@@ -57,7 +55,10 @@ public:
 
 	// WebSocket
 	UPROPERTY()
-	TObjectPtr<UWebSocketManager> WebSocketManager;
+	TObjectPtr<class UGameNetworkSubsystem> GameNetworkSubsystem;
+
+	UPROPERTY()
+	TObjectPtr<class UWebSocketHandler> WebSocketHandler;
 
 	UFUNCTION(BlueprintCallable)
 	void ConnectToServer(const FString &URL);

@@ -1,7 +1,6 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "GameMode/A302GameInstance.h"
-#include "Network/WebSocketManager.h"
 #include "Dom/JsonObject.h"
 #include "UI/LobbyWidget.h"
 #include "UI/WaitingRoomWidget.h"
@@ -9,19 +8,22 @@
 #include "Kismet/GameplayStatics.h"
 #include "GameMode/LobbyGameMode.h"
 #include "Character/MyPlayerController.h"
+#include "Network/GameNetworkSubsystem.h"
+#include "Network/WebSocketHandler.h"
 
 void UA302GameInstance::Init()
 {
     Super::Init();
 
-    WebSocketManager = NewObject<UWebSocketManager>(this, TEXT("WebSocketManager"));
-    if (!WebSocketManager)
+    GameNetworkSubsystem = NewObject<UGameNetworkSubsystem>(this, TEXT("GameNetworkSubsystem"));
+    if (!GameNetworkSubsystem)
     {
-        UE_LOG(LogTemp, Warning, TEXT("[GameMode/A302GameInstance] No WebSocketManager"));
+        UE_LOG(LogTemp, Warning, TEXT("[GameMode/A302GameInstance] No GameNetworkSubsystem"));
     }
-    WebSocketManager->OnMessageReceived.AddDynamic(this, &UA302GameInstance::OnMessageReceived);
+    WebSocketHandler = NewObject<UWebSocketHandler>(this, TEXT("WebSocketHandler"));
+    WebSocketHandler->OnMessageReceived.AddDynamic(this, &UA302GameInstance::OnMessageReceived);
 
-    ConnectToServer(TEXT("ws://j14a302.p.ssafy.io:8001"));
+    GameNetworkSubsystem->Connect(EProtocolType::WebSocket, TEXT("ws://j14a302.p.ssafy.io:8001"));
 
     UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] Init - WebSocket 연결 시도"));
 
@@ -93,17 +95,17 @@ void UA302GameInstance::OnMapLoaded(UWorld *LoadedWorld)
 
 void UA302GameInstance::ConnectToServer(const FString &URL)
 {
-    if (WebSocketManager)
+    if (GameNetworkSubsystem)
     {
-        WebSocketManager->Connect(URL);
+        GameNetworkSubsystem->Connect(EProtocolType::WebSocket, URL);
     }
 }
 
 void UA302GameInstance::SendToServer(const FString &Message)
 {
-    if (WebSocketManager)
+    if (WebSocketHandler)
     {
-        WebSocketManager->SendMessage(Message);
+        WebSocketHandler->SendMessage(Message);
     }
 }
 
@@ -189,15 +191,15 @@ void UA302GameInstance::OnMessageReceived(const FString &Message)
         AMyPlayerController *MyPC = Cast<AMyPlayerController>(PC);
         UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] MyPC: %s"), *GetNameSafe(MyPC));
 
-        if (MyPC)
-        {
-            UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] IsLocalController: %d"), (int32)MyPC->IsLocalController());
-            if (MyPC->IsLocalController())
-            {
-                UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] ServerRequestGameStart 호출!"));
-                MyPC->ServerRequestGameStart();
-            }
-        }
+        // if (MyPC)
+        // {
+        //     UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] IsLocalController: %d"), (int32)MyPC->IsLocalController());
+        //     if (MyPC->IsLocalController())
+        //     {
+        //         UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] ServerRequestGameStart 호출!"));
+        //         MyPC->ServerRequestGameStart();
+        //     }
+        // }
     }
     else if (Type == TEXT("nickname_available"))
     {
