@@ -41,8 +41,8 @@ void AA302GameMode::BeginPlay()
     UGameNetworkSubsystem* GameNetworkSubsystem = GetGameInstance()->GetSubsystem<UGameNetworkSubsystem>();
     if (GameNetworkSubsystem)
     {
-        // 인게임 진입 시엔 보이스/위치 동기화를 위한 UDP 통신만 연결합니다.
-        GameNetworkSubsystem->Connect(EProtocolType::UDP, TEXT("127.0.0.1:9100"));
+        // 인게임 진입 시엔 보이스/위치 동기화를 위한 UDP 통신만 연결합니다. (중앙 설정 주소 사용)
+        GameNetworkSubsystem->Connect(EProtocolType::UDP, GameNetworkSubsystem->GetVoiceURL());
         GameNetworkSubsystem->OnPacketReceived.AddDynamic(this, &AA302GameMode::OnMessageReceived);
     }
     else
