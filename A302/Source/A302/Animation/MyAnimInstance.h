@@ -5,6 +5,8 @@
 #include "MyAnimInstance.generated.h"
 
 class AMyCharacter;
+class UAnimMontage;
+class UCombatStatusComponent;
 
 UCLASS()
 class A302_API UMyAnimInstance : public UAnimInstance
@@ -12,10 +14,13 @@ class A302_API UMyAnimInstance : public UAnimInstance
     GENERATED_BODY()
 
 public:
+
     virtual void NativeInitializeAnimation() override;
     virtual void NativeUpdateAnimation(float DeltaSeconds) override;
 
 public:
+
+    // Movement
 
     UPROPERTY(BlueprintReadOnly, Category="Movement")
     float Speed = 0.f;
@@ -23,15 +28,56 @@ public:
     UPROPERTY(BlueprintReadOnly, Category="Movement")
     bool bIsInAir = false;
 
+    UPROPERTY(BlueprintReadOnly, Category="Movement")
+    float MoveDirection = 0.f;
+
+
+    // Combat State
+
     UPROPERTY(BlueprintReadOnly, Category="Combat")
     bool bIsAttacking = false;
 
-    UPROPERTY(BlueprintReadOnly, Category="Movement")
-    float MoveDirection = 0.f;
+    UPROPERTY(BlueprintReadOnly, Category="Combat")
+    bool bIsBlocking = false;
+
+    UPROPERTY(BlueprintReadOnly, Category="Interaction")
+    bool bIsInteracting = false;
+
+
+    // Montages
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Combat")
+    UAnimMontage* AttackMontage;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Combat")
+    UAnimMontage* BlockMontage;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Interaction")
+    UAnimMontage* InteractMontage;
+
+
+    // Gameplay → AnimInstance 호출용 함수
+
+    UFUNCTION(BlueprintCallable)
+    void PlayAttackMontage();
+
+    UFUNCTION(BlueprintCallable)
+    void PlayBlockMontage();
+
+    UFUNCTION(BlueprintCallable)
+    void PlayInteractMontage();
 
 
 private:
 
     UPROPERTY()
     AMyCharacter* CachedCharacter = nullptr;
+
+    UPROPERTY()
+    UCombatStatusComponent* CachedCombatComponent = nullptr;
+
+    // 방어 애니메이션 재생 시, 이전 방어 횟수와 비교하여 방어 횟수가 증가했을 때만 애니메이션이 재생되도록 하기 위한 변수
+    int32 PreviousShieldCount = 0;
+
+    bool bAnimInitialized = false;
 };
