@@ -11,6 +11,7 @@
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
+#include "Network/LobbyConstants.h"
 
 void UChatWidget::NativeConstruct()
 {
@@ -89,22 +90,22 @@ void UChatWidget::SendMessage()
 
     TSharedPtr<FJsonObject> Data = MakeShareable(new FJsonObject);
 
-    Data->SetStringField(TEXT("message"), Message);
+    Data->SetStringField(LobbyProtocol::KeyMessage, Message);
 
     if (GI)
     {
-        Data->SetStringField(TEXT("roomCode"), GI->CurrentRoomCode);
-        Data->SetStringField(TEXT("playerName"), GI->MyPlayerName);
+        Data->SetStringField(LobbyProtocol::KeyRoomCode, GI->CurrentRoomCode);
+        Data->SetStringField(LobbyProtocol::KeyPlayerName, GI->MyPlayerName);
     }
     else if (InGameGameMode)
     {
-        Data->SetStringField(TEXT("roomCode"), InGameGameMode->CurrentRoomCode);
-        Data->SetStringField(TEXT("playerName"), InGameGameMode->MyPlayerName);
+        Data->SetStringField(LobbyProtocol::KeyRoomCode, InGameGameMode->CurrentRoomCode);
+        Data->SetStringField(LobbyProtocol::KeyPlayerName, InGameGameMode->MyPlayerName);
     }
 
     TSharedPtr<FJsonObject> Json = MakeShareable(new FJsonObject);
-    Json->SetStringField(TEXT("type"), TEXT("chat_message"));
-    Json->SetObjectField(TEXT("data"), Data);
+    Json->SetStringField(LobbyProtocol::KeyType, LobbyProtocol::ReqChatMessage);
+    Json->SetObjectField(LobbyProtocol::KeyData, Data);
 
     FString Output;
     TSharedRef<TJsonWriter<>> writer = TJsonWriterFactory<>::Create(&Output);
