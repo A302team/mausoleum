@@ -1,15 +1,18 @@
 #include "Character/MyPlayerController.h"
 
 #include "Blueprint/UserWidget.h"
+#include "Character/MyCharacter.h"
 #include "Components/Button.h"
 #include "Components/ComboBoxString.h"
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
 #include "EnhancedInputSubsystems.h"
+#include "GamePlay/Events/BaseEvent.h"
 #include "InputMappingContext.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "GameMode/A302GameMode.h"
 #include "UI/ChatWidget.h"
+#include "UI/PersonalEventWidget.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
 #include "Net/UnrealNetwork.h"
@@ -418,5 +421,48 @@ void AMyPlayerController::InitializeQuickSlotVisualState()
 		{
 			SelectedImage->SetVisibility(ESlateVisibility::Hidden);
 		}
+	}
+}
+
+void AMyPlayerController::Client_ShowPersonalEvent_Implementation(FName EventID, const FText& EventTitle, const FText& EventDescription, bool bIsCancelable)
+{
+	if (!PersonalEventWidgetInstance && PersonalEventWidgetClass)
+	{
+		PersonalEventWidgetInstance = CreateWidget<UPersonalEventWidget>(this, PersonalEventWidgetClass);
+	}
+
+	if (PersonalEventWidgetInstance)
+	{
+		PersonalEventWidgetInstance->SetupEventUI(EventID, EventTitle, EventDescription, bIsCancelable);
+        
+		if (!PersonalEventWidgetInstance->IsInViewport())
+		{
+			PersonalEventWidgetInstance->AddToViewport();
+		}
+
+		// 마우스 커서 표시 및 UI 조작 전용 모드로 변경
+		bShowMouseCursor = true;
+		SetInputMode(FInputModeUIOnly());
+	}
+}
+
+void AMyPlayerController::Server_ResolvePersonalEvent_Implementation(FName EventID, bool bIsConfirmed)
+{
+	// 1. 플레이어 캐릭터 확인
+	AMyCharacter* MyChar = Cast<AMyCharacter>(GetPawn());
+	if (!MyChar) return;
+
+	// 2. 현재 서버가 기억하고 있는 이벤트가 있고, ID가 일치하는지 검증 (보안)
+	if (ActivePersonalEvent && ActivePersonalEvent->EventID == EventID)
+	{
+		// 3. 해당 이벤트의 결과(보상 지급 등)를 실행!
+		ActivePersonalEvent->OnEventResolved(MyChar, bIsConfirmed);
+        
+		// 4. 처리 완료 후 초기화
+		ActivePersonalEvent = nullptr;
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Server] 이벤트 ID 불일치 또는 유효한 이벤트가 없습니다. 해킹 시도 의심!"));
 	}
 }
