@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
-#include "GameMode/LobbyGameMode.h"
+#include "GameMode/A302GameInstance.h"
 #include "RoomListPopup.generated.h"
 
 /**
@@ -46,5 +46,5 @@ public:
 	void OnCloseClicked();
 
 private:
-	TObjectPtr<class ALobbyGameMode> LobbyGameMode;
+	TObjectPtr<class UA302GameInstance> GI;
 };
