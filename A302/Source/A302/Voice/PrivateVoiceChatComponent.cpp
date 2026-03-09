@@ -157,7 +157,18 @@ void UPrivateVoiceChatComponent::ConnectToVoiceServer()
 
 void UPrivateVoiceChatComponent::DisconnectFromVoiceServer()
 {
-    if (NetworkClient) NetworkClient->Disconnect();
+    if (APawn* OwnerPawn = Cast<APawn>(GetOwner()))
+    {
+        if (!OwnerPawn->IsLocallyControlled())
+        {
+            return; // 로컬 컨트롤러가 아닌 타 유저 아바타 파괴 시에는 서버 연결을 끊지 않음
+        }
+    }
+
+    if (NetworkClient) 
+    {
+        NetworkClient->Disconnect(roomCode, GetMyPlayerName());
+    }
 }
 
 // ===== 전략(Strategy) 관리 =====

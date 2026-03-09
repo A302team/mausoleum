@@ -38,9 +38,9 @@ void UVoiceNetworkClient::Connect(const FString& URL)
     }
 }
 
-void UVoiceNetworkClient::Disconnect()
+void UVoiceNetworkClient::Disconnect(const FString& RoomCode, const FString& SpeakerName)
 {
-    SendLeavePacket();
+    SendLeavePacket(RoomCode, SpeakerName);
 }
 
 bool UVoiceNetworkClient::IsConnected() const
@@ -85,7 +85,7 @@ void UVoiceNetworkClient::SendVoiceData(const TArray<uint8>& Payload, const FStr
     GameNetworkSubsystem->SendBinaryPacket(EProtocolType::UDP, BinaryData);
 }
 
-void UVoiceNetworkClient::SendLeavePacket()
+void UVoiceNetworkClient::SendLeavePacket(const FString& RoomCode, const FString& SpeakerName)
 {
     if (!GameNetworkSubsystem || !IsConnected()) return;
 
@@ -94,11 +94,17 @@ void UVoiceNetworkClient::SendLeavePacket()
     Header.packetType = 2; // Leave
     Header.payloadSize = 0;
 
+    FTCHARToUTF8 Utf8RoomCode(*RoomCode);
+    FMemory::Memcpy(Header.roomCode, Utf8RoomCode.Get(), FMath::Min(Utf8RoomCode.Length(), 15));
+
+    FTCHARToUTF8 Utf8SpeakerName(*SpeakerName);
+    FMemory::Memcpy(Header.speakerName, Utf8SpeakerName.Get(), FMath::Min(Utf8SpeakerName.Length(), 31));
+
     TArray<uint8> BinaryData;
     BinaryData.SetNumUninitialized(sizeof(FVoicePacketHeader));
     FMemory::Memcpy(BinaryData.GetData(), &Header, sizeof(FVoicePacketHeader));
 
-    UE_LOG(LogVoiceChat, Log, TEXT("[Voice] Leave 패킷 전송"));
+    UE_LOG(LogVoiceChat, Log, TEXT("[Voice] Leave 패킷 전송 (Room: %s, User: %s)"), *RoomCode, *SpeakerName);
     GameNetworkSubsystem->SendBinaryPacket(EProtocolType::UDP, BinaryData);
 }
 

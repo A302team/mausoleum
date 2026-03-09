@@ -9,26 +9,17 @@
 #include "Kismet/GameplayStatics.h"
 #include "GameMode/LobbyGameMode.h"
 #include "Character/MyPlayerController.h"
-#include "Engine/World.h"
 
 void UA302GameInstance::Init()
 {
     Super::Init();
-
-    // GameNetworkSubsystem의 이벤트를 수신하도록 설정
-    if (UGameNetworkSubsystem* NetworkSubsystem = GetSubsystem<UGameNetworkSubsystem>())
+    
+    GameNetworkSubsystem = GetSubsystem<UGameNetworkSubsystem>();
+    if (GameNetworkSubsystem)
     {
-        NetworkSubsystem->OnPacketReceived.AddDynamic(this, &UA302GameInstance::OnMessageReceived);
-
-        // 클라이언트 환경에서만 초기 연결 시도
-        UWorld* World = GetWorld();
-        if (World && (World->GetNetMode() == NM_Client || World->GetNetMode() == NM_Standalone))
-        {
-            ConnectToServer(NetworkSubsystem->GetLobbyURL());
-            UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] Init - Subsystem 연결 시도: %s"), *NetworkSubsystem->GetLobbyURL());
-        }
+        GameNetworkSubsystem->Connect(EProtocolType::WebSocket, GameNetworkSubsystem->GetLobbyURL());
+        GameNetworkSubsystem->OnPacketReceived.AddDynamic(this, &UA302GameInstance::OnMessageReceived);
     }
-
     FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(this, &UA302GameInstance::OnMapLoaded);
 }
 
@@ -97,17 +88,17 @@ void UA302GameInstance::OnMapLoaded(UWorld *LoadedWorld)
 
 void UA302GameInstance::ConnectToServer(const FString &URL)
 {
-    if (UGameNetworkSubsystem* NetworkSubsystem = GetSubsystem<UGameNetworkSubsystem>())
+    if (GameNetworkSubsystem)
     {
-        NetworkSubsystem->Connect(EProtocolType::WebSocket, URL);
+        GameNetworkSubsystem->Connect(EProtocolType::WebSocket, URL);
     }
 }
 
 void UA302GameInstance::SendToServer(const FString &Message)
 {
-    if (UGameNetworkSubsystem* NetworkSubsystem = GetSubsystem<UGameNetworkSubsystem>())
+    if (GameNetworkSubsystem)
     {
-        NetworkSubsystem->SendPacket(EProtocolType::WebSocket, Message);
+        GameNetworkSubsystem->SendPacket(EProtocolType::WebSocket, Message);
     }
 }
 
@@ -193,15 +184,15 @@ void UA302GameInstance::OnMessageReceived(const FString &Message)
         AMyPlayerController *MyPC = Cast<AMyPlayerController>(PC);
         UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] MyPC: %s"), *GetNameSafe(MyPC));
 
-        if (MyPC)
-        {
-            UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] IsLocalController: %d"), (int32)MyPC->IsLocalController());
-            if (MyPC->IsLocalController())
-            {
-                UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] ServerRequestGameStart 호출!"));
-                MyPC->ServerRequestGameStart();
-            }
-        }
+        // if (MyPC)
+        // {
+        //     UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] IsLocalController: %d"), (int32)MyPC->IsLocalController());
+        //     if (MyPC->IsLocalController())
+        //     {
+        //         UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] ServerRequestGameStart 호출!"));
+        //         MyPC->ServerRequestGameStart();
+        //     }
+        // }
     }
     else if (Type == TEXT("nickname_available"))
     {
