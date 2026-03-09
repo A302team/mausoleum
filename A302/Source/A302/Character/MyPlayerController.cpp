@@ -11,6 +11,8 @@
 #include "GameMode/A302GameMode.h"
 #include "UI/ChatWidget.h"
 #include "Kismet/GameplayStatics.h"
+#include "Engine/World.h"
+#include "Net/UnrealNetwork.h"
 
 namespace
 {

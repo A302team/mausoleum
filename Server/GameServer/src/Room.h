@@ -72,12 +72,11 @@ public:
 
     void broadcastExcept(const std::string& exceptName, const json& message)
     {
-        std::string msg = message.dump();
         for(auto& [name, player] : players)
         {
-            if(name != exceptName && player.ws)
+            if(name != exceptName)
             {
-                player.ws->send(msg, uWS::OpCode::TEXT);
+                player.send(message);
             }
         }
     }

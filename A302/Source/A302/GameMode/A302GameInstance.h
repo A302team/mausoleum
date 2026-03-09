@@ -57,8 +57,6 @@ public:
 	UPROPERTY()
 	TObjectPtr<class UGameNetworkSubsystem> GameNetworkSubsystem;
 
-	UPROPERTY()
-	TObjectPtr<class UWebSocketHandler> WebSocketHandler;
 
 	UFUNCTION(BlueprintCallable)
 	void ConnectToServer(const FString &URL);

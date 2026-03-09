@@ -9,8 +9,6 @@
 #include "Character/MyPlayerController.h"
 #include "Manager/SpawnManager.h"
 #include "Kismet/GameplayStatics.h"
-#include "Network/GameNetworkSubsystem.h"
-#include "Network/WebSocketHandler.h"
 #include "UI/ChatWidget.h"
 #include "Blueprint/UserWidget.h"
 
@@ -133,11 +131,6 @@ void AA302GameMode::SpawnPlayer(APlayerController *PlayerController)
 
 void AA302GameMode::SendToServer(const FString &Message)
 {
-    // UGameNetworkSubsystem *GameNetworkSubsystem = GetGameInstance()->GetSubsystem<UGameNetworkSubsystem>();
-    // if (GameNetworkSubsystem)
-    // {
-    //     GameNetworkSubsystem->SendPacket(EProtocolType::WebSocket, Message);
-    // }
 }
 
 void AA302GameMode::OnMessageReceived(const FString &Message)
