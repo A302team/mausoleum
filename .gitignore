@@ -5,3 +5,8 @@
 .githooks/pre-push
 
 .vscode/
+
+# GameServer vcpkg
+Server/vcpkg/
+Server/GameServer/vcpkg_installed/
+Server/GameServer/build/
