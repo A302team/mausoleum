@@ -52,9 +52,6 @@ private:
     UPROPERTY()
     TObjectPtr<class ASpawnManager> SpawnManager;
 
-    UPROPERTY()
-    TObjectPtr<class UWebSocketManager> WebSocketManager;
-
     UFUNCTION()
     void OnMessageReceived(const FString &Message);
 
