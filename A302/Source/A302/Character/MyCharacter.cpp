@@ -259,6 +259,15 @@ void AMyCharacter::HandleDead()
 
 	ClearTimedKnifeState(true);
 	bIsDead = true;
+
+	// Death 애니메이션 재생
+  GetCharacterMovement()->DisableMovement();
+
+	if (UMyAnimInstance* Anim = Cast<UMyAnimInstance>(GetMesh()->GetAnimInstance()))
+	{
+		Anim->PlayDeathMontage();
+	}
+
 	LogAndScreenCharacter(TEXT("[MyCharacter] Dead"), FColor::Red, 4.0f);
 }
 

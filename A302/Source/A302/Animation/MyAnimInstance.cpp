@@ -112,3 +112,15 @@ void UMyAnimInstance::PlayInteractMontage()
         Montage_Play(InteractMontage);
     }
 }
+
+// 사망 애니메이션 재생
+void UMyAnimInstance::PlayDeathMontage()
+{
+    if (!DeathMontage) return;
+
+    if (!Montage_IsPlaying(DeathMontage))
+    {
+        bIsDead = true;
+        Montage_Play(DeathMontage);
+    }
+}
