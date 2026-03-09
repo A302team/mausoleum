@@ -6,7 +6,8 @@ set(CMAKE_CXX_STANDARD 20)
 find_package(unofficial-uwebsockets CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 
-add_executable(Server src/main.cpp)
+file(GLOB_RECURSE SOURCES "src/*.cpp")
+add_executable(Server ${SOURCES})
 
 target_include_directories(Server PRIVATE src)
 
