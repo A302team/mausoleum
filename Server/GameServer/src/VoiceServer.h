@@ -4,12 +4,11 @@
 #include <unordered_map>
 #include <vector>
 #include <chrono>
+#include <functional>
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <mswsock.h>
-
-// #include "VoicePacket.pb.h" // Removed Protobuf dependency
 
 #pragma comment(lib, "ws2_32.lib")
 
@@ -26,25 +25,28 @@ struct VoicePacketHeader {
 struct ClientEndpoint {
     sockaddr_in addr;
     std::chrono::steady_clock::time_point lastSeen;
-
-    bool operator==(const ClientEndpoint& other) const {
-        return addr.sin_addr.s_addr == other.addr.sin_addr.s_addr &&
-               addr.sin_port == other.addr.sin_port;
-    }
 };
+
+// IP:Port를 uint64_t 키로 변환하는 헬퍼
+inline uint64_t makeClientKey(const sockaddr_in& addr) {
+    return (static_cast<uint64_t>(addr.sin_addr.s_addr) << 16) | ntohs(addr.sin_port);
+}
 
 class VoiceServer {
 private:
     SOCKET udpSocket;
     // Map of roomCode -> (speakerName -> ClientEndpoint)
     std::unordered_map<std::string, std::unordered_map<std::string, ClientEndpoint>> rooms;
-    // Server에 접속한 모든 클라이언트
-    std::vector<ClientEndpoint> connectedClients;
+    // Server에 접속한 모든 클라이언트 (O(1) 조회/삭제를 위해 unordered_map으로 변경)
+    std::unordered_map<uint64_t, ClientEndpoint> connectedClients;
     // Timeout in seconds for inactive clients
     const int CLIENT_TIMEOUT_SEC = 300; // 5분 타임아웃
+    // Cleanup 주기 제한 (매 패킷마다 호출 방지)
+    const int CLEANUP_INTERVAL_SEC = 10;
+    std::chrono::steady_clock::time_point lastCleanupTime;
 
 public:
-    VoiceServer() : udpSocket(INVALID_SOCKET) {}
+    VoiceServer() : udpSocket(INVALID_SOCKET), lastCleanupTime(std::chrono::steady_clock::now()) {}
 
     void run(int port) {
         // Initialize Winsock
@@ -118,8 +120,14 @@ private:
                 continue;
             }
 
-            // Cleanup stale clients occasionally to prevent memory leaks
-            cleanupStaleClients();
+            auto now = std::chrono::steady_clock::now();
+
+            // 10초마다 한 번만 Cleanup 수행 (매 패킷마다 O(N) 순회 방지)
+            auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - lastCleanupTime).count();
+            if (elapsed > CLEANUP_INTERVAL_SEC) {
+                cleanupStaleClients();
+                lastCleanupTime = now;
+            }
 
             // 패킷 앞부분을 헤더 구조체로 캐스팅
             VoicePacketHeader* header = reinterpret_cast<VoicePacketHeader*>(buffer);
@@ -127,19 +135,12 @@ private:
             // 문자열을 C++ string으로 변환
             std::string roomCode(header->roomCode);
             std::string speakerName(header->speakerName);
-            
-            auto now = std::chrono::steady_clock::now();
 
-            // ===== connectedClients 갱신 (모든 패킷 타입 공통) =====
+            uint64_t clientKey = makeClientKey(clientAddr);
+
+            // ===== connectedClients 갱신 — O(1) upsert =====
             auto upsertClient = [&]() {
-                for (auto& client : connectedClients) {
-                    if (client.addr.sin_addr.s_addr == clientAddr.sin_addr.s_addr &&
-                        client.addr.sin_port == clientAddr.sin_port) {
-                        client.lastSeen = now;
-                        return;
-                    }
-                }
-                connectedClients.push_back({clientAddr, now});
+                connectedClients[clientKey] = {clientAddr, now};
             };
 
             // ===== packetType == 0: Join =====
@@ -163,15 +164,8 @@ private:
                     }
                 }
                 
-                // connectedClients에서 제거
-                connectedClients.erase(
-                    std::remove_if(connectedClients.begin(), connectedClients.end(),
-                        [&](const ClientEndpoint& ep) {
-                            return ep.addr.sin_addr.s_addr == clientAddr.sin_addr.s_addr &&
-                                   ep.addr.sin_port == clientAddr.sin_port;
-                        }),
-                    connectedClients.end()
-                );
+                // connectedClients에서 O(1) 제거
+                connectedClients.erase(clientKey);
                 std::cout << "[Voice] Leave 처리 완료 | 남은 접속자 수: " << connectedClients.size() << std::endl;
                 continue; // Leave 패킷은 브로드캐스트하지 않음
             }
@@ -190,9 +184,8 @@ private:
 
                 // 브로드캐스트: connectedClients에 있는 나를 제외한 모든 유저에게
                 int broadcastCount = 0;
-                for (const auto& endpoint : connectedClients) {
-                    if (!(endpoint.addr.sin_addr.s_addr == clientAddr.sin_addr.s_addr && 
-                          endpoint.addr.sin_port == clientAddr.sin_port)) {
+                for (const auto& [key, endpoint] : connectedClients) {
+                    if (key != clientKey) {
                         int sentBytes = sendto(udpSocket, buffer, bytesReceived, 0, (SOCKADDR*)&endpoint.addr, sizeof(endpoint.addr));
                         if (sentBytes == SOCKET_ERROR) {
                             std::cerr << "[Voice] sendto 실패! 대상: " << inet_ntoa(endpoint.addr.sin_addr) 
@@ -233,19 +226,16 @@ private:
             }
         }
 
-        // 2. connectedClients 벡터에서도 타임아웃된 클라이언트 제거
-        connectedClients.erase(
-            std::remove_if(connectedClients.begin(), connectedClients.end(),
-                [&](const ClientEndpoint& ep) {
-                    auto duration = std::chrono::duration_cast<std::chrono::seconds>(now - ep.lastSeen).count();
-                    if (duration > CLIENT_TIMEOUT_SEC) {
-                        std::cout << "[Voice] connectedClients에서 타임아웃 클라이언트 제거: "
-                                  << inet_ntoa(ep.addr.sin_addr) << ":" << ntohs(ep.addr.sin_port) << std::endl;
-                        return true;
-                    }
-                    return false;
-                }),
-            connectedClients.end()
-        );
+        // 2. connectedClients에서 타임아웃된 클라이언트 제거 — O(1) 삭제
+        for (auto it = connectedClients.begin(); it != connectedClients.end(); ) {
+            auto duration = std::chrono::duration_cast<std::chrono::seconds>(now - it->second.lastSeen).count();
+            if (duration > CLIENT_TIMEOUT_SEC) {
+                std::cout << "[Voice] connectedClients에서 타임아웃 클라이언트 제거: "
+                          << inet_ntoa(it->second.addr.sin_addr) << ":" << ntohs(it->second.addr.sin_port) << std::endl;
+                it = connectedClients.erase(it);
+            } else {
+                ++it;
+            }
+        }
     }
 };

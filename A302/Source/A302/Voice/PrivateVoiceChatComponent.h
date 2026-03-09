@@ -107,5 +107,5 @@ private:
     TObjectPtr<UVoiceChatStrategyBase> ActiveStrategy = nullptr;
 
     UPROPERTY()
-    TObjectPtr<class UVoiceCodec> ReceiveCodec = nullptr;
+    TMap<FString, TObjectPtr<class UVoiceCodec>> SpeakerCodecs;
 };
