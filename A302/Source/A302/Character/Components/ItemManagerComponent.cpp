@@ -1,0 +1,258 @@
+#include "Character/Components/ItemManagerComponent.h"
+
+#include "GameData/ItemDefinition.h"
+#include "GameData/ItemInstance.h"
+#include "GameData/ItemTypes.h"
+#include "GamePlay/Factories/ItemActionFactory.h"
+#include "GamePlay/Items/BaseItem.h"
+#include "GamePlay/Items/ItemShield.h"
+#include "Interface/UsableItem.h"
+
+UItemManagerComponent::UItemManagerComponent()
+{
+	PrimaryComponentTick.bCanEverTick = false;
+}
+
+void UItemManagerComponent::BeginPlay()
+{
+	Super::BeginPlay();
+
+	ItemActionFactory = NewObject<UItemActionFactory>(this);
+	if (!ItemActionFactory)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[ItemManager] Failed to create ItemActionFactory."));
+	}
+}
+
+void UItemManagerComponent::InitializeSlots(int32 SlotCount)
+{
+	const int32 SafeCount = FMath::Max(1, SlotCount);
+	ItemDefinitions.Init(nullptr, SafeCount);
+	ItemInstances.Init(nullptr, SafeCount);
+	ItemLogics.Init(nullptr, SafeCount);
+}
+
+bool UItemManagerComponent::IsValidSlotIndex(int32 SlotIndex) const
+{
+	return ItemDefinitions.IsValidIndex(SlotIndex);
+}
+
+bool UItemManagerComponent::IsSlotEmpty(int32 SlotIndex) const
+{
+	return IsValidSlotIndex(SlotIndex) && ItemDefinitions[SlotIndex] == nullptr;
+}
+
+bool UItemManagerComponent::AddItemToSlot(int32 SlotIndex, UItemDefinition* ItemDefinition, int32 StackCount)
+{
+	if (!IsValidSlotIndex(SlotIndex) || !ItemDefinition)
+	{
+		return false;
+	}
+
+	if (ItemDefinition->RewardCategory != ERewardCategory::BasicItem)
+	{
+		return false;
+	}
+
+	if (!ItemActionFactory)
+	{
+		ItemActionFactory = NewObject<UItemActionFactory>(this);
+	}
+	if (!ItemActionFactory)
+	{
+		return false;
+	}
+
+	UItemInstance* NewInstance = NewObject<UItemInstance>(this);
+	if (!NewInstance)
+	{
+		return false;
+	}
+
+	NewInstance->Init(ItemDefinition, FMath::Max(1, StackCount));
+
+	UBaseItem* NewLogic = ItemActionFactory->CreateLogic(this, NewInstance);
+	if (!NewLogic)
+	{
+		return false;
+	}
+
+	ItemDefinitions[SlotIndex] = ItemDefinition;
+	ItemInstances[SlotIndex] = NewInstance;
+	ItemLogics[SlotIndex] = NewLogic;
+	return true;
+}
+
+bool UItemManagerComponent::RemoveItemFromSlot(int32 SlotIndex)
+{
+	if (!IsValidSlotIndex(SlotIndex))
+	{
+		return false;
+	}
+
+	ItemDefinitions[SlotIndex] = nullptr;
+	ItemInstances[SlotIndex] = nullptr;
+	ItemLogics[SlotIndex] = nullptr;
+	return true;
+}
+
+bool UItemManagerComponent::RemoveFirstItemByItemId(const FName& ItemId, int32& OutRemovedSlotIndex)
+{
+	OutRemovedSlotIndex = INDEX_NONE;
+	if (ItemId.IsNone())
+	{
+		return false;
+	}
+
+	for (int32 SlotIndex = 0; SlotIndex < ItemDefinitions.Num(); ++SlotIndex)
+	{
+		const UItemDefinition* ItemDefinition = ItemDefinitions[SlotIndex];
+		if (!ItemDefinition || ItemDefinition->ItemId != ItemId)
+		{
+			continue;
+		}
+
+		RemoveItemFromSlot(SlotIndex);
+		OutRemovedSlotIndex = SlotIndex;
+		return true;
+	}
+
+	return false;
+}
+
+UItemDefinition* UItemManagerComponent::GetItemDefinitionAtSlot(int32 SlotIndex) const
+{
+	return IsValidSlotIndex(SlotIndex) ? ItemDefinitions[SlotIndex] : nullptr;
+}
+
+UItemInstance* UItemManagerComponent::GetItemInstanceAtSlot(int32 SlotIndex) const
+{
+	return IsValidSlotIndex(SlotIndex) ? ItemInstances[SlotIndex] : nullptr;
+}
+
+UBaseItem* UItemManagerComponent::GetItemLogicAtSlot(int32 SlotIndex) const
+{
+	return IsValidSlotIndex(SlotIndex) ? ItemLogics[SlotIndex] : nullptr;
+}
+
+bool UItemManagerComponent::TryUseItemAtSlot(
+	int32 SlotIndex,
+	ACharacter* Instigator,
+	const FItemTargetData& TargetData,
+	UItemDefinition*& OutUsedItemDefinition,
+	bool& bOutBecameEmpty
+)
+{
+	OutUsedItemDefinition = nullptr;
+	bOutBecameEmpty = false;
+
+	if (!IsValidSlotIndex(SlotIndex) || !Instigator)
+	{
+		return false;
+	}
+
+	UItemDefinition* ItemDefinition = ItemDefinitions[SlotIndex];
+	UItemInstance* ItemInstance = ItemInstances[SlotIndex];
+	UBaseItem* ItemLogic = ItemLogics[SlotIndex];
+	if (!ItemDefinition || !ItemInstance || !ItemLogic)
+	{
+		return false;
+	}
+
+	if (!ItemLogic->GetClass()->ImplementsInterface(UUsableItem::StaticClass()))
+	{
+		return false;
+	}
+
+	if (!IUsableItem::Execute_CanUse(ItemLogic, Instigator, TargetData))
+	{
+		return false;
+	}
+
+	if (!IUsableItem::Execute_Use(ItemLogic, Instigator, TargetData))
+	{
+		return false;
+	}
+
+	OutUsedItemDefinition = ItemDefinition;
+
+	if (ItemInstance->IsEmpty())
+	{
+		RemoveItemFromSlot(SlotIndex);
+		bOutBecameEmpty = true;
+	}
+
+	return true;
+}
+
+bool UItemManagerComponent::TryAutoUseFirst(
+	ACharacter* Instigator,
+	const FItemTargetData& TargetData,
+	UItemDefinition*& OutUsedItemDefinition,
+	int32& OutUsedSlotIndex,
+	bool& bOutBecameEmpty
+)
+{
+	OutUsedItemDefinition = nullptr;
+	OutUsedSlotIndex = INDEX_NONE;
+	bOutBecameEmpty = false;
+
+	if (!Instigator)
+	{
+		return false;
+	}
+
+	for (int32 SlotIndex = 0; SlotIndex < ItemDefinitions.Num(); ++SlotIndex)
+	{
+		UItemDefinition* ItemDefinition = ItemDefinitions[SlotIndex];
+		UItemInstance* ItemInstance = ItemInstances[SlotIndex];
+		UBaseItem* ItemLogic = ItemLogics[SlotIndex];
+		if (!ItemDefinition || !ItemInstance || !ItemLogic)
+		{
+			continue;
+		}
+
+		if (!IsAutoUseItem(ItemDefinition))
+		{
+			continue;
+		}
+
+		if (!ItemLogic->GetClass()->ImplementsInterface(UUsableItem::StaticClass()))
+		{
+			continue;
+		}
+
+		if (!IUsableItem::Execute_CanUse(ItemLogic, Instigator, TargetData))
+		{
+			continue;
+		}
+
+		if (!IUsableItem::Execute_Use(ItemLogic, Instigator, TargetData))
+		{
+			continue;
+		}
+
+		OutUsedItemDefinition = ItemDefinition;
+		OutUsedSlotIndex = SlotIndex;
+		if (ItemInstance->IsEmpty())
+		{
+			RemoveItemFromSlot(SlotIndex);
+			bOutBecameEmpty = true;
+		}
+
+		return true;
+	}
+
+	return false;
+}
+
+bool UItemManagerComponent::IsAutoUseItem(const UItemDefinition* ItemDefinition) const
+{
+	if (!ItemDefinition)
+	{
+		return false;
+	}
+
+	UClass* LogicClass = ItemDefinition->ResolveRewardLogicClass();
+	return ItemDefinition->AutoUse || (LogicClass && LogicClass->IsChildOf(UItemShield::StaticClass()));
+}

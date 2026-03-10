@@ -5,10 +5,8 @@
 #include "QuickSlotComponent.generated.h"
 
 class AMyCharacter;
-class UBaseItem;
 class UItemDefinition;
-class UItemInstance;
-class UItemActionFactory;
+class UItemManagerComponent;
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class A302_API UQuickSlotComponent : public UActorComponent
@@ -32,12 +30,13 @@ public:
 	bool TryAutoUseItem();
 	bool RemoveFirstItemByItemId(const FName& ItemId);
 	int32 GetSelectedSlotIndex() const { return SelectedSlotIndex; }
-	
+
 	UFUNCTION(BlueprintCallable, Category = "QuickSlot|Item")
 	bool TryAddItemByDefinition(UItemDefinition* ItemDefinition);
 
 private:
 	AMyCharacter* GetOwnerCharacter() const;
+	UItemManagerComponent* GetItemManager() const;
 	bool TryGetItemDefinitionFromActor(AActor* TargetActor, UItemDefinition*& OutItemDefinition) const;
 	int32 FindEmptyQuickSlotIndex() const;
 	bool IsValidQuickSlotIndex(int32 SlotIndex) const;
@@ -45,7 +44,7 @@ private:
 	void ClearQuickSlot(int32 SlotIndex);
 	void UpdateQuickSlotSelectionUI() const;
 	AActor* FindTargetActorForUse(FVector& OutTargetLocation) const;
-	bool BuildQuickSlotLogicForIndex(int32 SlotIndex, UItemDefinition* ItemDefinition);
+	bool BuildQuickSlotItemForIndex(int32 SlotIndex, UItemDefinition* ItemDefinition);
 	void UpdateAttackRangeDebugState();
 	void UpdateQuickSlotNameUI(int32 SlotIndex, const UItemDefinition* ItemDefinition) const;
 	void LogAndScreenQuickSlotMessage(
@@ -55,7 +54,7 @@ private:
 	) const;
 
 	UPROPERTY(EditAnywhere, Category = "Item|QuickSlot", meta = (ClampMin = "1"))
-	int32 MaxQuickSlotCount = 5;
+	int32 MaxQuickSlotCount = 6;
 
 	UPROPERTY(EditAnywhere, Category = "Item|QuickSlot", meta = (ClampMin = "1"))
 	int32 PickupStackCount = 1;
@@ -66,17 +65,8 @@ private:
 	UPROPERTY(VisibleInstanceOnly, Category = "Item|QuickSlot")
 	int32 SelectedSlotIndex = INDEX_NONE;
 
-	UPROPERTY(VisibleInstanceOnly, Category = "Item|QuickSlot")
-	TArray<TObjectPtr<UItemDefinition>> QuickSlotItems;
-
 	UPROPERTY()
-	TArray<TObjectPtr<UItemInstance>> QuickSlotItemInstances;
-
-	UPROPERTY()
-	TArray<TObjectPtr<UBaseItem>> QuickSlotItemLogics;
-
-	UPROPERTY()
-	TObjectPtr<UItemActionFactory> ItemActionFactory = nullptr;
+	TObjectPtr<UItemManagerComponent> ItemManagerComponent = nullptr;
 
 	bool bWasAttackTargetInRange = false;
 };

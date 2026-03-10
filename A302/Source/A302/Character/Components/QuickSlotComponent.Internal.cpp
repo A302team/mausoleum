@@ -1,20 +1,30 @@
 #include "Character/Components/QuickSlotComponent.h"
 
+#include "Character/Components/ItemManagerComponent.h"
 #include "Character/MyCharacter.h"
 #include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "GameData/ItemDefinition.h"
-#include "GameData/ItemInstance.h"
 #include "GameData/ItemTypes.h"
 #include "GameFramework/Character.h"
 #include "GamePlay/Items/BaseItem.h"
 #include "Interface/UsableItem.h"
-#include "Manager/ItemActionFactory.h"
 #include "Object/BaseInteractable.h"
 
 AMyCharacter* UQuickSlotComponent::GetOwnerCharacter() const
 {
 	return Cast<AMyCharacter>(GetOwner());
+}
+
+UItemManagerComponent* UQuickSlotComponent::GetItemManager() const
+{
+	UQuickSlotComponent* MutableThis = const_cast<UQuickSlotComponent*>(this);
+	if (!MutableThis->ItemManagerComponent && MutableThis->GetOwner())
+	{
+		MutableThis->ItemManagerComponent = MutableThis->GetOwner()->FindComponentByClass<UItemManagerComponent>();
+	}
+
+	return MutableThis->ItemManagerComponent;
 }
 
 bool UQuickSlotComponent::TryGetItemDefinitionFromActor(
@@ -26,7 +36,7 @@ bool UQuickSlotComponent::TryGetItemDefinitionFromActor(
 
 	if (ABaseInteractable* InteractableActor = Cast<ABaseInteractable>(TargetActor))
 	{
-		OutItemDefinition = InteractableActor->GetItemDefinition();
+		OutItemDefinition = InteractableActor->GetRewardDefinition();
 	}
 
 	return OutItemDefinition != nullptr;
@@ -34,9 +44,16 @@ bool UQuickSlotComponent::TryGetItemDefinitionFromActor(
 
 int32 UQuickSlotComponent::FindEmptyQuickSlotIndex() const
 {
-	for (int32 SlotIndex = 0; SlotIndex < QuickSlotItems.Num(); ++SlotIndex)
+	const UItemManagerComponent* ItemManager = GetItemManager();
+	if (!ItemManager)
 	{
-		if (QuickSlotItems[SlotIndex] == nullptr)
+		return INDEX_NONE;
+	}
+
+	const int32 SlotCount = ItemManager->GetSlotCount();
+	for (int32 SlotIndex = 0; SlotIndex < SlotCount; ++SlotIndex)
+	{
+		if (ItemManager->IsSlotEmpty(SlotIndex))
 		{
 			return SlotIndex;
 		}
@@ -47,14 +64,17 @@ int32 UQuickSlotComponent::FindEmptyQuickSlotIndex() const
 
 bool UQuickSlotComponent::IsValidQuickSlotIndex(int32 SlotIndex) const
 {
-	return QuickSlotItems.IsValidIndex(SlotIndex);
+	const UItemManagerComponent* ItemManager = GetItemManager();
+	return ItemManager && ItemManager->IsValidSlotIndex(SlotIndex);
 }
 
 void UQuickSlotComponent::InitializeQuickSlots()
 {
-	QuickSlotItems.Init(nullptr, MaxQuickSlotCount);
-	QuickSlotItemInstances.Init(nullptr, MaxQuickSlotCount);
-	QuickSlotItemLogics.Init(nullptr, MaxQuickSlotCount);
+	if (UItemManagerComponent* ItemManager = GetItemManager())
+	{
+		ItemManager->InitializeSlots(MaxQuickSlotCount);
+	}
+
 	SelectedSlotIndex = INDEX_NONE;
 	bWasAttackTargetInRange = false;
 }
@@ -66,9 +86,10 @@ void UQuickSlotComponent::ClearQuickSlot(int32 SlotIndex)
 		return;
 	}
 
-	QuickSlotItems[SlotIndex] = nullptr;
-	QuickSlotItemInstances[SlotIndex] = nullptr;
-	QuickSlotItemLogics[SlotIndex] = nullptr;
+	if (UItemManagerComponent* ItemManager = GetItemManager())
+	{
+		ItemManager->RemoveItemFromSlot(SlotIndex);
+	}
 
 	UpdateQuickSlotNameUI(SlotIndex, nullptr);
 	UpdateQuickSlotSelectionUI();
@@ -119,8 +140,6 @@ AActor* UQuickSlotComponent::FindTargetActorForUse(FVector& OutTargetLocation) c
 		);
 	}
 
-	// Fallback for cases where character mesh/capsule is not hit by visibility trace:
-	// find a nearby pawn in front of the player.
 	TArray<FOverlapResult> OverlapResults;
 	FCollisionObjectQueryParams ObjectQueryParams;
 	ObjectQueryParams.AddObjectTypesToQuery(ECC_Pawn);
@@ -163,7 +182,6 @@ AActor* UQuickSlotComponent::FindTargetActorForUse(FVector& OutTargetLocation) c
 			continue;
 		}
 
-		// Keep target roughly in front of the player.
 		const float DotForward = FVector::DotProduct(OwnerForward, ToCandidate / Distance);
 		if (DotForward < 0.1f)
 		{
@@ -186,41 +204,25 @@ AActor* UQuickSlotComponent::FindTargetActorForUse(FVector& OutTargetLocation) c
 	return BestTarget;
 }
 
-bool UQuickSlotComponent::BuildQuickSlotLogicForIndex(int32 SlotIndex, UItemDefinition* ItemDefinition)
+bool UQuickSlotComponent::BuildQuickSlotItemForIndex(int32 SlotIndex, UItemDefinition* ItemDefinition)
 {
 	if (!IsValidQuickSlotIndex(SlotIndex) || !ItemDefinition)
 	{
 		return false;
 	}
 
-	if (!ItemActionFactory)
-	{
-		ItemActionFactory = NewObject<UItemActionFactory>(this);
-	}
-	if (!ItemActionFactory)
+	if (ItemDefinition->RewardCategory != ERewardCategory::BasicItem)
 	{
 		return false;
 	}
 
-	UItemInstance* NewInstance = NewObject<UItemInstance>(this);
-	if (!NewInstance)
+	UItemManagerComponent* ItemManager = GetItemManager();
+	if (!ItemManager)
 	{
 		return false;
 	}
 
-	NewInstance->Init(ItemDefinition, FMath::Max(1, PickupStackCount));
-
-	UBaseItem* NewLogic = ItemActionFactory->CreateLogic(this, NewInstance);
-	if (!NewLogic)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[QuickSlot] Failed to create item logic for %s"), *ItemDefinition->ItemId.ToString());
-		return false;
-	}
-
-	QuickSlotItems[SlotIndex] = ItemDefinition;
-	QuickSlotItemInstances[SlotIndex] = NewInstance;
-	QuickSlotItemLogics[SlotIndex] = NewLogic;
-	return true;
+	return ItemManager->AddItemToSlot(SlotIndex, ItemDefinition, PickupStackCount);
 }
 
 void UQuickSlotComponent::UpdateAttackRangeDebugState()
@@ -228,10 +230,11 @@ void UQuickSlotComponent::UpdateAttackRangeDebugState()
 	bool bIsTargetInRangeNow = false;
 	FString TargetName;
 
-	if (IsValidQuickSlotIndex(SelectedSlotIndex))
+	UItemManagerComponent* ItemManager = GetItemManager();
+	if (ItemManager && IsValidQuickSlotIndex(SelectedSlotIndex))
 	{
-		UItemDefinition* ItemDefinition = QuickSlotItems[SelectedSlotIndex];
-		UBaseItem* ItemLogic = QuickSlotItemLogics[SelectedSlotIndex];
+		UItemDefinition* ItemDefinition = ItemManager->GetItemDefinitionAtSlot(SelectedSlotIndex);
+		UBaseItem* ItemLogic = ItemManager->GetItemLogicAtSlot(SelectedSlotIndex);
 		AMyCharacter* OwnerCharacter = GetOwnerCharacter();
 
 		if (

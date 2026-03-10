@@ -1,6 +1,6 @@
 #include "Character/Components/KnifeAutoTestComponent.h"
 
-#include "Character/DummyCharacter.h"
+#include "Character/Dummy/DummyCharacter.h"
 #include "Character/MyCharacter.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -10,7 +10,7 @@
 #include "GamePlay/Items/BaseItem.h"
 #include "Interface/UsableItem.h"
 #include "Kismet/GameplayStatics.h"
-#include "Manager/ItemActionFactory.h"
+#include "GamePlay/Factories/ItemActionFactory.h"
 #include "TimerManager.h"
 
 namespace
@@ -191,3 +191,4 @@ void UKnifeAutoTestComponent::ExecuteAutoKnifeAttack()
 		);
 	}
 }
+
