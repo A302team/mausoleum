@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "Components/StaticMeshComponent.h"
 #include "InputActionValue.h"
 #include "TimerManager.h"
 #include "Interface/InteractableInterface.h"
@@ -203,6 +204,12 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|Timed", meta = (AllowPrivateAccess = "true"))
 	FName ActiveTimedKnifeItemId = NAME_None;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Weapon", meta=(AllowPrivateAccess="true"))
+	TObjectPtr<UStaticMeshComponent> SwordMesh = nullptr;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Weapon", meta=(AllowPrivateAccess="true"))
+	TObjectPtr<UStaticMeshComponent> ShieldMesh = nullptr;
 
 	FTimerHandle TimedKnifeTimerHandle;
 

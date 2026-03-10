@@ -43,6 +43,15 @@ AMyCharacter::AMyCharacter()
 	PrimaryActorTick.bCanEverTick = false;
 	bReplicates = true;
     SetReplicateMovement(true);
+
+	// 무기 메쉬 컴포넌트 생성 및 설정
+	SwordMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("SwordMesh"));
+	SwordMesh->SetupAttachment(GetMesh(), TEXT("HandGrip_R"));
+	SwordMesh->SetHiddenInGame(true);   // 기본 숨김
+
+	ShieldMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ShieldMesh"));
+	ShieldMesh->SetupAttachment(GetMesh(), TEXT("HandGrip_L"));
+	ShieldMesh->SetHiddenInGame(true);  // 기본 숨김
     
 	InteractionComponent = CreateDefaultSubobject<UInteractComponent>(TEXT("InteractionComponent"));
 	QuickSlotComponent = CreateDefaultSubobject<UQuickSlotComponent>(TEXT("QuickSlotComponent"));
