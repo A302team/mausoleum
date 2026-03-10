@@ -12,6 +12,14 @@ enum class EItemUseMode : uint8
     SelfCast UMETA(DisplayName="SelfCast"),
 };
 
+UENUM(BlueprintType)
+enum class ERewardCategory : uint8
+{
+    BasicItem      UMETA(DisplayName="Basic Item"),
+    PersonalEvent  UMETA(DisplayName="Personal Event"),
+    GroupEvent     UMETA(DisplayName="Group Event"),
+};
+
 USTRUCT(BlueprintType)
 struct FItemTargetData
 {

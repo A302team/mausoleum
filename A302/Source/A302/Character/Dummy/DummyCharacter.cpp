@@ -1,4 +1,4 @@
-#include "Character/DummyCharacter.h"
+#include "Character/Dummy/DummyCharacter.h"
 
 #include "Character/Components/CombatStatusComponent.h"
 #include "Character/MyCharacter.h"

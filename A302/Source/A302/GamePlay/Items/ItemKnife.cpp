@@ -67,7 +67,6 @@ bool UItemKnife::Use_Implementation(ACharacter* Instigator, const FItemTargetDat
         return false;
     }
 
-    const UItemDefinition* Def = GetDefinition();
     AActor* Target = TargetData.TargetActor;
     AController* InstigatorController = Instigator ? Instigator->GetController() : nullptr;
 
@@ -82,10 +81,7 @@ bool UItemKnife::Use_Implementation(ACharacter* Instigator, const FItemTargetDat
 
     if (UItemInstance* Inst = GetInstance())
     {
-        if (!Def || !Def->bIsTimedKillKnife)
-        {
-            Inst->Consume(1);
-        }
+        Inst->Consume(1);
     }
 
     return true;
