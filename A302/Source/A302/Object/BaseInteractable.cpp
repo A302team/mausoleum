@@ -2,17 +2,18 @@
 #include "Math/UnrealMathUtility.h"
 #include "Character/MyCharacter.h"
 #include "GameData/ItemDefinition.h"
+#include "GamePlay/Events/BaseEvent.h"
+#include "Character/Components/QuickSlotComponent.h"
 
 ABaseInteractable::ABaseInteractable()
 {
 	PrimaryActorTick.bCanEverTick = false;
-	
+    
 	CurrentInteractType = EInteractType::Hold;
-	
-	// 스태틱 메시 컴포넌트 생성 및 루트 설정
+    
 	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StaticMesh"));
 	RootComponent = Mesh;
-	
+    
 	int32 RandomIndex = FMath::RandRange(0, static_cast<int32>(EInteractType::MAX) - 1);
 	CurrentInteractType = static_cast<EInteractType>(RandomIndex);
 }
@@ -26,11 +27,58 @@ void ABaseInteractable::Interact(AMyCharacter* PlayerCharacter)
 	}
 }
 
+void ABaseInteractable::OnInteractionSuccess(AMyCharacter* PlayerCharacter)
+{
+	if (!PlayerCharacter) return;
+
+	// 선택된 보상 타입에 따라 분기 처리
+	switch (RewardType)
+	{
+	case ERewardType::Event:
+		{
+			if (RewardEventClass)
+			{
+				UBaseEvent* NewEvent = NewObject<UBaseEvent>(this, RewardEventClass);
+				if (NewEvent)
+				{
+					NewEvent->ExecuteEvent(PlayerCharacter);
+					UE_LOG(LogTemp, Warning, TEXT("[Interaction] Event Triggered: %s"), *RewardEventClass->GetName());
+				}
+				Destroy();
+			}
+			break;
+		}
+	case ERewardType::Item:
+		{
+			if (RewardItem)
+			{
+				// UQuickSlotComponent* QuickSlot = PlayerCharacter->FindComponentByClass<UQuickSlotComponent>();
+				// if (QuickSlot) QuickSlot->TryAddItemByDefinition(RewardItem);
+                
+				UE_LOG(LogTemp, Warning, TEXT("[Interaction] Item Rewarded: %s"), *RewardItem->GetName());
+			}
+			break;
+		}
+	case ERewardType::None:
+	default:
+		{
+			// 예외 처리
+			UE_LOG(LogTemp, Warning, TEXT("[Interaction] Interacted with no specific reward."));
+			break;
+		}
+	}
+}
+
 FString ABaseInteractable::GetInteractText()
 {
-	if (ItemDefinition && !ItemDefinition->DisplayName.IsEmpty())
+	// 보상 타입에 따라 텍스트를 다르게 출력
+	if (RewardType == ERewardType::Event)
 	{
-		return FString::Printf(TEXT("%s (Interact)"), *ItemDefinition->DisplayName.ToString());
+		return FString::Printf(TEXT("수상한 물체 (Interact)"));
+	}
+	else if (RewardType == ERewardType::Item && RewardItem && !RewardItem->DisplayName.IsEmpty())
+	{
+		return FString::Printf(TEXT("%s (Interact)"), *RewardItem->DisplayName.ToString());
 	}
 
 	return FString::Printf(TEXT("%s (Interact)"), *GetName());
