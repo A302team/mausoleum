@@ -6,7 +6,13 @@ set(CMAKE_CXX_STANDARD 20)
 find_package(unofficial-uwebsockets CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 
-add_executable(Server src/main.cpp)
+file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
+
+if(NOT SOURCES)
+    message(FATAL_ERROR "No source files found in src directory!")
+endif()
+
+add_executable(Server ${SOURCES})
 
 target_include_directories(Server PRIVATE src)
 
@@ -14,5 +20,5 @@ target_link_libraries(Server
     PRIVATE 
     unofficial::uwebsockets::uwebsockets
     nlohmann_json::nlohmann_json
-    ws2_32
+    $<$<PLATFORM_ID:Windows>:ws2_32>
 )

@@ -9,10 +9,9 @@
 #include "Character/MyPlayerController.h"
 #include "Manager/SpawnManager.h"
 #include "Kismet/GameplayStatics.h"
-#include "Network/GameNetworkSubsystem.h"
 #include "UI/ChatWidget.h"
 #include "Blueprint/UserWidget.h"
-
+#include "Network/LobbyConstants.h"
 
 AA302GameMode::AA302GameMode()
 {
@@ -38,37 +37,33 @@ void AA302GameMode::BeginPlay()
     TArray<AActor *> FoundActors;
     UGameplayStatics::GetAllActorsOfClass(GetWorld(), ASpawnManager::StaticClass(), FoundActors);
 
-    UGameNetworkSubsystem* GameNetworkSubsystem = GetGameInstance()->GetSubsystem<UGameNetworkSubsystem>();
-    if (GameNetworkSubsystem)
-    {
-        // 인게임 진입 시엔 보이스/위치 동기화를 위한 UDP 통신만 연결합니다.
-        GameNetworkSubsystem->Connect(EProtocolType::UDP, TEXT("127.0.0.1:9100"));
-        GameNetworkSubsystem->OnPacketReceived.AddDynamic(this, &AA302GameMode::OnMessageReceived);
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[GameMode/A302GameMode] No GameNetworkSubsystem. You CAN'T use chat."));
-    }
-
     if (FoundActors.Num() > 0)
     {
         SpawnManager = Cast<ASpawnManager>(FoundActors[0]);
         UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] Find SpawnManager."));
     }
-    else
+
+    // 서버에서는 위젯 생성 안함
+    if (GetNetMode() == NM_DedicatedServer || GetNetMode() == NM_ListenServer)
     {
-        UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] Can't find SpawnManager"));
+        UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] BeginPlay"));
+        return;
     }
 
     if (ChatWidgetClass)
     {
-        ChatWidget = CreateWidget<UChatWidget>(GetWorld(), TSubclassOf<UUserWidget>(ChatWidgetClass));
-        if (ChatWidget)
+        APlayerController *PC = UGameplayStatics::GetPlayerController(this, 0);
+        if (PC && PC->IsLocalPlayerController())
         {
-            ChatWidget->AddToViewport();
-            UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] ChatWidget 생성"));
+            ChatWidget = CreateWidget<UChatWidget>(PC, TSubclassOf<UUserWidget>(ChatWidgetClass));
+            if (ChatWidget)
+            {
+                ChatWidget->AddToViewport();
+                UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] ChatWidget 생성"));
+            }
         }
     }
+
     UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] BeginPlay"));
 }
 
@@ -76,13 +71,30 @@ void AA302GameMode::PostLogin(APlayerController *NewPlayer)
 {
     Super::PostLogin(NewPlayer);
 
+    UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] 플레이어 접속 - NetMode: %d"),
+           (int32)GetNetMode());
+
+    // DedicatedServer 또는 ListenServer에서만 스폰
+    if (GetNetMode() != NM_DedicatedServer && GetNetMode() != NM_ListenServer)
+    {
+        UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] 서버가 아니므로 스폰 안함"));
+        return;
+    }
+
     FInputModeGameOnly InputMode;
     NewPlayer->SetInputMode(InputMode);
     NewPlayer->bShowMouseCursor = false;
 
-    UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] 플레이어 접속"));
-
-    SpawnPlayer(NewPlayer);
+    if (!SpawnManager)
+    {
+        FTimerHandle Handle;
+        GetWorldTimerManager().SetTimer(Handle, [this, NewPlayer]()
+                                        { SpawnPlayer(NewPlayer); }, 0.5f, false);
+    }
+    else
+    {
+        SpawnPlayer(NewPlayer);
+    }
 }
 
 void AA302GameMode::Logout(AController *Exiting)
@@ -94,31 +106,32 @@ void AA302GameMode::Logout(AController *Exiting)
 void AA302GameMode::SpawnPlayer(APlayerController *PlayerController)
 {
     if (!SpawnManager)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[GameMode/A302GameMode] No SpawnManager."));
         return;
-    }
 
     FTransform SpawnTransform = SpawnManager->GetRandomPlayerSpawnTransform(CurrentStage);
 
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.SpawnCollisionHandlingOverride =
+        ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+    UClass *SpawnClass = CharacterClass
+                             ? (UClass *)CharacterClass
+                             : AMyCharacter::StaticClass();
+
     AMyCharacter *Character = GetWorld()->SpawnActor<AMyCharacter>(
-        AMyCharacter::StaticClass(),
-        SpawnTransform);
+        SpawnClass, SpawnTransform, SpawnParams);
 
     if (Character)
     {
+        Character->SetReplicates(true);
+        Character->SetReplicateMovement(true);
         PlayerController->Possess(Character);
-        UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] Success SpawnPlayer."));
+        UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] SpawnPlayer 성공"));
     }
 }
 
 void AA302GameMode::SendToServer(const FString &Message)
 {
-    UGameNetworkSubsystem* GameNetworkSubsystem = GetGameInstance()->GetSubsystem<UGameNetworkSubsystem>();
-    if (GameNetworkSubsystem)
-    {
-        GameNetworkSubsystem->SendPacket(EProtocolType::WebSocket, Message);
-    }
 }
 
 void AA302GameMode::OnMessageReceived(const FString &Message)
@@ -128,13 +141,13 @@ void AA302GameMode::OnMessageReceived(const FString &Message)
     if (!FJsonSerializer::Deserialize(Reader, JsonObject))
         return;
 
-    FString Type = JsonObject->GetStringField(TEXT("type"));
-    TSharedPtr<FJsonObject> Data = JsonObject->GetObjectField(TEXT("data"));
+    FString Type = JsonObject->GetStringField(LobbyProtocol::KeyType);
+    TSharedPtr<FJsonObject> Data = JsonObject->GetObjectField(LobbyProtocol::KeyData);
 
-    if (Type == TEXT("chat_message"))
+    if (Type == LobbyProtocol::ResChatMessage)
     {
-        FString PlayerName = Data->GetStringField(TEXT("playerName"));
-        FString ChatMessage = Data->GetStringField(TEXT("message"));
+        FString PlayerName = Data->GetStringField(LobbyProtocol::KeyPlayerName);
+        FString ChatMessage = Data->GetStringField(LobbyProtocol::KeyMessage);
         UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] Chatting Log >> %s: %s"), *PlayerName, *ChatMessage);
         OnInGameChatReceived.Broadcast(PlayerName, ChatMessage);
     }

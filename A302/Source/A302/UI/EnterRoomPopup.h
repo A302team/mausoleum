@@ -33,5 +33,5 @@ public:
 	void OnCancelClicked();
 
 private:
-	TObjectPtr<class ALobbyGameMode> LobbyGameMode;	
+	TObjectPtr<class UA302GameInstance> GI;	
 };

@@ -117,6 +117,9 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Item|Action")
 	void BP_OnPrimaryItemUsed(UItemDefinition* UsedItemDefinition, int32 UsedSlotNumberOneBased);
 
+    virtual void GetLifetimeReplicatedProps(
+    TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
 private:
 	UFUNCTION()
 	void HandleShieldChanged(int32 NewCount);
