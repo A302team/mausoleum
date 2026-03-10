@@ -49,8 +49,8 @@ public:
     UFUNCTION(BlueprintPure, Category = "Voice|Debug")
     bool CanHearActor(const AActor* SpeakerActor) const;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voice|Server")
-    FString VoiceServerUrl = TEXT("127.0.0.1:9100");
+    UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Voice|Server")
+    FString VoiceServerUrl = TEXT("[IP_ADDRESS]");
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voice|Room")
     FString roomCode;

@@ -5,6 +5,18 @@
 #include "GameNetworkSubsystem.generated.h"
 
 UENUM(BlueprintType)
+enum class EAddress : uint8
+{
+	LOCAL,
+	SERVER
+};
+
+inline FString GetServerAddress(EAddress Type)
+{
+	return Type == EAddress::LOCAL ? TEXT("127.0.0.1") : TEXT("j14a302.p.ssafy.io");
+}
+
+UENUM(BlueprintType)
 enum class EProtocolType : uint8
 {
     WebSocket UMETA(DisplayName = "WebSocket (TCP)"),
@@ -18,8 +30,9 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FOnBinaryPacketReceived, const TArray<uint8>
 
 /**
  * 전역 네트워크 상태를 관리하는 서브시스템 (GameInstance 종속)
+ * DefaultEngine.ini 등에서 [/Script/A302.GameNetworkSubsystem] 섹션으로 설정 가능
  */
-UCLASS()
+UCLASS(Config=Engine)
 class A302_API UGameNetworkSubsystem : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
@@ -27,6 +40,22 @@ class A302_API UGameNetworkSubsystem : public UGameInstanceSubsystem
 public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
+
+	// 서버 주소 설정 (DefaultEngine.ini 등에서 오버라이드 가능)
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Network|Config")
+	FString ServerIP = GetServerAddress(EAddress::LOCAL);
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Network|Config")
+	int32 LobbyPort = 8001;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Network|Config")
+	int32 VoicePort = 8100;
+
+	UFUNCTION(BlueprintPure, Category = "Network")
+	FString GetLobbyURL() const { return FString::Printf(TEXT("ws://%s:%d"), *ServerIP, LobbyPort); }
+
+	UFUNCTION(BlueprintPure, Category = "Network")
+	FString GetVoiceURL() const { return FString::Printf(TEXT("%s:%d"), *ServerIP, VoicePort); }
 
 	// 연결 관리
 	UFUNCTION(BlueprintCallable, Category = "Network")

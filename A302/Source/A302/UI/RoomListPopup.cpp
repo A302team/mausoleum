@@ -2,7 +2,7 @@
 
 #include "UI/RoomListPopup.h"
 #include "UI/RoomListItem.h"
-#include "GameMode/LobbyGameMode.h"
+#include "GameMode/A302GameInstance.h"
 #include "Components/Button.h"
 #include "Components/ScrollBox.h"
 #include "Kismet/GameplayStatics.h"
@@ -14,7 +14,7 @@ void URoomListPopup::NativeConstruct()
 {
     Super::NativeConstruct();
 
-    LobbyGameMode = Cast<ALobbyGameMode>(UGameplayStatics::GetGameMode(this));
+    GI = Cast<UA302GameInstance>(UGameplayStatics::GetGameInstance(this));
 
     if (Btn_Refresh)
     {
@@ -26,9 +26,9 @@ void URoomListPopup::NativeConstruct()
     }
 
     // 방 목록 수신 델리게이트 바인딩
-    if (LobbyGameMode)
+    if (GI)
     {
-        LobbyGameMode->OnRoomListReceived.AddDynamic(this, &URoomListPopup::UpdateRoomList);
+        GI->OnRoomListReceived.AddDynamic(this, &URoomListPopup::UpdateRoomList);
     }
 
     // 팝업 열리면 바로 방 목록 요청
@@ -39,9 +39,9 @@ void URoomListPopup::NativeDestruct()
 {
     Super::NativeDestruct();
 
-    if (LobbyGameMode)
+    if (GI)
     {
-        LobbyGameMode->OnRoomListReceived.RemoveDynamic(this, &URoomListPopup::UpdateRoomList);
+        GI->OnRoomListReceived.RemoveDynamic(this, &URoomListPopup::UpdateRoomList);
     }
 }
 
@@ -72,7 +72,7 @@ void URoomListPopup::UpdateRoomList(const TArray<FRoomInfo>& RoomList)
 
 void URoomListPopup::OnRefreshClicked()
 {
-    if (!LobbyGameMode)
+    if (!GI)
         return;
 
     TSharedPtr<FJsonObject> Json = MakeShareable(new FJsonObject);
@@ -83,7 +83,7 @@ void URoomListPopup::OnRefreshClicked()
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Output);
     FJsonSerializer::Serialize(Json.ToSharedRef(), Writer);
 
-    LobbyGameMode->SendToServer(Output);
+    GI->SendToServer(Output);
     UE_LOG(LogTemp, Log, TEXT("[UI/RoomListPopup] 방 목록 새로고침: %s"), *Output);
 }
 

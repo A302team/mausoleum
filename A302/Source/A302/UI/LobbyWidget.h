@@ -74,5 +74,5 @@ public:
 	void OnRoomCreated(const FString &RoomCode);
 
 private:
-	TObjectPtr<class ALobbyGameMode> LobbyGameMode;
+	TObjectPtr<class UA302GameInstance> GI;
 };

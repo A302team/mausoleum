@@ -65,6 +65,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
 	TSubclassOf<UUserWidget> QTEWidgetClass;
     
+	// 디버그 드로우 토글
+	UPROPERTY(EditAnywhere, Category = "Interaction|Debug")
+	bool bDrawDebug = true;
+	
 	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")
 	FOnQTEStarted OnQTEStarted;
 
@@ -95,6 +99,9 @@ private:
     
 	UPROPERTY()
 	TObjectPtr<UUserWidget> QTEWidgetInstance = nullptr;
+	
+	UPROPERTY()
+	TObjectPtr<AMyCharacter> CachedOwnerCharacter = nullptr;
 	
 	// -- QTE --
 	UPROPERTY(BlueprintReadOnly, Category = "Interaction|QTE", meta = (AllowPrivateAccess = "true"))

@@ -6,7 +6,11 @@ void UGameNetworkSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
-	UE_LOG(LogTemp, Log, TEXT("[UGameNetworkSubsystem] Initialized."));
+	// Config 로드 명시적 호출 (DefaultEngine.ini의 [/Script/A302.GameNetworkSubsystem] 섹션)
+	LoadConfig();
+
+	UE_LOG(LogTemp, Log, TEXT("[UGameNetworkSubsystem] Initialized. ServerIP: %s, Lobby: %d, Voice: %d"), 
+		*ServerIP, LobbyPort, VoicePort);
 
 	WebSocketHandler = NewObject<UWebSocketHandler>(this);
 	

@@ -2,7 +2,7 @@
 
 #include "UI/ChatWidget.h"
 #include "UI/ChatMessageItem.h"
-#include "GameMode/LobbyGameMode.h"
+#include "GameMode/A302GameInstance.h"
 #include "GameMode/A302GameMode.h"
 #include "Components/Button.h"
 #include "Components/ScrollBox.h"
@@ -11,14 +11,15 @@
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
+#include "Network/LobbyConstants.h"
 
 void UChatWidget::NativeConstruct()
 {
     Super::NativeConstruct();
 
-    LobbyGameMode = Cast<ALobbyGameMode>(UGameplayStatics::GetGameMode(this));
+    GI = Cast<UA302GameInstance>(UGameplayStatics::GetGameInstance(this));
 
-    if (!LobbyGameMode)
+    if (!GI)
     {
         InGameGameMode = Cast<AA302GameMode>(UGameplayStatics::GetGameMode(this));
     }
@@ -33,9 +34,9 @@ void UChatWidget::NativeConstruct()
         Input_ChatMessage->OnTextCommitted.AddDynamic(this, &UChatWidget::OnInputCommitted);
     }
 
-    if (LobbyGameMode)
+    if (GI)
     {
-        LobbyGameMode->OnChatMessageReceived.AddDynamic(this, &UChatWidget::OnChatMessageReceived);
+        GI->OnChatMessageReceived.AddDynamic(this, &UChatWidget::OnChatMessageReceived);
     }
     else if (InGameGameMode)
     {
@@ -49,9 +50,9 @@ void UChatWidget::NativeDestruct()
 {
     Super::NativeDestruct();
 
-    if (LobbyGameMode)
+    if (GI)
     {
-        LobbyGameMode->OnChatMessageReceived.RemoveDynamic(this, &UChatWidget::OnChatMessageReceived);
+        GI->OnChatMessageReceived.RemoveDynamic(this, &UChatWidget::OnChatMessageReceived);
     }
 }
 
@@ -80,7 +81,7 @@ void UChatWidget::OnInputCommitted(const FText &text, ETextCommit::Type CommitMe
 
 void UChatWidget::SendMessage()
 {
-    if (!LobbyGameMode && !InGameGameMode)
+    if (!GI && !InGameGameMode)
         return;
 
     FString Message = Input_ChatMessage->GetText().ToString();
@@ -89,30 +90,30 @@ void UChatWidget::SendMessage()
 
     TSharedPtr<FJsonObject> Data = MakeShareable(new FJsonObject);
 
-    Data->SetStringField(TEXT("message"), Message);
+    Data->SetStringField(LobbyProtocol::KeyMessage, Message);
 
-    if (LobbyGameMode)
+    if (GI)
     {
-        Data->SetStringField(TEXT("roomCode"), LobbyGameMode->CurrentRoomCode);
-        Data->SetStringField(TEXT("playerName"), LobbyGameMode->MyPlayerName);
+        Data->SetStringField(LobbyProtocol::KeyRoomCode, GI->CurrentRoomCode);
+        Data->SetStringField(LobbyProtocol::KeyPlayerName, GI->MyPlayerName);
     }
     else if (InGameGameMode)
     {
-        Data->SetStringField(TEXT("roomCode"), InGameGameMode->CurrentRoomCode);
-        Data->SetStringField(TEXT("playerName"), InGameGameMode->MyPlayerName);
+        Data->SetStringField(LobbyProtocol::KeyRoomCode, InGameGameMode->CurrentRoomCode);
+        Data->SetStringField(LobbyProtocol::KeyPlayerName, InGameGameMode->MyPlayerName);
     }
 
     TSharedPtr<FJsonObject> Json = MakeShareable(new FJsonObject);
-    Json->SetStringField(TEXT("type"), TEXT("chat_message"));
-    Json->SetObjectField(TEXT("data"), Data);
+    Json->SetStringField(LobbyProtocol::KeyType, LobbyProtocol::ReqChatMessage);
+    Json->SetObjectField(LobbyProtocol::KeyData, Data);
 
     FString Output;
     TSharedRef<TJsonWriter<>> writer = TJsonWriterFactory<>::Create(&Output);
     FJsonSerializer::Serialize(Json.ToSharedRef(), writer);
 
-    if (LobbyGameMode)
+    if (GI)
     {
-        LobbyGameMode->SendToServer(Output);
+        GI->SendToServer(Output);
     }
     else if(InGameGameMode)
     {
