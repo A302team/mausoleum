@@ -56,7 +56,7 @@ public:
 	void Client_ShowPersonalEvent(FName EventID, const FText& EventTitle, const FText& EventDescription, bool bIsCancelable);
 
 	// 클라이언트가 확인 버튼을 눌렀을 때 서버로 알리는 함수
-	UFUNCTION(Server, Reliable)
+	UFUNCTION(Server, Reliable, BlueprintCallable, Category = "PersonalEvent")
 	void Server_ResolvePersonalEvent(FName EventID, bool bIsConfirmed);
 
 protected:

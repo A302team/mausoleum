@@ -6,19 +6,27 @@
 #include "Character/MyPlayerController.h"
 
 void UBaseEvent::ExecuteEvent_Implementation(AMyCharacter* InstigatorCharacter)
-{	
+{
+	UE_LOG(LogTemp, Warning, TEXT("[Event] ExecuteEvent_Implementation 진입 완료."));
+
 	if (!InstigatorCharacter) return;
 
-	// C++ 기본 동작: 플레이어 컨트롤러를 찾아 UI를 띄우라고 지시합니다.
-	if (AMyPlayerController* PC = Cast<AMyPlayerController>(InstigatorCharacter->GetController()))
+	AMyPlayerController* PC = Cast<AMyPlayerController>(InstigatorCharacter->GetController());
+	if (PC)
 	{
-		// 서버 측 컨트롤러에 현재 진행 중인 이벤트를 등록합니다.
+		UE_LOG(LogTemp, Warning, TEXT("[Event] 플레이어 컨트롤러 찾음! UI 출력 RPC 호출 시도!"));
 		PC->ActivePersonalEvent = this;
         
-		// 클라이언트 RPC를 호출하여 화면에 띄웁니다.
-		PC->Client_ShowPersonalEvent(EventID, EventTitle, EventDescription, bIsCancelable);
+		// 🚩 [핵심 수정] 여기서 실제로 PC의 함수를 호출해야 합니다!
+		// UBaseEvent 헤더(.h)에 만들어두신 변수들을 집어넣어 줍니다.
+		// (만약 변수 이름이 다르다면 본인의 변수 이름으로 맞춰주세요)
+		PC->Client_ShowPersonalEvent(
+			this->EventID, 
+			this->EventTitle, 
+			this->EventDescription, 
+			this->bIsCancelable
+		);
 	}
-	UE_LOG(LogTemp, Warning, TEXT("[Event] %s 실행됨! (C++ 기본 구현)"), *EventID.ToString());
 }
 
 void UBaseEvent::OnEventResolved_Implementation(AMyCharacter* TargetCharacter, bool bIsConfirmed)
