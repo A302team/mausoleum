@@ -32,6 +32,9 @@ public:
 	bool TryAutoUseItem();
 	bool RemoveFirstItemByItemId(const FName& ItemId);
 	int32 GetSelectedSlotIndex() const { return SelectedSlotIndex; }
+	
+	UFUNCTION(BlueprintCallable, Category = "QuickSlot|Item")
+	bool TryAddItemByDefinition(UItemDefinition* ItemDefinition);
 
 private:
 	AMyCharacter* GetOwnerCharacter() const;

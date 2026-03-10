@@ -418,18 +418,21 @@ void AMyCharacter::InteractionCompleteResult()
 {
 	AActor* InteractedActor = InteractionComponent->GetLastInteractedActor();
 
+	if (!InteractedActor) return;
+	
 	// 상호작용 애니메이션 재생
 	if (UMyAnimInstance* Anim = Cast<UMyAnimInstance>(GetMesh()->GetAnimInstance()))
 	{
 		Anim->PlayInteractMontage();
 	}
-
-	if (!InteractedActor)
-	{
-		return;
-	}
-
-	const ABaseInteractable* Interactable = Cast<ABaseInteractable>(InteractedActor);
+	
+	ABaseInteractable* Interactable = Cast<ABaseInteractable>(InteractedActor);
+	if (!Interactable) return;
+	
+	Interactable->OnInteractionSuccess(this);
+	
+	if (!IsValid(Interactable) || Interactable->IsPendingKillPending()) return;
+	
 	const UItemDefinition* PickedItemDefinition = Interactable ? Interactable->GetItemDefinition() : nullptr;
 	const bool bIsMalicePickup =
 		PickedItemDefinition &&
