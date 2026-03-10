@@ -346,3 +346,50 @@ void UQuickSlotComponent::LogAndScreenQuickSlotMessage(
 		GEngine->AddOnScreenDebugMessage(-1, Duration, Color, Message);
 	}
 }
+
+bool UQuickSlotComponent::TryAddItemByDefinition(UItemDefinition* ItemDefinition)
+{
+	if (!ItemDefinition)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[QuickSlot] AddItem failed: ItemDefinition is null."));
+		return false;
+	}
+
+	// 1. 빈 슬롯 찾기
+	const int32 EmptySlotIndex = FindEmptyQuickSlotIndex();
+	if (EmptySlotIndex == INDEX_NONE)
+	{
+		LogAndScreenQuickSlotMessage(TEXT("[QuickSlot] Slot is full."), FColor::Orange, 2.0f);
+		return false;
+	}
+
+	// 2. 아이템 로직 빌드
+	if (!BuildQuickSlotLogicForIndex(EmptySlotIndex, ItemDefinition))
+	{
+		LogAndScreenQuickSlotMessage(TEXT("[QuickSlot] AddItem failed: Item logic build failed."), FColor::Orange, 2.0f);
+		return false;
+	}
+
+	// 3. UI 업데이트
+	UpdateQuickSlotNameUI(EmptySlotIndex, ItemDefinition);
+
+	// 4. 슬롯 선택 갱신
+	if (SelectedSlotIndex == INDEX_NONE)
+	{
+		SelectedSlotIndex = EmptySlotIndex;
+		UpdateQuickSlotSelectionUI();
+	}
+
+	// 5. 성공 로그 출력
+	const FString PickedName = ItemDefinition->DisplayName.IsEmpty()
+	   ? ItemDefinition->ItemId.ToString()
+	   : ItemDefinition->DisplayName.ToString();
+
+	LogAndScreenQuickSlotMessage(
+	   FString::Printf(TEXT("[QuickSlot] Added '%s' -> Slot %d"), *PickedName, EmptySlotIndex + 1),
+	   FColor::Green,
+	   2.0f
+	);
+
+	return true;
+}
