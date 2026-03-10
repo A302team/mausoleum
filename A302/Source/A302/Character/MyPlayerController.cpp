@@ -426,9 +426,23 @@ void AMyPlayerController::InitializeQuickSlotVisualState()
 
 void AMyPlayerController::Client_ShowPersonalEvent_Implementation(FName EventID, const FText& EventTitle, const FText& EventDescription, bool bIsCancelable)
 {
-	if (!PersonalEventWidgetInstance && PersonalEventWidgetClass)
+	// 1. 함수 도달 여부 확인 (RPC가 정상적으로 클라이언트에 도착했는가?)
+	UE_LOG(LogTemp, Warning, TEXT("[UI] Client_ShowPersonalEvent 도착! EventID: %s"), *EventID.ToString());
+
+	this->FlushPressedKeys();
+
+	// 2. 위젯 클래스 할당 여부 체크 (UI 안 뜨는 버그의 1순위 용의자 🚩)
+	if (!PersonalEventWidgetClass)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[UI] 에러: PersonalEventWidgetClass가 비어있습니다! BP_MyPlayerController에서 클래스를 할당해주세요."));
+		return;
+	}
+
+	// 3. 위젯 생성
+	if (!PersonalEventWidgetInstance)
 	{
 		PersonalEventWidgetInstance = CreateWidget<UPersonalEventWidget>(this, PersonalEventWidgetClass);
+		UE_LOG(LogTemp, Warning, TEXT("[UI] 위젯 인스턴스 생성 완료."));
 	}
 
 	if (PersonalEventWidgetInstance)
@@ -437,12 +451,22 @@ void AMyPlayerController::Client_ShowPersonalEvent_Implementation(FName EventID,
         
 		if (!PersonalEventWidgetInstance->IsInViewport())
 		{
-			PersonalEventWidgetInstance->AddToViewport();
+			PersonalEventWidgetInstance->AddToViewport(120);
+			UE_LOG(LogTemp, Warning, TEXT("[UI] 위젯 AddToViewport 완료!"));
 		}
 
-		// 마우스 커서 표시 및 UI 조작 전용 모드로 변경
+		// 4. 확실하게 화면에 보이도록 강제 (투명화 버그 방지)
+		PersonalEventWidgetInstance->SetVisibility(ESlateVisibility::Visible);
+
+		// 5. 마우스 커서 표시 및 UI 조작 전용 모드로 변경
 		bShowMouseCursor = true;
-		SetInputMode(FInputModeUIOnly());
+       
+		FInputModeUIOnly InputMode;
+		// 위젯에 포커스를 맞춰주어야 클릭이 씹히지 않습니다.
+		InputMode.SetWidgetToFocus(PersonalEventWidgetInstance->TakeWidget()); 
+		SetInputMode(InputMode);
+
+		UE_LOG(LogTemp, Warning, TEXT("[UI] 마우스 커서 표시 및 UI 입력 모드 전환 완료!"));
 	}
 }
 
