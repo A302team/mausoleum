@@ -8,39 +8,40 @@
 #include "common/logging/Logger.h"
 #include "common/ScopedTimer.h"
 
+using CLIENT_KEY = uint64_t;
 struct ClientInfo {
     sockaddr_in addr;
     std::chrono::steady_clock::time_point lastSeen;
 };
 
 // IP:Port → uint64 key
-inline uint64_t makeClientKey(const sockaddr_in& addr) {
-    return (static_cast<uint64_t>(addr.sin_addr.s_addr) << 32)
+inline CLIENT_KEY makeClientKey(const sockaddr_in& addr) {
+    return (static_cast<CLIENT_KEY>(addr.sin_addr.s_addr) << 32)
          | ntohs(addr.sin_port);
 }
 
-class VoiceClientManager : public IClientManager<uint64_t, ClientInfo> {
+class VoiceClientManager : public IClientManager<CLIENT_KEY, ClientInfo> {
 private:
 
     // 전체 클라이언트
-    std::unordered_map<uint64_t, ClientInfo> clients;
+    std::unordered_map<CLIENT_KEY, ClientInfo> clients;
 
     // roomCode → speaker → clientKey
-    std::unordered_map<std::string, std::unordered_map<std::string, uint64_t>> rooms;
+    std::unordered_map<std::string, std::unordered_map<std::string, CLIENT_KEY>> rooms;
 
     const int TIMEOUT_SECONDS = 300;
 
 public:
 
-    void addClient(const uint64_t& key, const ClientInfo& data) override {
+    void addClient(const CLIENT_KEY& key, const ClientInfo& data) override {
         clients[key] = data;
     }
 
-    void removeClient(const uint64_t& key) override {
+    void removeClient(const CLIENT_KEY& key) override {
         clients.erase(key);
     }
 
-    bool hasClient(const uint64_t& key) const override {
+    bool hasClient(const CLIENT_KEY& key) const override {
         return clients.find(key) != clients.end();
     }
 
@@ -52,7 +53,7 @@ public:
                   const std::string& speaker,
                   const ClientInfo& clientInfo)
     {
-        uint64_t key = makeClientKey(clientInfo.addr);
+        CLIENT_KEY key = makeClientKey(clientInfo.addr);
 
         clients[key] = clientInfo;
         rooms[roomCode][speaker] = key;
@@ -69,7 +70,7 @@ public:
         }
     }
 
-    const std::unordered_map<uint64_t, ClientInfo>& getClients() const {
+    const std::unordered_map<CLIENT_KEY, ClientInfo>& getClients() const {
         return clients;
     }
 
@@ -87,7 +88,7 @@ public:
             for (auto itSpeaker = speakers.begin();
                  itSpeaker != speakers.end();) {
 
-                uint64_t key = itSpeaker->second;
+                CLIENT_KEY key = itSpeaker->second;
 
                 if (!clients.count(key)) {
                     itSpeaker = speakers.erase(itSpeaker);
