@@ -62,6 +62,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Combat")
     UAnimMontage* DeathMontage;
 
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Combat")
+    UAnimMontage* TimeKnifeMontage;
+
 
     // Gameplay → AnimInstance 호출용 함수
 
@@ -76,6 +79,9 @@ public:
 
     UFUNCTION(BlueprintCallable)
     void PlayDeathMontage();
+
+    UFUNCTION(BlueprintCallable)
+    void PlayTimeKnifeMontage();
 
 private:
 
