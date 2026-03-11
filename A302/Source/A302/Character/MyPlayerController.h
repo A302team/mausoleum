@@ -17,6 +17,7 @@
 class UInputMappingContext;
 class UUserWidget;
 class UTextBlock;
+class UWidget;
 class UImage;
 class UTexture2D;
 class UComboBoxString;
@@ -40,6 +41,7 @@ public:
 	void SetItemTimerVisible(bool bVisible);
 	void ToggleInGameSettingMenu();
 	bool IsInGameSettingMenuOpen() const;
+	void ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount);
 	
 	// Event UI 위젯 클래스 (블루프린트에서 세팅)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI|Event")
@@ -97,6 +99,8 @@ private:
 	class UImage *FindQuickSlotItemSelectedImage(int32 SlotIndex) const;
 	class UButton *FindInspectMaliceButton(const FName& WidgetName) const;
 	class UTextBlock *FindInspectMaliceText(const FName& WidgetName) const;
+	class UWidget *FindPublicMaliceAnnouncementWidget() const;
+	class UTextBlock *FindPublicMaliceAnnouncementText(const FName& WidgetName) const;
 	class UTextBlock *FindShieldCountText() const;
 	class UTextBlock *FindMaliceCountText() const;
 	class UTextBlock *FindItemTimerText() const;
@@ -107,6 +111,8 @@ private:
 	void SetInspectMaliceResultVisible(bool bVisible);
 	void HideInspectMaliceSelectionWidget();
 	int32 QueryDummy1MaliceCount() const;
+	void SetPublicMaliceAnnouncementVisible(bool bVisible);
+	void HidePublicMaliceAnnouncement();
 	void OpenInGameSettingMenu();
 	void CloseInGameSettingMenu();
 	void SyncResolutionComboToCurrent();
@@ -131,6 +137,7 @@ private:
 	TObjectPtr<UButton> ExitBtn = nullptr;
 
 	FTimerHandle InspectMaliceHideTimerHandle;
+	FTimerHandle PublicMaliceAnnouncementHideTimerHandle;
 
 public:
 };
