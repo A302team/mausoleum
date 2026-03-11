@@ -20,6 +20,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/PlayerController.h"
+#include "GamePlay/Actor/KnifeActor.h"
 #include "GamePlay/Events/GroupEvents/BaseGroupEvent.h"
 #include "GamePlay/Events/PersonalEvents/BasePersonalEvent.h"
 #include "GamePlay/Events/PersonalEvents/PersonalEventMalice.h"
@@ -55,15 +56,6 @@ AMyCharacter::AMyCharacter()
 
 	ItemManagerComponent = CreateDefaultSubobject<UItemManagerComponent>(TEXT("ItemManagerComponent"));
 	ItemTargetingComponent = CreateDefaultSubobject<UItemTargetingComponent>(TEXT("ItemTargetingComponent"));
-
-	// 무기 메쉬 컴포넌트 생성 및 설정
-	SwordMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("SwordMesh"));
-	SwordMesh->SetupAttachment(GetMesh(), TEXT("HandGrip_R"));
-	SwordMesh->SetHiddenInGame(true);   // 기본 숨김
-
-	ShieldMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ShieldMesh"));
-	ShieldMesh->SetupAttachment(GetMesh(), TEXT("HandGrip_L"));
-	ShieldMesh->SetHiddenInGame(true);  // 기본 숨김
     
 	InteractionComponent = CreateDefaultSubobject<UInteractComponent>(TEXT("InteractionComponent"));
 	QuickSlotComponent = CreateDefaultSubobject<UQuickSlotComponent>(TEXT("QuickSlotComponent"));
@@ -752,4 +744,19 @@ void AMyCharacter::OnQTEInput(const FInputActionValue& Value)
 	}
 }
 
+// 무기 표시/숨김 함수 추가(애니메이션 재생 시 위치 참조용)
+void AMyCharacter::ShowKnife()
+{
+    if (KnifeActor)
+    {
+        KnifeActor->ShowWeapon();
+    }
+}
 
+void AMyCharacter::HideKnife()
+{
+    if (KnifeActor)
+    {
+        KnifeActor->HideWeapon();
+    }
+}
