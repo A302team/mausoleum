@@ -5,7 +5,7 @@
 #include "Character/MyPlayerController.h"
 #include "Engine/Engine.h"
 #include "GameData/ItemDefinition.h"
-#include "GameData/ItemTypes.h"
+#include "GameData/RewardTypes.h"
 #include "GameFramework/Controller.h"
 
 AMyCharacter* UQuickSlotComponent::GetOwnerCharacter() const

@@ -3,7 +3,7 @@
 #include "Character/Components/ItemTargetingComponent.h"
 #include "GameData/ItemDefinition.h"
 #include "GameData/ItemInstance.h"
-#include "GameData/ItemTypes.h"
+#include "GameData/RewardTypes.h"
 #include "GamePlay/Factories/ItemActionFactory.h"
 #include "GamePlay/Items/BaseItem.h"
 #include "GamePlay/Items/ItemKnife.h"

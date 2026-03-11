@@ -2,7 +2,7 @@
 
 #include "GameData/ItemDefinition.h"
 #include "GameData/ItemInstance.h"
-#include "GameData/ItemTypes.h"
+#include "GameData/RewardTypes.h"
 #include "GamePlay/Items/BaseItem.h"
 
 UBaseItem* UItemActionFactory::CreateLogic(UObject* Outer, UItemInstance* Instance) const

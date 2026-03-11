@@ -25,7 +25,7 @@ bool UItemKnife::CanUse_Implementation(ACharacter* Instigator, const FItemTarget
         return false;
     }
 
-    const float AllowedRange = FMath::Max(Def->AttackRange, 50.0f);
+    const float AllowedRange = FMath::Max(Def->ItemUseRange, 50.0f);
     const float InstigatorRadius = Instigator->GetSimpleCollisionRadius();
 
     float TargetRadius = 0.0f;

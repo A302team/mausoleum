@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
-#include "GameData/ItemTypes.h"
+#include "GameData/RewardTypes.h"
 #include "ItemDefinition.generated.h"
 
 class UTexture2D;
@@ -40,7 +40,7 @@ public:
     bool AutoUse = false;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Reward|BasicItem", meta=(EditCondition="UseMode==EItemUseMode::Targeted"))
-    float AttackRange = 200.0f;
+    float ItemUseRange = 200.0f;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Reward|BasicItem", meta=(EditCondition="UseMode==EItemUseMode::Targeted"))
     bool bRequiresLineOfSight = false;
