@@ -1,9 +1,9 @@
-#include "Character/DummyCharacter.h"
+#include "Character/Dummy/DummyCharacter.h"
 
 #include "Character/Components/CombatStatusComponent.h"
 #include "Character/MyCharacter.h"
 #include "Engine/Engine.h"
-#include "GameData/ItemDefinition.h"
+#include "GameData/Items/ItemDefinition.h"
 #include "Kismet/GameplayStatics.h"
 
 namespace
@@ -150,11 +150,11 @@ void ADummyCharacter::SetupInitialShield()
         return;
     }
 
-    int32 ShieldAmount = FMath::Max(0, InitialShieldStack);
-    if (ShieldDef)
-    {
-        ShieldAmount *= FMath::Max(1, ShieldDef->BlockCount);
-    }
+	int32 ShieldAmount = FMath::Max(0, InitialShieldStack);
+	if (ShieldDef)
+	{
+		ShieldAmount *= FMath::Max(1, ShieldDef->Payload.BlockCount);
+	}
 
     if (ShieldAmount <= 0)
     {
@@ -164,3 +164,4 @@ void ADummyCharacter::SetupInitialShield()
     CombatStatusComponent->AddShield(ShieldAmount);
     LogAndScreenDummy(FString::Printf(TEXT("Shield applied x%d"), ShieldAmount));
 }
+
