@@ -4,6 +4,8 @@
 #include "Character/MyCharacter.h"
 #include "Character/MyPlayerController.h"
 #include "GameData/ItemDefinition.h"
+#include "GameData/PersonalEventDefinition.h"
+#include "GameData/RewardDefinition.h"
 #include "GamePlay/Items/ItemTimeKnife.h"
 #include "Engine/World.h"
 
@@ -18,10 +20,12 @@ void UPersonalEventTimeKnife::ExecuteEvent_Implementation(AMyCharacter* Instigat
 
 	OwnerCharacter = InstigatorCharacter;
 
-	const UItemDefinition* ItemDef = GetRewardDefinition();
-	RemainingSeconds = ItemDef ? FMath::Max(1.0f, ItemDef->TimedKillDuration) : 30.0f;
+	const URewardDefinition* SourceRewardDefinition = GetRewardDefinition();
+	const UPersonalEventTimeKnifeDefinition* EventDef =
+		Cast<UPersonalEventTimeKnifeDefinition>(const_cast<URewardDefinition*>(SourceRewardDefinition));
+	RemainingSeconds = EventDef ? FMath::Max(1.0f, EventDef->Payload.TimedKillDuration) : 30.0f;
 
-	UItemDefinition* GrantedKnifeDefinition = ResolveGrantedKnifeDefinition(ItemDef);
+	UItemDefinition* GrantedKnifeDefinition = ResolveGrantedKnifeDefinition(SourceRewardDefinition, EventDef);
 	if (!GrantedKnifeDefinition)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[PersonalEventTimeKnife] Granted knife definition is missing."));
@@ -165,37 +169,34 @@ void UPersonalEventTimeKnife::StopCountdown(bool bHideTimer)
 	bIsActive = false;
 }
 
-UItemDefinition* UPersonalEventTimeKnife::ResolveGrantedKnifeDefinition(const UItemDefinition* EventDefinition) const
+UItemDefinition* UPersonalEventTimeKnife::ResolveGrantedKnifeDefinition(const URewardDefinition* SourceRewardDefinition, const UPersonalEventTimeKnifeDefinition* EventDefinition) const
 {
-	if (!EventDefinition)
+	auto IsValidTimedKnifeItem = [](const UItemDefinition* Candidate)
 	{
-		return nullptr;
-	}
+		if (!Candidate)
+		{
+			return false;
+		}
 
-	UItemDefinition* GrantedDefinition = EventDefinition->GrantedItemDefinition.Get();
-	if (GrantedDefinition)
+		UClass* CandidateLogicClass = Candidate->ResolveRewardLogicClass();
+		return CandidateLogicClass && CandidateLogicClass->IsChildOf(UItemTimeKnife::StaticClass());
+	};
+
+	// Primary path: explicit event payload points to the granted timed-knife item.
+	if (EventDefinition)
 	{
-		UClass* GrantedLogicClass = GrantedDefinition->ResolveRewardLogicClass();
-		const bool bIsValidTimedKnifeItem =
-			GrantedDefinition->RewardCategory == ERewardCategory::BasicItem &&
-			GrantedLogicClass &&
-			GrantedLogicClass->IsChildOf(UItemTimeKnife::StaticClass());
-
-		if (bIsValidTimedKnifeItem)
+		UItemDefinition* GrantedDefinition = EventDefinition->Payload.GrantedItemDefinition.Get();
+		if (IsValidTimedKnifeItem(GrantedDefinition))
 		{
 			return GrantedDefinition;
 		}
 	}
 
-	UClass* EventLogicClass = EventDefinition->ResolveRewardLogicClass();
-	const bool bLegacySelfTimedKnife =
-		EventDefinition->RewardCategory == ERewardCategory::BasicItem &&
-		EventLogicClass &&
-		EventLogicClass->IsChildOf(UItemTimeKnife::StaticClass());
-
-	if (bLegacySelfTimedKnife)
+	// Legacy/single-asset path: allow the picked reward itself to be a timed-knife item definition.
+	UItemDefinition* SourceAsItemDefinition = Cast<UItemDefinition>(const_cast<URewardDefinition*>(SourceRewardDefinition));
+	if (IsValidTimedKnifeItem(SourceAsItemDefinition))
 	{
-		return const_cast<UItemDefinition*>(EventDefinition);
+		return SourceAsItemDefinition;
 	}
 
 	return nullptr;

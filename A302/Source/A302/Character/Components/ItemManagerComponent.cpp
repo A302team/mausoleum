@@ -3,11 +3,11 @@
 #include "Character/Components/ItemTargetingComponent.h"
 #include "GameData/ItemDefinition.h"
 #include "GameData/ItemInstance.h"
-#include "GameData/RewardTypes.h"
 #include "GamePlay/Factories/ItemActionFactory.h"
 #include "GamePlay/Items/BaseItem.h"
 #include "GamePlay/Items/ItemKnife.h"
 #include "GamePlay/Items/ItemShield.h"
+#include "GamePlay/Items/ItemTimeKnife.h"
 #include "Interface/UsableItem.h"
 
 UItemManagerComponent::UItemManagerComponent()
@@ -93,7 +93,9 @@ bool UItemManagerComponent::AddItemToSlot(int32 SlotIndex, UItemDefinition* Item
 		return false;
 	}
 
-	if (ItemDefinition->RewardCategory != ERewardCategory::BasicItem)
+	UClass* LogicClass = ItemDefinition->ResolveRewardLogicClass();
+	const bool bIsTimedKnifeLogic = LogicClass && LogicClass->IsChildOf(UItemTimeKnife::StaticClass());
+	if (ItemDefinition->RewardCategory != ERewardCategory::BasicItem && !bIsTimedKnifeLogic)
 	{
 		return false;
 	}
@@ -221,7 +223,7 @@ bool UItemManagerComponent::TryUseItemAtSlot(
 	FItemTargetData TargetData;
 	UClass* LogicClass = ItemDefinition->ResolveRewardLogicClass();
 	const bool bNeedsTarget =
-		ItemDefinition->UseMode == EItemUseMode::Targeted ||
+		ItemDefinition->Payload.UseMode == EItemUseMode::Targeted ||
 		(LogicClass && LogicClass->IsChildOf(UItemKnife::StaticClass()));
 
 	if (bNeedsTarget)
@@ -332,5 +334,5 @@ bool UItemManagerComponent::IsAutoUseItem(const UItemDefinition* ItemDefinition)
 	}
 
 	UClass* LogicClass = ItemDefinition->ResolveRewardLogicClass();
-	return ItemDefinition->AutoUse || (LogicClass && LogicClass->IsChildOf(UItemShield::StaticClass()));
+	return ItemDefinition->Payload.AutoUse || (LogicClass && LogicClass->IsChildOf(UItemShield::StaticClass()));
 }

@@ -13,12 +13,15 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "GameData/ItemDefinition.h"
+#include "GameData/PersonalEventDefinition.h"
+#include "GameData/RewardDefinition.h"
 #include "GameData/RewardTypes.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/PlayerController.h"
 #include "GamePlay/Events/GroupEvents/BaseGroupEvent.h"
 #include "GamePlay/Events/PersonalEvents/BasePersonalEvent.h"
+#include "GamePlay/Events/PersonalEvents/PersonalEventMalice.h"
 #include "GamePlay/Events/PersonalEvents/PersonalEventTimeKnife.h"
 #include "GamePlay/Items/ItemShield.h"
 #include "GamePlay/Items/ItemTimeKnife.h"
@@ -350,7 +353,7 @@ void AMyCharacter::OnJumpReleased(const FInputActionValue& Value)
 	StopJumping();
 }
 
-bool AMyCharacter::HandleRewardPickup(AActor* InteractedActor, const UItemDefinition* RewardDefinition)
+bool AMyCharacter::HandleRewardPickup(AActor* InteractedActor, const URewardDefinition* RewardDefinition)
 {
 	if (!InteractedActor || !RewardDefinition)
 	{
@@ -376,7 +379,15 @@ bool AMyCharacter::HandleRewardPickup(AActor* InteractedActor, const UItemDefini
 	switch (EffectiveCategory)
 	{
 	case ERewardCategory::BasicItem:
-		return HandleBasicItemPickup(InteractedActor, RewardDefinition);
+	{
+		const UItemDefinition* ItemDefinition = Cast<UItemDefinition>(const_cast<URewardDefinition*>(RewardDefinition));
+		if (!ItemDefinition)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[Reward] Basic item pickup failed: reward is not UItemDefinition. item=%s"), *GetNameSafe(RewardDefinition));
+			return false;
+		}
+		return HandleBasicItemPickup(InteractedActor, ItemDefinition);
+	}
 
 	case ERewardCategory::PersonalEvent:
 		return HandlePersonalEventPickup(InteractedActor, RewardDefinition);
@@ -420,13 +431,13 @@ bool AMyCharacter::HandleBasicItemPickup(AActor* InteractedActor, const UItemDef
 
 	if (bIsShieldItem && CombatStatusComponent)
 	{
-		CombatStatusComponent->AddShield(FMath::Max(1, RewardDefinition->BlockCount));
+		CombatStatusComponent->AddShield(FMath::Max(1, RewardDefinition->Payload.BlockCount));
 	}
 
 	return true;
 }
 
-bool AMyCharacter::HandlePersonalEventPickup(AActor* InteractedActor, const UItemDefinition* RewardDefinition)
+bool AMyCharacter::HandlePersonalEventPickup(AActor* InteractedActor, const URewardDefinition* RewardDefinition)
 {
 	if (!RewardDefinition)
 	{
@@ -434,10 +445,31 @@ bool AMyCharacter::HandlePersonalEventPickup(AActor* InteractedActor, const UIte
 	}
 
 	UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass();
-	UClass* PersonalEventClass = LogicClass;
-	if (LogicClass && LogicClass->IsChildOf(UItemTimeKnife::StaticClass()))
+	UClass* PersonalEventClass = nullptr;
+	if (LogicClass)
 	{
-		PersonalEventClass = UPersonalEventTimeKnife::StaticClass();
+		if (LogicClass->IsChildOf(UBasePersonalEvent::StaticClass()))
+		{
+			PersonalEventClass = LogicClass;
+		}
+		else if (LogicClass->IsChildOf(UItemTimeKnife::StaticClass()))
+		{
+			PersonalEventClass = UPersonalEventTimeKnife::StaticClass();
+		}
+	}
+
+	// Fallback for assets with PersonalEvent category but missing/misaligned RewardLogicClass.
+	if (!PersonalEventClass)
+	{
+		URewardDefinition* MutableRewardDefinition = const_cast<URewardDefinition*>(RewardDefinition);
+		if (Cast<UPersonalEventTimeKnifeDefinition>(MutableRewardDefinition))
+		{
+			PersonalEventClass = UPersonalEventTimeKnife::StaticClass();
+		}
+		else if (Cast<UPersonalEventMaliceDefinition>(MutableRewardDefinition))
+		{
+			PersonalEventClass = UPersonalEventMalice::StaticClass();
+		}
 	}
 
 	if (!PersonalEventClass || !PersonalEventClass->IsChildOf(UBasePersonalEvent::StaticClass()))
@@ -465,7 +497,7 @@ bool AMyCharacter::HandlePersonalEventPickup(AActor* InteractedActor, const UIte
 	return true;
 }
 
-bool AMyCharacter::HandleGroupEventPickup(AActor* InteractedActor, const UItemDefinition* RewardDefinition)
+bool AMyCharacter::HandleGroupEventPickup(AActor* InteractedActor, const URewardDefinition* RewardDefinition)
 {
 	if (!RewardDefinition)
 	{
@@ -523,7 +555,7 @@ void AMyCharacter::InteractionCompleteResult()
 		return;
 	}
 
-	const UItemDefinition* RewardDefinition = Interactable->GetRewardDefinition();
+	const URewardDefinition* RewardDefinition = Interactable->GetRewardDefinition();
 	if (!RewardDefinition)
 	{
 		return;

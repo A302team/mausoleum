@@ -5,7 +5,7 @@
 #include "BaseGroupEvent.generated.h"
 
 class AActor;
-class UItemDefinition;
+class URewardDefinition;
 
 UCLASS(BlueprintType, Abstract)
 class A302_API UBaseGroupEvent : public UBaseEvent
@@ -13,14 +13,14 @@ class A302_API UBaseGroupEvent : public UBaseEvent
 	GENERATED_BODY()
 
 public:
-	void InitializeContext(const UItemDefinition* InRewardDefinition, AActor* InSourceActor);
+	void InitializeContext(const URewardDefinition* InRewardDefinition, AActor* InSourceActor);
 
 protected:
-	const UItemDefinition* GetRewardDefinition() const { return RewardDefinition; }
+	const URewardDefinition* GetRewardDefinition() const { return RewardDefinition; }
 	AActor* GetSourceActor() const { return SourceActor.Get(); }
 
 private:
-	const UItemDefinition* RewardDefinition = nullptr;
+	const URewardDefinition* RewardDefinition = nullptr;
 
 	UPROPERTY()
 	TObjectPtr<AActor> SourceActor = nullptr;

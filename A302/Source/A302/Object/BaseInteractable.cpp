@@ -3,6 +3,7 @@
 #include "Character/MyCharacter.h"
 #include "Components/StaticMeshComponent.h"
 #include "GameData/ItemDefinition.h"
+#include "GameData/RewardDefinition.h"
 #include "Math/UnrealMathUtility.h"
 
 ABaseInteractable::ABaseInteractable()
@@ -16,6 +17,11 @@ ABaseInteractable::ABaseInteractable()
 
 	const int32 RandomIndex = FMath::RandRange(0, static_cast<int32>(EInteractType::MAX) - 1);
 	CurrentInteractType = static_cast<EInteractType>(RandomIndex);
+}
+
+UItemDefinition* ABaseInteractable::GetItemDefinition() const
+{
+	return Cast<UItemDefinition>(RewardDefinition);
 }
 
 void ABaseInteractable::Interact(AMyCharacter* PlayerCharacter)

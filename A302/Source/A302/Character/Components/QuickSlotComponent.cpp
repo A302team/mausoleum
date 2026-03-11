@@ -5,8 +5,9 @@
 #include "Character/MyPlayerController.h"
 #include "Engine/Engine.h"
 #include "GameData/ItemDefinition.h"
-#include "GameData/RewardTypes.h"
+#include "GameData/ItemTypes.h"
 #include "GameFramework/Controller.h"
+#include "GamePlay/Items/ItemTimeKnife.h"
 
 AMyCharacter* UQuickSlotComponent::GetOwnerCharacter() const
 {
@@ -208,7 +209,7 @@ bool UQuickSlotComponent::TryUseSelectedItem(UItemDefinition*& OutUsedItemDefini
 			TEXT("[QuickSlot] Use failed for slot %d. Item=%s UseMode=%d"),
 			SelectedSlotIndex + 1,
 			*GetNameSafe(ItemDefinition),
-			static_cast<int32>(ItemDefinition->UseMode)
+			static_cast<int32>(ItemDefinition->Payload.UseMode)
 		);
 		return false;
 	}
@@ -313,7 +314,9 @@ bool UQuickSlotComponent::TryAddItemByDefinition(UItemDefinition* ItemDefinition
 		return false;
 	}
 
-	if (ItemDefinition->RewardCategory != ERewardCategory::BasicItem)
+	UClass* LogicClass = ItemDefinition->ResolveRewardLogicClass();
+	const bool bIsTimedKnifeLogic = LogicClass && LogicClass->IsChildOf(UItemTimeKnife::StaticClass());
+	if (ItemDefinition->RewardCategory != ERewardCategory::BasicItem && !bIsTimedKnifeLogic)
 	{
 		UE_LOG(
 			LogTemp,

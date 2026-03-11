@@ -6,6 +6,7 @@
 #include "BaseInteractable.generated.h"
 
 class UItemDefinition;
+class URewardDefinition;
 class UStaticMeshComponent;
 
 UCLASS()
@@ -16,8 +17,8 @@ class A302_API ABaseInteractable : public AActor, public IInteractableInterface
 public:
 	ABaseInteractable();
 
-	UItemDefinition* GetRewardDefinition() const { return RewardDefinition; }
-	UItemDefinition* GetItemDefinition() const { return RewardDefinition; } // backward compatibility
+	URewardDefinition* GetRewardDefinition() const { return RewardDefinition; }
+	UItemDefinition* GetItemDefinition() const; // backward compatibility
 
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
 	virtual void OnInteractionSuccess(class AMyCharacter* PlayerCharacter);
@@ -35,5 +36,5 @@ protected:
 
 	// Reward definition consumed by character-side reward routing.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Reward")
-	TObjectPtr<UItemDefinition> RewardDefinition = nullptr;
+	TObjectPtr<URewardDefinition> RewardDefinition = nullptr;
 };

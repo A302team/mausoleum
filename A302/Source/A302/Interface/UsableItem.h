@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/Interface.h"
-#include "GameData/RewardTypes.h"
+#include "GameData/ItemTypes.h"
 #include "UsableItem.generated.h"
 
 class ACharacter;

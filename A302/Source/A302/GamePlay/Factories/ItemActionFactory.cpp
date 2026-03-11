@@ -2,8 +2,8 @@
 
 #include "GameData/ItemDefinition.h"
 #include "GameData/ItemInstance.h"
-#include "GameData/RewardTypes.h"
 #include "GamePlay/Items/BaseItem.h"
+#include "GamePlay/Items/ItemTimeKnife.h"
 
 UBaseItem* UItemActionFactory::CreateLogic(UObject* Outer, UItemInstance* Instance) const
 {
@@ -13,12 +13,18 @@ UBaseItem* UItemActionFactory::CreateLogic(UObject* Outer, UItemInstance* Instan
     }
 
     const UItemDefinition* Def = Instance->Definition.Get();
-    if (!Def || Def->RewardCategory != ERewardCategory::BasicItem)
+    if (!Def)
     {
         return nullptr;
     }
 
     UClass* LogicClass = Def->ResolveRewardLogicClass();
+    const bool bIsTimedKnifeLogic = LogicClass && LogicClass->IsChildOf(UItemTimeKnife::StaticClass());
+    if (Def->RewardCategory != ERewardCategory::BasicItem && !bIsTimedKnifeLogic)
+    {
+        return nullptr;
+    }
+
     if (!LogicClass || !LogicClass->IsChildOf(UBaseItem::StaticClass()))
     {
         return nullptr;

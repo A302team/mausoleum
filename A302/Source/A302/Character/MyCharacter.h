@@ -10,6 +10,7 @@ class UInputAction;
 class UInputMappingContext;
 class UCombatStatusComponent;
 class UItemDefinition;
+class URewardDefinition;
 class UItemManagerComponent;
 class UUserWidget;
 class ADummyCharacter;
@@ -123,10 +124,10 @@ private:
 	UFUNCTION()
 	void HandleMaliceChanged(int32 NewCount);
 
-	bool HandleRewardPickup(AActor* InteractedActor, const UItemDefinition* RewardDefinition);
+	bool HandleRewardPickup(AActor* InteractedActor, const URewardDefinition* RewardDefinition);
 	bool HandleBasicItemPickup(AActor* InteractedActor, const UItemDefinition* RewardDefinition);
-	bool HandlePersonalEventPickup(AActor* InteractedActor, const UItemDefinition* RewardDefinition);
-	bool HandleGroupEventPickup(AActor* InteractedActor, const UItemDefinition* RewardDefinition);
+	bool HandlePersonalEventPickup(AActor* InteractedActor, const URewardDefinition* RewardDefinition);
+	bool HandleGroupEventPickup(AActor* InteractedActor, const URewardDefinition* RewardDefinition);
 	void HandleDead();
 
 	void OnMove(const FInputActionValue& Value);
