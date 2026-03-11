@@ -77,6 +77,17 @@ void AMyCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
+	if (KnifeActorClass)
+	{
+			KnifeActor = GetWorld()->SpawnActor<AKnifeActor>(KnifeActorClass);
+
+			if (KnifeActor)
+			{
+					KnifeActor->AttachToCharacter(GetMesh(), TEXT("HandGrip_R"));
+					KnifeActor->HideWeapon();
+			}
+	}
+
 	if (CombatStatusComponent)
 	{
 		CombatStatusComponent->OnShieldChanged.AddDynamic(this, &AMyCharacter::HandleShieldChanged);

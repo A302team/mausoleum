@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "Components/StaticMeshComponent.h"
+#include "GamePlay/Actor/KnifeActor.h"
 #include "InputActionValue.h"
 #include "Interface/InteractableInterface.h"
 #include "MyCharacter.generated.h"
@@ -49,6 +50,10 @@ public:
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 	void SetQTEInputMode(bool bIsQTE);
+
+		// 무기 표시
+		void ShowKnife();
+    void HideKnife();
 
 protected:
 	virtual void BeginPlay() override;
@@ -199,12 +204,13 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|Timed", meta = (AllowPrivateAccess = "true"))
 	FName ActiveTimedKnifeItemId = NAME_None;
+	
+	// 무기 액터 참조 (애니메이션 재생 시 위치 참조용)
+	UPROPERTY()
+	AKnifeActor* KnifeActor = nullptr;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Weapon", meta=(AllowPrivateAccess="true"))
-	TObjectPtr<UStaticMeshComponent> SwordMesh = nullptr;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Weapon", meta=(AllowPrivateAccess="true"))
-	TObjectPtr<UStaticMeshComponent> ShieldMesh = nullptr;
+	UPROPERTY(EditAnywhere, Category="Weapon")
+	TSubclassOf<AKnifeActor> KnifeActorClass;
 
 	FTimerHandle TimedKnifeTimerHandle;
 
