@@ -69,7 +69,7 @@ bool UItemKnife::Use_Implementation(ACharacter* Instigator, const FItemTargetDat
         return false;
     }
 
-    // 🔹 캐릭터 캐스팅
+    // KnifeActor 장착 (애니메이션에서 위치 참조용)
     if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(Instigator))
     {
         if (MyCharacter->KnifeActorClass)
