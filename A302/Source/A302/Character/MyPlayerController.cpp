@@ -1,18 +1,25 @@
 #include "Character/MyPlayerController.h"
 
 #include "Blueprint/UserWidget.h"
+#include "Character/Dummy/DummyCharacter.h"
+#include "Character/MyCharacter.h"
 #include "Components/Button.h"
 #include "Components/ComboBoxString.h"
 #include "Components/Image.h"
+#include "Components/PanelWidget.h"
 #include "Components/TextBlock.h"
 #include "EnhancedInputSubsystems.h"
+#include "GamePlay/Events/BaseEvent.h"
+#include "GamePlay/Events/PersonalEvents/BasePersonalEvent.h"
 #include "InputMappingContext.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "GameMode/A302GameMode.h"
 #include "UI/ChatWidget.h"
+#include "UI/PersonalEventWidget.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
 #include "Net/UnrealNetwork.h"
+#include "UObject/ConstructorHelpers.h"
 
 namespace
 {
@@ -77,6 +84,46 @@ UImage *AMyPlayerController::FindQuickSlotItemSelectedImage(int32 SlotIndex) con
 	}
 
 	return nullptr;
+}
+
+UButton *AMyPlayerController::FindInspectMaliceButton(const FName& WidgetName) const
+{
+	if (!InspectMaliceWidgetInstance)
+	{
+		return nullptr;
+	}
+
+	return Cast<UButton>(InspectMaliceWidgetInstance->GetWidgetFromName(WidgetName));
+}
+
+UTextBlock *AMyPlayerController::FindInspectMaliceText(const FName& WidgetName) const
+{
+	if (!InspectMaliceWidgetInstance)
+	{
+		return nullptr;
+	}
+
+	return Cast<UTextBlock>(InspectMaliceWidgetInstance->GetWidgetFromName(WidgetName));
+}
+
+UWidget *AMyPlayerController::FindPublicMaliceAnnouncementWidget() const
+{
+	if (!QuickSlotBarWidget)
+	{
+		return nullptr;
+	}
+
+	return QuickSlotBarWidget->GetWidgetFromName(TEXT("PublicMaliceBorder"));
+}
+
+UTextBlock *AMyPlayerController::FindPublicMaliceAnnouncementText(const FName& WidgetName) const
+{
+	if (!QuickSlotBarWidget)
+	{
+		return nullptr;
+	}
+
+	return Cast<UTextBlock>(QuickSlotBarWidget->GetWidgetFromName(WidgetName));
 }
 
 UTextBlock *AMyPlayerController::FindShieldCountText() const
@@ -224,6 +271,45 @@ bool AMyPlayerController::IsInGameSettingMenuOpen() const
 	return InGameSettingWidget && InGameSettingWidget->GetVisibility() == ESlateVisibility::Visible;
 }
 
+void AMyPlayerController::ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount)
+{
+	if (UWorld *World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(PublicMaliceAnnouncementHideTimerHandle);
+	}
+
+	if (UTextBlock *UserText = FindPublicMaliceAnnouncementText(TEXT("PublicMaliceBorderUser")))
+	{
+		UserText->SetText(FText::FromString(PlayerName));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PC] Public malice user text widget not found. Expected name: PublicMaliceBorderUser"));
+	}
+
+	if (UTextBlock *MaliceNumText = FindPublicMaliceAnnouncementText(TEXT("PublicMaliceNum")))
+	{
+		MaliceNumText->SetText(FText::AsNumber(FMath::Max(0, MaliceCount)));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PC] Public malice number text widget not found. Expected name: PublicMaliceNum"));
+	}
+
+	SetPublicMaliceAnnouncementVisible(true);
+
+	if (UWorld *World = GetWorld())
+	{
+		World->GetTimerManager().SetTimer(
+			PublicMaliceAnnouncementHideTimerHandle,
+			this,
+			&AMyPlayerController::HidePublicMaliceAnnouncement,
+			5.0f,
+			false
+		);
+	}
+}
+
 void AMyPlayerController::ToggleInGameSettingMenu()
 {
 	if (IsInGameSettingMenuOpen())
@@ -339,6 +425,11 @@ void AMyPlayerController::OnExitClicked()
 
 AMyPlayerController::AMyPlayerController()
 {
+	static ConstructorHelpers::FClassFinder<UUserWidget> InspectMaliceWidgetBPClass(TEXT("/Game/WorkSpace/UI/WBP_SelectUser"));
+	if (InspectMaliceWidgetBPClass.Succeeded())
+	{
+		InspectMaliceWidgetClass = InspectMaliceWidgetBPClass.Class;
+	}
 }
 
 void AMyPlayerController::BeginPlay()
@@ -396,6 +487,7 @@ void AMyPlayerController::BeginPlay()
 	}
 
 	InitializeInGameSettingWidget();
+	InitializeInspectMaliceWidget();
 }
 
 void AMyPlayerController::InitializeQuickSlotVisualState()
@@ -419,4 +511,269 @@ void AMyPlayerController::InitializeQuickSlotVisualState()
 			SelectedImage->SetVisibility(ESlateVisibility::Hidden);
 		}
 	}
+
+	if (UTextBlock *UserText = FindPublicMaliceAnnouncementText(TEXT("PublicMaliceBorderUser")))
+	{
+		UserText->SetText(FText::GetEmpty());
+	}
+
+	if (UTextBlock *MaliceNumText = FindPublicMaliceAnnouncementText(TEXT("PublicMaliceNum")))
+	{
+		MaliceNumText->SetText(FText::GetEmpty());
+	}
+
+	SetPublicMaliceAnnouncementVisible(false);
+}
+
+void AMyPlayerController::InitializeInspectMaliceWidget()
+{
+	if (!InspectMaliceWidgetClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[InspectMalice] InspectMaliceWidgetClass is null."));
+		return;
+	}
+
+	if (!InspectMaliceWidgetInstance)
+	{
+		InspectMaliceWidgetInstance = CreateWidget<UUserWidget>(this, InspectMaliceWidgetClass);
+		if (!InspectMaliceWidgetInstance)
+		{
+			UE_LOG(LogTemp, Error, TEXT("[InspectMalice] Failed to create inspect malice widget."));
+			return;
+		}
+
+		InspectMaliceWidgetInstance->AddToViewport(121);
+	}
+
+	InspectMaliceWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+
+	if (UButton *Dummy1Button = FindInspectMaliceButton(TEXT("UserBtn1")))
+	{
+		Dummy1Button->OnClicked.RemoveDynamic(this, &AMyPlayerController::OnInspectMaliceDummy1Clicked);
+		Dummy1Button->OnClicked.AddDynamic(this, &AMyPlayerController::OnInspectMaliceDummy1Clicked);
+		Dummy1Button->SetVisibility(ESlateVisibility::Visible);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[InspectMalice] UserBtn1 widget not found."));
+	}
+
+	if (UTextBlock *Dummy1Text = FindInspectMaliceText(TEXT("UserText1")))
+	{
+		Dummy1Text->SetText(FText::FromString(TEXT("Dummy1")));
+		Dummy1Text->SetVisibility(ESlateVisibility::Visible);
+	}
+
+	for (int32 Index = 2; Index <= 6; ++Index)
+	{
+		const FName ButtonName(*FString::Printf(TEXT("UserBtn%d"), Index));
+		if (UButton *HiddenButton = FindInspectMaliceButton(ButtonName))
+		{
+			HiddenButton->SetVisibility(ESlateVisibility::Collapsed);
+		}
+
+		const FName TextName(*FString::Printf(TEXT("UserText%d"), Index));
+		if (UTextBlock *HiddenText = FindInspectMaliceText(TextName))
+		{
+			HiddenText->SetVisibility(ESlateVisibility::Collapsed);
+		}
+	}
+
+	ResetInspectMaliceSelectionWidget();
+}
+
+void AMyPlayerController::ShowInspectMaliceSelectionWidget()
+{
+	InitializeInspectMaliceWidget();
+	if (!InspectMaliceWidgetInstance)
+	{
+		return;
+	}
+
+	if (UWorld *World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(InspectMaliceHideTimerHandle);
+	}
+
+	ResetInspectMaliceSelectionWidget();
+	InspectMaliceWidgetInstance->SetVisibility(ESlateVisibility::Visible);
+
+	FInputModeGameAndUI InputMode;
+	InputMode.SetWidgetToFocus(InspectMaliceWidgetInstance->TakeWidget());
+	InputMode.SetHideCursorDuringCapture(false);
+	SetInputMode(InputMode);
+
+	bShowMouseCursor = true;
+	bEnableClickEvents = true;
+	bEnableMouseOverEvents = true;
+
+	UE_LOG(LogTemp, Log, TEXT("[InspectMalice] Selection widget opened."));
+}
+
+void AMyPlayerController::ResetInspectMaliceSelectionWidget()
+{
+	if (UTextBlock *UserText = FindInspectMaliceText(TEXT("InspectMaliceUserText")))
+	{
+		UserText->SetText(FText::GetEmpty());
+	}
+
+	if (UTextBlock *MaliceNumText = FindInspectMaliceText(TEXT("InspectMaliceUserMaliceNum")))
+	{
+		MaliceNumText->SetText(FText::GetEmpty());
+	}
+
+	SetInspectMaliceResultVisible(false);
+}
+
+void AMyPlayerController::SetInspectMaliceResultVisible(bool bVisible)
+{
+	UTextBlock *UserText = FindInspectMaliceText(TEXT("InspectMaliceUserText"));
+	if (!UserText)
+	{
+		return;
+	}
+
+	if (UPanelWidget *ResultRow = UserText->GetParent())
+	{
+		ResultRow->SetVisibility(bVisible ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+		return;
+	}
+
+	UserText->SetVisibility(bVisible ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	if (UTextBlock *MaliceNumText = FindInspectMaliceText(TEXT("InspectMaliceUserMaliceNum")))
+	{
+		MaliceNumText->SetVisibility(bVisible ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	}
+}
+
+void AMyPlayerController::HideInspectMaliceSelectionWidget()
+{
+	if (InspectMaliceWidgetInstance)
+	{
+		InspectMaliceWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+	}
+
+	FInputModeGameOnly InputMode;
+	SetInputMode(InputMode);
+
+	bShowMouseCursor = false;
+	bEnableClickEvents = false;
+	bEnableMouseOverEvents = false;
+}
+
+void AMyPlayerController::SetPublicMaliceAnnouncementVisible(bool bVisible)
+{
+	if (UWidget *PublicMaliceWidget = FindPublicMaliceAnnouncementWidget())
+	{
+		PublicMaliceWidget->SetVisibility(bVisible ? ESlateVisibility::Visible : ESlateVisibility::Hidden);
+		return;
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[PC] Public malice border widget not found. Expected name: PublicMaliceBorder"));
+}
+
+void AMyPlayerController::HidePublicMaliceAnnouncement()
+{
+	SetPublicMaliceAnnouncementVisible(false);
+}
+
+int32 AMyPlayerController::QueryDummy1MaliceCount() const
+{
+	const ADummyCharacter *DummyCharacter =
+		Cast<ADummyCharacter>(UGameplayStatics::GetActorOfClass(this, ADummyCharacter::StaticClass()));
+	if (!DummyCharacter)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[InspectMalice] Dummy1 lookup failed. Returning 0 malice."));
+		return 0;
+	}
+
+	return DummyCharacter->GetCurrentMaliceCount();
+}
+
+void AMyPlayerController::OnInspectMaliceDummy1Clicked()
+{
+	UE_LOG(LogTemp, Log, TEXT("[InspectMalice] Stub server request sent for user=Dummy1."));
+
+	if (UTextBlock *UserText = FindInspectMaliceText(TEXT("InspectMaliceUserText")))
+	{
+		UserText->SetText(FText::FromString(TEXT("Dummy1")));
+	}
+
+	if (UTextBlock *MaliceNumText = FindInspectMaliceText(TEXT("InspectMaliceUserMaliceNum")))
+	{
+		MaliceNumText->SetText(FText::AsNumber(QueryDummy1MaliceCount()));
+	}
+
+	SetInspectMaliceResultVisible(true);
+
+	if (UWorld *World = GetWorld())
+	{
+		World->GetTimerManager().SetTimer(
+			InspectMaliceHideTimerHandle,
+			this,
+			&AMyPlayerController::HideInspectMaliceSelectionWidget,
+			3.0f,
+			false
+		);
+	}
+}
+
+void AMyPlayerController::Client_ShowPersonalEvent_Implementation(FName EventID, const FText& EventTitle, const FText& EventDescription, bool bIsCancelable)
+{
+	this->FlushPressedKeys();
+
+	if (!PersonalEventWidgetClass) return;
+
+	if (!PersonalEventWidgetInstance)
+	{
+		PersonalEventWidgetInstance = CreateWidget<UPersonalEventWidget>(this, PersonalEventWidgetClass);
+	}
+
+	if (PersonalEventWidgetInstance)
+	{
+		PersonalEventWidgetInstance->SetupEventUI(EventID, EventTitle, EventDescription, bIsCancelable);
+        
+		if (!PersonalEventWidgetInstance->IsInViewport())
+		{
+			PersonalEventWidgetInstance->AddToViewport(120);
+		}
+
+		PersonalEventWidgetInstance->SetVisibility(ESlateVisibility::Visible);
+
+		// 마우스 커서 표시 및 UI 조작 전용 모드로 변경
+		bShowMouseCursor = true;
+		FInputModeUIOnly InputMode;
+		InputMode.SetWidgetToFocus(PersonalEventWidgetInstance->TakeWidget()); 
+		SetInputMode(InputMode);
+	}
+}
+
+void AMyPlayerController::Server_ResolvePersonalEvent_Implementation(FName EventID, bool bIsConfirmed)
+{
+	AMyCharacter* MyChar = Cast<AMyCharacter>(GetPawn());
+	if (!MyChar) return;
+
+	// 만약 플레이어가 취소를 눌렀다면 여기서 조기 종료
+	if (!bIsConfirmed)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Event] %s 거절됨."), *EventID.ToString());
+		ActivePersonalEvent = nullptr;
+		return;
+	}
+
+	if (UBasePersonalEvent* TargetEvent = Cast<UBasePersonalEvent>(ActivePersonalEvent))
+	{
+		if (TargetEvent->EventID == EventID)
+		{
+			TargetEvent->OnEventResolved(MyChar, bIsConfirmed);
+			UE_LOG(LogTemp, Warning, TEXT("[Event] %s 최종 수락 완료! 타이머 및 아이템 지급 시작."), *EventID.ToString());
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("[Event] ID 불일치! 타겟: %s / 요청: %s"), *TargetEvent->EventID.ToString(), *EventID.ToString());
+		}
+	}
+    
+	// 이벤트 캐시 초기화
+	ActivePersonalEvent = nullptr;
 }

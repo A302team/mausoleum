@@ -8,13 +8,6 @@
 
 class AMyCharacter;
 
-UENUM(BlueprintType)
-enum class EEventScope : uint8
-{
-	Personal    UMETA(DisplayName = "Personal Event"),
-	Group       UMETA(DisplayName = "Group Event")
-};
-
 UCLASS(Blueprintable, BlueprintType, Abstract)
 class A302_API UBaseEvent : public UObject
 {
@@ -26,13 +19,13 @@ public:
 	FName EventID;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Event Info")
-	EEventScope EventScope;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Event Info")
 	FText EventTitle;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Event Info", meta = (MultiLine = true))
 	FText EventDescription;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Event Info")
+	bool bIsCancelable = false;
 
 	// 2. 이벤트 로직(블루프린트에서 오버라이드해서 사용)
 	// 이벤트를 시작할 때 서버에서 호출할 함수
@@ -41,8 +34,9 @@ public:
 	virtual void ExecuteEvent_Implementation(AMyCharacter* InstigatorCharacter);
 
 	// 이벤트가 끝났음을 알리는 함수 (UI 닫기, 보상 지급 완료 등)
-	UFUNCTION(BlueprintCallable, Category = "Event Execution")
-	void FinishEvent(bool bWasSuccessful);
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Event Execution")
+	void OnEventResolved(AMyCharacter* TargetCharacter, bool bIsConfirmed);
+	virtual void OnEventResolved_Implementation(AMyCharacter* TargetCharacter, bool bIsConfirmed);
 
 	// 3. 시스템 필수 함수
 	// UObject 기반 블루프린트에서 Delay, SpawnActor 등의 노드를 사용하기 위해 필수적인 함수

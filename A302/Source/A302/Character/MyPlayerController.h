@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
+#include "TimerManager.h"
 #include "MyPlayerController.generated.h"
 
 /**
@@ -16,10 +17,13 @@
 class UInputMappingContext;
 class UUserWidget;
 class UTextBlock;
+class UWidget;
 class UImage;
 class UTexture2D;
 class UComboBoxString;
 class UButton;
+class UBaseEvent;
+class UPersonalEventWidget;
 
 UCLASS()
 class A302_API AMyPlayerController : public APlayerController
@@ -37,6 +41,34 @@ public:
 	void SetItemTimerVisible(bool bVisible);
 	void ToggleInGameSettingMenu();
 	bool IsInGameSettingMenuOpen() const;
+	void ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount);
+	
+	// Event UI 위젯 클래스 (블루프린트에서 세팅)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI|Event")
+	TSubclassOf<class UPersonalEventWidget> PersonalEventWidgetClass;
+
+	UPROPERTY()
+	TObjectPtr<UPersonalEventWidget> PersonalEventWidgetInstance;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI|Event")
+	TSubclassOf<UUserWidget> InspectMaliceWidgetClass;
+
+	UPROPERTY()
+	TObjectPtr<UUserWidget> InspectMaliceWidgetInstance;
+
+	// 서버가 이 플레이어의 현재 진행 중인 이벤트를 기억해두기 위한 포인터
+	UPROPERTY()
+	TObjectPtr<UBaseEvent> ActivePersonalEvent;
+
+	// 클라이언트의 화면에 이벤트를 띄우는 함수
+	UFUNCTION(Client, Reliable)
+	void Client_ShowPersonalEvent(FName EventID, const FText& EventTitle, const FText& EventDescription, bool bIsCancelable);
+
+	// 클라이언트가 확인 버튼을 눌렀을 때 서버로 알리는 함수
+	UFUNCTION(Server, Reliable, BlueprintCallable, Category = "PersonalEvent")
+	void Server_ResolvePersonalEvent(FName EventID, bool bIsConfirmed);
+
+	void ShowInspectMaliceSelectionWidget();
 
 protected:
 	virtual void BeginPlay() override;
@@ -65,11 +97,22 @@ private:
 	class UTextBlock *FindQuickSlotItemNameText(int32 SlotIndex) const;
 	class UImage *FindQuickSlotItemIconImage(int32 SlotIndex) const;
 	class UImage *FindQuickSlotItemSelectedImage(int32 SlotIndex) const;
+	class UButton *FindInspectMaliceButton(const FName& WidgetName) const;
+	class UTextBlock *FindInspectMaliceText(const FName& WidgetName) const;
+	class UWidget *FindPublicMaliceAnnouncementWidget() const;
+	class UTextBlock *FindPublicMaliceAnnouncementText(const FName& WidgetName) const;
 	class UTextBlock *FindShieldCountText() const;
 	class UTextBlock *FindMaliceCountText() const;
 	class UTextBlock *FindItemTimerText() const;
 	void InitializeQuickSlotVisualState();
 	void InitializeInGameSettingWidget();
+	void InitializeInspectMaliceWidget();
+	void ResetInspectMaliceSelectionWidget();
+	void SetInspectMaliceResultVisible(bool bVisible);
+	void HideInspectMaliceSelectionWidget();
+	int32 QueryDummy1MaliceCount() const;
+	void SetPublicMaliceAnnouncementVisible(bool bVisible);
+	void HidePublicMaliceAnnouncement();
 	void OpenInGameSettingMenu();
 	void CloseInGameSettingMenu();
 	void SyncResolutionComboToCurrent();
@@ -81,6 +124,9 @@ private:
 	UFUNCTION()
 	void OnExitClicked();
 
+	UFUNCTION()
+	void OnInspectMaliceDummy1Clicked();
+
 	UPROPERTY()
 	TObjectPtr<UComboBoxString> ResolutionComboBox = nullptr;
 
@@ -89,6 +135,9 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UButton> ExitBtn = nullptr;
+
+	FTimerHandle InspectMaliceHideTimerHandle;
+	FTimerHandle PublicMaliceAnnouncementHideTimerHandle;
 
 public:
 };

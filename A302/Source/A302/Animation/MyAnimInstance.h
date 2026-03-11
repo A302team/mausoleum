@@ -17,6 +17,7 @@ public:
 
     virtual void NativeInitializeAnimation() override;
     virtual void NativeUpdateAnimation(float DeltaSeconds) override;
+    bool IsDead() const { return bIsDead; }
 
 public:
 
@@ -43,6 +44,9 @@ public:
     UPROPERTY(BlueprintReadOnly, Category="Interaction")
     bool bIsInteracting = false;
 
+    UPROPERTY(BlueprintReadOnly, Category="Combat")
+    bool bIsDead = false;
+
 
     // Montages
 
@@ -54,6 +58,12 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Interaction")
     UAnimMontage* InteractMontage;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Combat")
+    UAnimMontage* DeathMontage;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Combat")
+    UAnimMontage* TimeKnifeMontage;
 
 
     // Gameplay → AnimInstance 호출용 함수
@@ -67,6 +77,11 @@ public:
     UFUNCTION(BlueprintCallable)
     void PlayInteractMontage();
 
+    UFUNCTION(BlueprintCallable)
+    void PlayDeathMontage();
+
+    UFUNCTION(BlueprintCallable)
+    void PlayTimeKnifeMontage();
 
 private:
 
