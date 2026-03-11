@@ -105,6 +105,26 @@ UTextBlock *AMyPlayerController::FindInspectMaliceText(const FName& WidgetName) 
 	return Cast<UTextBlock>(InspectMaliceWidgetInstance->GetWidgetFromName(WidgetName));
 }
 
+UWidget *AMyPlayerController::FindPublicMaliceAnnouncementWidget() const
+{
+	if (!QuickSlotBarWidget)
+	{
+		return nullptr;
+	}
+
+	return QuickSlotBarWidget->GetWidgetFromName(TEXT("PublicMaliceBorder"));
+}
+
+UTextBlock *AMyPlayerController::FindPublicMaliceAnnouncementText(const FName& WidgetName) const
+{
+	if (!QuickSlotBarWidget)
+	{
+		return nullptr;
+	}
+
+	return Cast<UTextBlock>(QuickSlotBarWidget->GetWidgetFromName(WidgetName));
+}
+
 UTextBlock *AMyPlayerController::FindShieldCountText() const
 {
 	if (!QuickSlotBarWidget)
@@ -248,6 +268,45 @@ void AMyPlayerController::SetItemTimerVisible(bool bVisible)
 bool AMyPlayerController::IsInGameSettingMenuOpen() const
 {
 	return InGameSettingWidget && InGameSettingWidget->GetVisibility() == ESlateVisibility::Visible;
+}
+
+void AMyPlayerController::ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount)
+{
+	if (UWorld *World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(PublicMaliceAnnouncementHideTimerHandle);
+	}
+
+	if (UTextBlock *UserText = FindPublicMaliceAnnouncementText(TEXT("PublicMaliceBorderUser")))
+	{
+		UserText->SetText(FText::FromString(PlayerName));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PC] Public malice user text widget not found. Expected name: PublicMaliceBorderUser"));
+	}
+
+	if (UTextBlock *MaliceNumText = FindPublicMaliceAnnouncementText(TEXT("PublicMaliceNum")))
+	{
+		MaliceNumText->SetText(FText::AsNumber(FMath::Max(0, MaliceCount)));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PC] Public malice number text widget not found. Expected name: PublicMaliceNum"));
+	}
+
+	SetPublicMaliceAnnouncementVisible(true);
+
+	if (UWorld *World = GetWorld())
+	{
+		World->GetTimerManager().SetTimer(
+			PublicMaliceAnnouncementHideTimerHandle,
+			this,
+			&AMyPlayerController::HidePublicMaliceAnnouncement,
+			5.0f,
+			false
+		);
+	}
 }
 
 void AMyPlayerController::ToggleInGameSettingMenu()
@@ -451,6 +510,18 @@ void AMyPlayerController::InitializeQuickSlotVisualState()
 			SelectedImage->SetVisibility(ESlateVisibility::Hidden);
 		}
 	}
+
+	if (UTextBlock *UserText = FindPublicMaliceAnnouncementText(TEXT("PublicMaliceBorderUser")))
+	{
+		UserText->SetText(FText::GetEmpty());
+	}
+
+	if (UTextBlock *MaliceNumText = FindPublicMaliceAnnouncementText(TEXT("PublicMaliceNum")))
+	{
+		MaliceNumText->SetText(FText::GetEmpty());
+	}
+
+	SetPublicMaliceAnnouncementVisible(false);
 }
 
 void AMyPlayerController::InitializeInspectMaliceWidget()
@@ -587,6 +658,22 @@ void AMyPlayerController::HideInspectMaliceSelectionWidget()
 	bShowMouseCursor = false;
 	bEnableClickEvents = false;
 	bEnableMouseOverEvents = false;
+}
+
+void AMyPlayerController::SetPublicMaliceAnnouncementVisible(bool bVisible)
+{
+	if (UWidget *PublicMaliceWidget = FindPublicMaliceAnnouncementWidget())
+	{
+		PublicMaliceWidget->SetVisibility(bVisible ? ESlateVisibility::Visible : ESlateVisibility::Hidden);
+		return;
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[PC] Public malice border widget not found. Expected name: PublicMaliceBorder"));
+}
+
+void AMyPlayerController::HidePublicMaliceAnnouncement()
+{
+	SetPublicMaliceAnnouncementVisible(false);
 }
 
 int32 AMyPlayerController::QueryDummy1MaliceCount() const
