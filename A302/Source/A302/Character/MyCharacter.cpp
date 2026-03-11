@@ -586,7 +586,14 @@ void AMyCharacter::OnAttack(const FInputActionValue& Value)
 		// 공격 애니메이션 재생
 		if (UMyAnimInstance* Anim = Cast<UMyAnimInstance>(GetMesh()->GetAnimInstance()))
 		{
+			if (bUsedTimedKillKnife)
+			{
+				Anim->PlayTimeKnifeMontage();
+			}
+			else
+			{
 				Anim->PlayAttackMontage();
+			}
 		}
 	}
 }
