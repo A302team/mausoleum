@@ -48,13 +48,19 @@ void UGameNetworkSubsystem::Deinitialize()
 
 void UGameNetworkSubsystem::Connect(EProtocolType Protocol, const FString& URL)
 {
+	// 외부(블루프린트, GameInstance 등)에서 넘긴 URL을 무시하고,
+	// 무조건 Config(ServerIP, Port) 조합의 정제된 자체 URL을 사용하도록 강제합니다.
 	if (Protocol == EProtocolType::WebSocket && WebSocketHandler)
 	{
-		WebSocketHandler->Connect(URL);
+		FString FinalURL = GetURL(Protocol);
+		UE_LOG(LogTemp, Log, TEXT("[UGameNetworkSubsystem] Connecting WebSocket to: %s"), *FinalURL);
+		WebSocketHandler->Connect(FinalURL);
 	}
 	else if (Protocol == EProtocolType::UDP && UDPHandler)
 	{
-		UDPHandler->Connect(URL);
+		FString FinalURL = GetURL(Protocol);
+		UE_LOG(LogTemp, Log, TEXT("[UGameNetworkSubsystem] Connecting UDP to: %s"), *FinalURL);
+		UDPHandler->Connect(FinalURL);
 	}
 }
 
