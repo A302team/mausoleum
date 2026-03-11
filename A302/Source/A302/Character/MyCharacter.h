@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "Components/StaticMeshComponent.h"
 #include "InputActionValue.h"
 #include "Interface/InteractableInterface.h"
 #include "MyCharacter.generated.h"
@@ -192,6 +193,20 @@ private:
 	TObjectPtr<UPersonalEventTimeKnife> ActiveTimedKnifeEvent = nullptr;
 
 	bool bTimedKnifeAttackInProgress = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|Timed", meta = (AllowPrivateAccess = "true"))
+	float TimedKnifeRemainingSeconds = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|Timed", meta = (AllowPrivateAccess = "true"))
+	FName ActiveTimedKnifeItemId = NAME_None;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Weapon", meta=(AllowPrivateAccess="true"))
+	TObjectPtr<UStaticMeshComponent> SwordMesh = nullptr;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Weapon", meta=(AllowPrivateAccess="true"))
+	TObjectPtr<UStaticMeshComponent> ShieldMesh = nullptr;
+
+	FTimerHandle TimedKnifeTimerHandle;
 
 	UPROPERTY(VisibleAnywhere, Category = "Item|Test")
 	int32 AutoAttackCount = 0;
