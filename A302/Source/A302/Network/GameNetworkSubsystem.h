@@ -31,7 +31,8 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FOnBinaryPacketReceived, const TArray<uint8>
 namespace PORT
 {
 	static constexpr int32 LOBBY_PORT = 8001;
-	static constexpr int32 VOICE_PORT = 40000;
+	static constexpr int32 VOICE_PORT = 48100;
+
 }
 
 /**
@@ -66,6 +67,7 @@ public:
 		CleanIP.ReplaceInline(TEXT("ws://"), TEXT(""));
 		CleanIP.ReplaceInline(TEXT("wss://"), TEXT(""));
         CleanIP.TrimStartAndEndInline();
+		//
 		return CleanIP;
 	}
 
