@@ -530,6 +530,7 @@ bool AMyCharacter::HandlePersonalEventPickup(AActor* InteractedActor, const URew
 	PersonalEvent->EventID = RewardDefinition->ItemId;
 	PersonalEvent->InitializeContext(RewardDefinition, InteractedActor);
 	PersonalEvent->ExecuteEvent(this);
+	
 	return true;
 }
 

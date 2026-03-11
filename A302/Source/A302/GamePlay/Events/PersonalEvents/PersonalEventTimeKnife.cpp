@@ -5,6 +5,7 @@
 #include "Character/MyPlayerController.h"
 #include "GameData/Items/ItemDefinition.h"
 #include "GameData/Events/PersonalEvents/PersonalEventTimeKnifeDefinition.h"
+#include "GameData/Events/PersonalEvents/PersonalEventDefinition.h" // 🚩 추가됨
 #include "GameData/RewardDefinition.h"
 #include "GamePlay/Items/ItemTimeKnife.h"
 #include "Engine/World.h"
@@ -16,13 +17,51 @@ void UPersonalEventTimeKnife::ExecuteEvent_Implementation(AMyCharacter* Instigat
 		return;
 	}
 
-	StopCountdown(false);
+	OwnerCharacter = InstigatorCharacter;
 
+	AMyPlayerController* PC = Cast<AMyPlayerController>(InstigatorCharacter->GetController());
+	if (!PC)
+	{
+		return;
+	}
+	
+	PC->ActivePersonalEvent = this;
+	
+	const URewardDefinition* SourceRewardDefinition = GetRewardDefinition();
+	const UPersonalEventDefinition* EventDef = Cast<UPersonalEventDefinition>(SourceRewardDefinition);
+    
+	if (EventDef)
+	{
+		PC->Client_ShowPersonalEvent(
+			EventDef->ItemId, 
+			EventDef->DisplayName, 
+			EventDef->Description, 
+			EventDef->bIsCancelable
+		);
+	}
+	else
+	{
+		// 예외 처리: 만약 캐스팅에 실패했다면(이벤트 UI 데이터가 없다면) 즉시 로직 실행
+		UE_LOG(LogTemp, Warning, TEXT("[PersonalEventTimeKnife] EventDef is missing, executing immediately."));
+		OnEventResolved(InstigatorCharacter, true);
+	}
+}
+
+void UPersonalEventTimeKnife::OnEventResolved(AMyCharacter* InstigatorCharacter, bool bIsConfirmed)
+{
+	// 취소가 가능한 이벤트에서 플레이어가 거절을 눌렀을 경우
+	if (!bIsConfirmed)
+	{
+		OwnerCharacter = nullptr;
+		return;
+	}
+	
+	StopCountdown(false);
 	OwnerCharacter = InstigatorCharacter;
 
 	const URewardDefinition* SourceRewardDefinition = GetRewardDefinition();
 	const UPersonalEventTimeKnifeDefinition* EventDef =
-		Cast<UPersonalEventTimeKnifeDefinition>(const_cast<URewardDefinition*>(SourceRewardDefinition));
+	   Cast<UPersonalEventTimeKnifeDefinition>(const_cast<URewardDefinition*>(SourceRewardDefinition));
 	RemainingSeconds = EventDef ? FMath::Max(1.0f, EventDef->Payload.TimedKillDuration) : 30.0f;
 
 	UItemDefinition* GrantedKnifeDefinition = ResolveGrantedKnifeDefinition(SourceRewardDefinition, EventDef);
@@ -52,11 +91,11 @@ void UPersonalEventTimeKnife::ExecuteEvent_Implementation(AMyCharacter* Instigat
 	{
 		World->GetTimerManager().ClearTimer(CountdownTimerHandle);
 		World->GetTimerManager().SetTimer(
-			CountdownTimerHandle,
-			this,
-			&UPersonalEventTimeKnife::HandleCountdownTick,
-			1.0f,
-			true
+		   CountdownTimerHandle,
+		   this,
+		   &UPersonalEventTimeKnife::HandleCountdownTick,
+		   1.0f,
+		   true
 		);
 	}
 
