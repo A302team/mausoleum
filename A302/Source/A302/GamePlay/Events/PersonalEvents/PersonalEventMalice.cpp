@@ -2,7 +2,7 @@
 
 #include "Character/Components/MaliceComponent.h"
 #include "Character/MyCharacter.h"
-#include "GameData/PersonalEventDefinition.h"
+#include "GameData/Events/PersonalEvents/PersonalEventMaliceDefinition.h"
 #include "GameData/RewardDefinition.h"
 
 void UPersonalEventMalice::ExecuteEvent_Implementation(AMyCharacter* InstigatorCharacter)
@@ -28,3 +28,5 @@ void UPersonalEventMalice::ExecuteEvent_Implementation(AMyCharacter* InstigatorC
 
 	OnEventResolved(InstigatorCharacter, true);
 }
+
+

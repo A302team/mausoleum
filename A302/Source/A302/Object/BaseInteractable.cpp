@@ -1,8 +1,8 @@
-﻿#include "Object/BaseInteractable.h"
+#include "Object/BaseInteractable.h"
 
 #include "Character/MyCharacter.h"
 #include "Components/StaticMeshComponent.h"
-#include "GameData/ItemDefinition.h"
+#include "GameData/Items/ItemDefinition.h"
 #include "GameData/RewardDefinition.h"
 #include "Math/UnrealMathUtility.h"
 
@@ -56,3 +56,5 @@ EInteractType ABaseInteractable::GetInteractType()
 {
 	return CurrentInteractType;
 }
+
+

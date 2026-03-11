@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameData/ItemTypes.h"
+#include "GameData/Items/ItemTypes.h"
 #include "GameData/RewardDefinition.h"
 #include "ItemDefinition.generated.h"
 
@@ -40,3 +40,5 @@ public:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Reward|Item")
     FItemDefinitionPayload Payload;
 };
+
+

@@ -1,8 +1,8 @@
 #include "GamePlay/Items/ItemKnife.h"
 
 #include "Engine/World.h"
-#include "GameData/ItemDefinition.h"
-#include "GameData/ItemInstance.h"
+#include "GameData/Items/ItemDefinition.h"
+#include "GameData/Items/ItemInstance.h"
 #include "GameFramework/Character.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -114,3 +114,4 @@ bool UItemKnife::HasLineOfSight(ACharacter* Instigator, AActor* Target) const
 
     return Hit.GetActor() == Target;
 }
+

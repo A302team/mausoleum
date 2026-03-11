@@ -1,7 +1,7 @@
 #include "GamePlay/Factories/ItemActionFactory.h"
 
-#include "GameData/ItemDefinition.h"
-#include "GameData/ItemInstance.h"
+#include "GameData/Items/ItemDefinition.h"
+#include "GameData/Items/ItemInstance.h"
 #include "GamePlay/Items/BaseItem.h"
 #include "GamePlay/Items/ItemTimeKnife.h"
 
@@ -39,3 +39,4 @@ UBaseItem* UItemActionFactory::CreateLogic(UObject* Outer, UItemInstance* Instan
     Logic->Initialize(Instance);
     return Logic;
 }
+

@@ -4,8 +4,8 @@
 #include "Character/MyCharacter.h"
 #include "Character/MyPlayerController.h"
 #include "Engine/Engine.h"
-#include "GameData/ItemDefinition.h"
-#include "GameData/ItemTypes.h"
+#include "GameData/Items/ItemDefinition.h"
+#include "GameData/Items/ItemTypes.h"
 #include "GameFramework/Controller.h"
 #include "GamePlay/Items/ItemTimeKnife.h"
 
@@ -353,3 +353,4 @@ bool UQuickSlotComponent::TryAddItemByDefinition(UItemDefinition* ItemDefinition
 
 	return true;
 }
+

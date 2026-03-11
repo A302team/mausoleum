@@ -6,7 +6,7 @@
 #include "Engine/Engine.h"
 #include "Engine/OverlapResult.h"
 #include "Engine/World.h"
-#include "GameData/ItemDefinition.h"
+#include "GameData/Items/ItemDefinition.h"
 #include "GameFramework/Character.h"
 #include "GamePlay/Items/BaseItem.h"
 #include "Interface/UsableItem.h"
@@ -260,3 +260,4 @@ void UItemTargetingComponent::LogAndScreenMessage(
 		GEngine->AddOnScreenDebugMessage(-1, Duration, Color, Message);
 	}
 }
+
