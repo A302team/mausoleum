@@ -1,8 +1,8 @@
 #include "GamePlay/Items/ItemKnife.h"
 
 #include "Engine/World.h"
-#include "GameData/ItemDefinition.h"
-#include "GameData/ItemInstance.h"
+#include "GameData/Items/ItemDefinition.h"
+#include "GameData/Items/ItemInstance.h"
 #include "GameFramework/Character.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -25,7 +25,7 @@ bool UItemKnife::CanUse_Implementation(ACharacter* Instigator, const FItemTarget
         return false;
     }
 
-    const float AllowedRange = FMath::Max(Def->AttackRange, 50.0f);
+    const float AllowedRange = FMath::Max(Def->Payload.ItemUseRange, 50.0f);
     const float InstigatorRadius = Instigator->GetSimpleCollisionRadius();
 
     float TargetRadius = 0.0f;
@@ -51,7 +51,7 @@ bool UItemKnife::CanUse_Implementation(ACharacter* Instigator, const FItemTarget
         return false;
     }
 
-    if (Def->bRequiresLineOfSight && !HasLineOfSight(Instigator, TargetActor))
+    if (Def->Payload.bRequiresLineOfSight && !HasLineOfSight(Instigator, TargetActor))
     {
         UE_LOG(LogTemp, Warning, TEXT("[ItemKnife] CanUse failed: no line of sight to %s"), *GetNameSafe(TargetActor));
         return false;
@@ -67,7 +67,6 @@ bool UItemKnife::Use_Implementation(ACharacter* Instigator, const FItemTargetDat
         return false;
     }
 
-    const UItemDefinition* Def = GetDefinition();
     AActor* Target = TargetData.TargetActor;
     AController* InstigatorController = Instigator ? Instigator->GetController() : nullptr;
 
@@ -82,10 +81,7 @@ bool UItemKnife::Use_Implementation(ACharacter* Instigator, const FItemTargetDat
 
     if (UItemInstance* Inst = GetInstance())
     {
-        if (!Def || !Def->bIsTimedKillKnife)
-        {
-            Inst->Consume(1);
-        }
+        Inst->Consume(1);
     }
 
     return true;
@@ -118,3 +114,4 @@ bool UItemKnife::HasLineOfSight(ACharacter* Instigator, AActor* Target) const
 
     return Hit.GetActor() == Target;
 }
+

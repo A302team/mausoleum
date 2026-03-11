@@ -112,3 +112,27 @@ void UMyAnimInstance::PlayInteractMontage()
         Montage_Play(InteractMontage);
     }
 }
+
+// 사망 애니메이션 재생
+void UMyAnimInstance::PlayDeathMontage()
+{
+    if (!DeathMontage) return;
+
+    if (!Montage_IsPlaying(DeathMontage))
+    {
+        bIsDead = true;
+        Montage_Play(DeathMontage);
+    }
+}
+
+// 타임 나이프(피바라기) 애니메이션 재생
+void UMyAnimInstance::PlayTimeKnifeMontage()
+{
+    if (!TimeKnifeMontage) return;
+
+    if (!Montage_IsPlaying(TimeKnifeMontage))
+    {
+        bIsAttacking = true;
+        Montage_Play(TimeKnifeMontage);
+    }
+}
