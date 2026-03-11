@@ -52,14 +52,16 @@ private:
     static const char* LevelToString(Level level);
     static void Worker();
 
+    // 로그 파일
     static std::ofstream logFile;
 
+    // 로그 메시지 큐 및 동기화 도구
     static std::queue<LogMessage> queue;
-    static std::mutex queueMutex;
-    static std::condition_variable cv;
+    static std::mutex queueMutex; // 큐 접근 동기화
+    static std::condition_variable cv; // 큐에 새 메시지가 추가될 때 알림
 
-    static std::thread workerThread;
-    static std::atomic<bool> running;
+    static std::thread workerThread; // 로그 처리 스레드
+    static std::atomic<bool> running; // 로그 처리 스레드 실행 여부
 };
 
 #define LOG_INFO(tag, msg)  do { std::ostringstream _ss; _ss << msg; Logger::Log(Logger::Level::Info, tag, _ss.str()); } while(0)

@@ -13,16 +13,22 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "GameData/Items/ItemDefinition.h"
+#include "GameData/Events/PersonalEvents/PersonalEventInspectMaliceDefinition.h"
 #include "GameData/Events/PersonalEvents/PersonalEventMaliceDefinition.h"
+#include "GameData/Events/PersonalEvents/PersonalEventPublicMaliceDefinition.h"
 #include "GameData/Events/PersonalEvents/PersonalEventTimeKnifeDefinition.h"
 #include "GameData/RewardDefinition.h"
 #include "GameData/RewardTypes.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/PlayerController.h"
+#include "Kismet/GameplayStatics.h"
+#include "GamePlay/Actor/KnifeActor.h"
 #include "GamePlay/Events/GroupEvents/BaseGroupEvent.h"
 #include "GamePlay/Events/PersonalEvents/BasePersonalEvent.h"
+#include "GamePlay/Events/PersonalEvents/PersonalEventInspectMalice.h"
 #include "GamePlay/Events/PersonalEvents/PersonalEventMalice.h"
+#include "GamePlay/Events/PersonalEvents/PersonalEventPublicMalice.h"
 #include "GamePlay/Events/PersonalEvents/PersonalEventTimeKnife.h"
 #include "GamePlay/Items/ItemShield.h"
 #include "GamePlay/Items/ItemTimeKnife.h"
@@ -55,15 +61,6 @@ AMyCharacter::AMyCharacter()
 
 	ItemManagerComponent = CreateDefaultSubobject<UItemManagerComponent>(TEXT("ItemManagerComponent"));
 	ItemTargetingComponent = CreateDefaultSubobject<UItemTargetingComponent>(TEXT("ItemTargetingComponent"));
-
-	// 무기 메쉬 컴포넌트 생성 및 설정
-	SwordMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("SwordMesh"));
-	SwordMesh->SetupAttachment(GetMesh(), TEXT("HandGrip_R"));
-	SwordMesh->SetHiddenInGame(true);   // 기본 숨김
-
-	ShieldMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ShieldMesh"));
-	ShieldMesh->SetupAttachment(GetMesh(), TEXT("HandGrip_L"));
-	ShieldMesh->SetHiddenInGame(true);  // 기본 숨김
     
 	InteractionComponent = CreateDefaultSubobject<UInteractComponent>(TEXT("InteractionComponent"));
 	QuickSlotComponent = CreateDefaultSubobject<UQuickSlotComponent>(TEXT("QuickSlotComponent"));
@@ -76,6 +73,17 @@ AMyCharacter::AMyCharacter()
 void AMyCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	if (KnifeActorClass)
+	{
+			KnifeActor = GetWorld()->SpawnActor<AKnifeActor>(KnifeActorClass);
+
+			if (KnifeActor)
+			{
+					KnifeActor->AttachToCharacter(GetMesh(), TEXT("HandGrip_R"));
+					KnifeActor->HideWeapon();
+			}
+	}
 
 	if (CombatStatusComponent)
 	{
@@ -184,6 +192,14 @@ void AMyCharacter::ForceDeadByPersonalEvent()
 void AMyCharacter::SetTimedKnifeAttackInProgress(bool bInProgress)
 {
 	bTimedKnifeAttackInProgress = bInProgress;
+}
+
+void AMyCharacter::Multicast_ShowPublicMaliceAnnouncement_Implementation(const FString& PlayerName, int32 MaliceCount)
+{
+	if (AMyPlayerController* LocalPlayerController = Cast<AMyPlayerController>(UGameplayStatics::GetPlayerController(this, 0)))
+	{
+		LocalPlayerController->ShowPublicMaliceAnnouncement(PlayerName, MaliceCount);
+	}
 }
 
 void AMyCharacter::SetQTEInputMode(bool bIsQTE)
@@ -478,6 +494,14 @@ bool AMyCharacter::HandlePersonalEventPickup(AActor* InteractedActor, const URew
 		{
 			PersonalEventClass = UPersonalEventTimeKnife::StaticClass();
 		}
+		else if (Cast<UPersonalEventInspectMaliceDefinition>(MutableRewardDefinition))
+		{
+			PersonalEventClass = UPersonalEventInspectMalice::StaticClass();
+		}
+		else if (Cast<UPersonalEventPublicMaliceDefinition>(MutableRewardDefinition))
+		{
+			PersonalEventClass = UPersonalEventPublicMalice::StaticClass();
+		}
 		else if (Cast<UPersonalEventMaliceDefinition>(MutableRewardDefinition))
 		{
 			PersonalEventClass = UPersonalEventMalice::StaticClass();
@@ -742,4 +766,19 @@ void AMyCharacter::OnQTEInput(const FInputActionValue& Value)
 	}
 }
 
+// 무기 표시/숨김 함수 추가(애니메이션 재생 시 위치 참조용)
+void AMyCharacter::ShowKnife()
+{
+    if (KnifeActor)
+    {
+        KnifeActor->ShowWeapon();
+    }
+}
 
+void AMyCharacter::HideKnife()
+{
+    if (KnifeActor)
+    {
+        KnifeActor->HideWeapon();
+    }
+}
