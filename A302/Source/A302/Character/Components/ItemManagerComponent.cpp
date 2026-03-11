@@ -1,10 +1,12 @@
 #include "Character/Components/ItemManagerComponent.h"
 
+#include "Character/Components/ItemTargetingComponent.h"
 #include "GameData/ItemDefinition.h"
 #include "GameData/ItemInstance.h"
 #include "GameData/ItemTypes.h"
 #include "GamePlay/Factories/ItemActionFactory.h"
 #include "GamePlay/Items/BaseItem.h"
+#include "GamePlay/Items/ItemKnife.h"
 #include "GamePlay/Items/ItemShield.h"
 #include "Interface/UsableItem.h"
 
@@ -22,6 +24,8 @@ void UItemManagerComponent::BeginPlay()
 	{
 		UE_LOG(LogTemp, Error, TEXT("[ItemManager] Failed to create ItemActionFactory."));
 	}
+
+	ItemTargetingComponent = GetOwner() ? GetOwner()->FindComponentByClass<UItemTargetingComponent>() : nullptr;
 }
 
 void UItemManagerComponent::InitializeSlots(int32 SlotCount)
@@ -120,6 +124,7 @@ bool UItemManagerComponent::AddItemToSlot(int32 SlotIndex, UItemDefinition* Item
 	ItemDefinitions[SlotIndex] = ItemDefinition;
 	ItemInstances[SlotIndex] = NewInstance;
 	ItemLogics[SlotIndex] = NewLogic;
+	DelegateAddItem.Broadcast(SlotIndex, ItemDefinition);
 	return true;
 }
 
@@ -130,9 +135,14 @@ bool UItemManagerComponent::RemoveItemFromSlot(int32 SlotIndex)
 		return false;
 	}
 
+	const bool bHadItem = ItemDefinitions[SlotIndex] != nullptr;
 	ItemDefinitions[SlotIndex] = nullptr;
 	ItemInstances[SlotIndex] = nullptr;
 	ItemLogics[SlotIndex] = nullptr;
+	if (bHadItem)
+	{
+		DelegateRemoveItem.Broadcast(SlotIndex);
+	}
 	return true;
 }
 
@@ -178,7 +188,6 @@ UBaseItem* UItemManagerComponent::GetItemLogicAtSlot(int32 SlotIndex) const
 bool UItemManagerComponent::TryUseItemAtSlot(
 	int32 SlotIndex,
 	ACharacter* Instigator,
-	const FItemTargetData& TargetData,
 	UItemDefinition*& OutUsedItemDefinition,
 	bool& bOutBecameEmpty
 )
@@ -199,9 +208,38 @@ bool UItemManagerComponent::TryUseItemAtSlot(
 		return false;
 	}
 
+	if (IsAutoUseItem(ItemDefinition))
+	{
+		return false;
+	}
+
 	if (!ItemLogic->GetClass()->ImplementsInterface(UUsableItem::StaticClass()))
 	{
 		return false;
+	}
+
+	FItemTargetData TargetData;
+	UClass* LogicClass = ItemDefinition->ResolveRewardLogicClass();
+	const bool bNeedsTarget =
+		ItemDefinition->UseMode == EItemUseMode::Targeted ||
+		(LogicClass && LogicClass->IsChildOf(UItemKnife::StaticClass()));
+
+	if (bNeedsTarget)
+	{
+		if (!ItemTargetingComponent && GetOwner())
+		{
+			ItemTargetingComponent = GetOwner()->FindComponentByClass<UItemTargetingComponent>();
+		}
+		if (!ItemTargetingComponent || !ItemTargetingComponent->TryBuildTargetDataForUse(ItemDefinition, TargetData, true))
+		{
+			UE_LOG(
+				LogTemp,
+				Warning,
+				TEXT("[ItemManager] TryUseItemAtSlot failed: could not acquire target actor. item=%s"),
+				*GetNameSafe(ItemDefinition)
+			);
+			return false;
+		}
 	}
 
 	if (!IUsableItem::Execute_CanUse(ItemLogic, Instigator, TargetData))

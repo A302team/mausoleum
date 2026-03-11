@@ -4,6 +4,7 @@
 #include "Character/Components/CombatStatusComponent.h"
 #include "Character/Components/InteractComponent.h"
 #include "Character/Components/ItemManagerComponent.h"
+#include "Character/Components/ItemTargetingComponent.h"
 #include "Character/Components/KnifeAutoTestComponent.h"
 #include "Character/Components/MaliceComponent.h"
 #include "Character/Components/QuickSlotComponent.h"
@@ -18,9 +19,7 @@
 #include "GameFramework/PlayerController.h"
 #include "GamePlay/Events/GroupEvents/BaseGroupEvent.h"
 #include "GamePlay/Events/PersonalEvents/BasePersonalEvent.h"
-#include "GamePlay/Events/PersonalEvents/PersonalEventMalice.h"
 #include "GamePlay/Events/PersonalEvents/PersonalEventTimeKnife.h"
-#include "GamePlay/Items/ItemMalice.h"
 #include "GamePlay/Items/ItemShield.h"
 #include "GamePlay/Items/ItemTimeKnife.h"
 #include "InputAction.h"
@@ -50,6 +49,7 @@ AMyCharacter::AMyCharacter()
 	SetReplicateMovement(true);
 
 	ItemManagerComponent = CreateDefaultSubobject<UItemManagerComponent>(TEXT("ItemManagerComponent"));
+	ItemTargetingComponent = CreateDefaultSubobject<UItemTargetingComponent>(TEXT("ItemTargetingComponent"));
 	InteractionComponent = CreateDefaultSubobject<UInteractComponent>(TEXT("InteractionComponent"));
 	QuickSlotComponent = CreateDefaultSubobject<UQuickSlotComponent>(TEXT("QuickSlotComponent"));
 	CombatStatusComponent = CreateDefaultSubobject<UCombatStatusComponent>(TEXT("CombatStatusComponent"));
@@ -361,7 +361,6 @@ bool AMyCharacter::HandleRewardPickup(AActor* InteractedActor, const UItemDefini
 	if (UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass())
 	{
 		const bool bIsLegacyPersonalEventClass =
-			LogicClass->IsChildOf(UItemMalice::StaticClass()) ||
 			LogicClass->IsChildOf(UItemTimeKnife::StaticClass());
 
 		if (LogicClass->IsChildOf(UBasePersonalEvent::StaticClass()) || bIsLegacyPersonalEventClass)
@@ -400,7 +399,7 @@ bool AMyCharacter::HandleBasicItemPickup(AActor* InteractedActor, const UItemDef
 		return false;
 	}
 
-	if (!ItemManagerComponent || !QuickSlotComponent)
+	if (!ItemManagerComponent)
 	{
 		return false;
 	}
@@ -412,8 +411,6 @@ bool AMyCharacter::HandleBasicItemPickup(AActor* InteractedActor, const UItemDef
 		UE_LOG(LogTemp, Warning, TEXT("[Reward] Basic item pickup failed: add failed or slot full. item=%s"), *GetNameSafe(RewardDefinition));
 		return false;
 	}
-
-	QuickSlotComponent->NotifyItemAddedToSlot(AddedSlotIndex, RewardDefinition);
 
 	UClass* LogicClass = RewardDefinition ? RewardDefinition->ResolveRewardLogicClass() : nullptr;
 	const bool bIsShieldItem =
@@ -438,11 +435,7 @@ bool AMyCharacter::HandlePersonalEventPickup(AActor* InteractedActor, const UIte
 
 	UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass();
 	UClass* PersonalEventClass = LogicClass;
-	if (LogicClass && LogicClass->IsChildOf(UItemMalice::StaticClass()))
-	{
-		PersonalEventClass = UPersonalEventMalice::StaticClass();
-	}
-	else if (LogicClass && LogicClass->IsChildOf(UItemTimeKnife::StaticClass()))
+	if (LogicClass && LogicClass->IsChildOf(UItemTimeKnife::StaticClass()))
 	{
 		PersonalEventClass = UPersonalEventTimeKnife::StaticClass();
 	}

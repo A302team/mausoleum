@@ -3,7 +3,6 @@
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
 #include "GameData/ItemTypes.h"
-#include "GamePlay/Items/BaseItem.h"
 #include "ItemDefinition.generated.h"
 
 class UTexture2D;
@@ -33,10 +32,6 @@ public:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Reward|Logic")
     TSubclassOf<UObject> RewardLogicClass;
 
-    // Legacy field kept for asset migration compatibility.
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Reward|Legacy", meta=(DeprecatedProperty, DeprecationMessage="Use RewardLogicClass"))
-    TSubclassOf<UBaseItem> ItemLogicClass;
-
     // Basic item parameters
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Reward|BasicItem")
     EItemUseMode UseMode = EItemUseMode::SelfCast;
@@ -65,6 +60,6 @@ public:
 
     UClass* ResolveRewardLogicClass() const
     {
-        return RewardLogicClass ? RewardLogicClass.Get() : ItemLogicClass.Get();
+        return RewardLogicClass.Get();
     }
 };

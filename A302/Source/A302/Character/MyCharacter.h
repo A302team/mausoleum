@@ -15,6 +15,7 @@ class UUserWidget;
 class ADummyCharacter;
 class UKnifeAutoTestComponent;
 class UInteractComponent;
+class UItemTargetingComponent;
 class UMaliceComponent;
 class UQuickSlotComponent;
 class UPrivateVoiceChatComponent;
@@ -161,6 +162,9 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|QuickSlot", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UQuickSlotComponent> QuickSlotComponent = nullptr;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|Targeting", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UItemTargetingComponent> ItemTargetingComponent = nullptr;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UCombatStatusComponent> CombatStatusComponent = nullptr;

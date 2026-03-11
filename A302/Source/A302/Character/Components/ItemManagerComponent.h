@@ -8,7 +8,11 @@ class UBaseItem;
 class UItemActionFactory;
 class UItemDefinition;
 class UItemInstance;
+class UItemTargetingComponent;
 struct FItemTargetData;
+
+DECLARE_MULTICAST_DELEGATE_TwoParams(FDelegateAddItem, int32, const UItemDefinition*);
+DECLARE_MULTICAST_DELEGATE_OneParam(FDelegateRemoveItem, int32);
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class A302_API UItemManagerComponent : public UActorComponent
@@ -38,7 +42,6 @@ public:
 	bool TryUseItemAtSlot(
 		int32 SlotIndex,
 		ACharacter* Instigator,
-		const FItemTargetData& TargetData,
 		UItemDefinition*& OutUsedItemDefinition,
 		bool& bOutBecameEmpty
 	);
@@ -50,6 +53,9 @@ public:
 		int32& OutUsedSlotIndex,
 		bool& bOutBecameEmpty
 	);
+
+	FDelegateAddItem DelegateAddItem;
+	FDelegateRemoveItem DelegateRemoveItem;
 
 private:
 	bool IsAutoUseItem(const UItemDefinition* ItemDefinition) const;
@@ -65,4 +71,7 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UItemActionFactory> ItemActionFactory = nullptr;
+
+	UPROPERTY()
+	TObjectPtr<UItemTargetingComponent> ItemTargetingComponent = nullptr;
 };
