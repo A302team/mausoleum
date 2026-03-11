@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "Components/StaticMeshComponent.h"
-#include "GamePlay/Actor/KnifeActor.h"
+#include "GamePlay/Actor/WeaponActor.h"
 #include "InputActionValue.h"
 #include "Interface/InteractableInterface.h"
 #include "MyCharacter.generated.h"
@@ -51,9 +51,20 @@ public:
 
 	void SetQTEInputMode(bool bIsQTE);
 
-		// 무기 표시
-		void ShowKnife();
-    void HideKnife();
+	// 애니메이션 무기 표시/비표시 
+	void ShowWeapon();
+  void HideWeapon();
+	void EquipWeapon(TSubclassOf<AWeaponActor> WeaponClass);
+
+	// 무기 액터 참조 (애니메이션 재생 시 위치 참조용)
+	UPROPERTY(EditAnywhere, Category="Weapon")
+  TSubclassOf<AWeaponActor> KnifeActorClass;
+
+  UPROPERTY(EditAnywhere, Category="Weapon")
+  TSubclassOf<AWeaponActor> TimeKnifeActorClass;
+
+	UPROPERTY()
+	AWeaponActor* CurrentWeaponActor;
 
 protected:
 	virtual void BeginPlay() override;
@@ -122,6 +133,7 @@ protected:
 	void BP_OnPrimaryItemUsed(UItemDefinition* UsedItemDefinition, int32 UsedSlotNumberOneBased);
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
 
 private:
 	UFUNCTION()
@@ -204,16 +216,4 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|Timed", meta = (AllowPrivateAccess = "true"))
 	FName ActiveTimedKnifeItemId = NAME_None;
-	
-	// 무기 액터 참조 (애니메이션 재생 시 위치 참조용)
-	UPROPERTY()
-	AKnifeActor* KnifeActor = nullptr;
-
-	UPROPERTY(EditAnywhere, Category="Weapon")
-	TSubclassOf<AKnifeActor> KnifeActorClass;
-
-	FTimerHandle TimedKnifeTimerHandle;
-
-	UPROPERTY(VisibleAnywhere, Category = "Item|Test")
-	int32 AutoAttackCount = 0;
 };

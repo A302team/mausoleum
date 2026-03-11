@@ -1,6 +1,6 @@
-#include "GamePlay/Actor/KnifeActor.h"
+#include "GamePlay/Actor/TimeKnifeActor.h"
 
-AKnifeActor::AKnifeActor()
+ATimeKnifeActor::ATimeKnifeActor()
 {
     PrimaryActorTick.bCanEverTick = false;
     SetActorHiddenInGame(true);
