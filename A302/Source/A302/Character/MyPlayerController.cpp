@@ -459,23 +459,28 @@ void AMyPlayerController::Server_ResolvePersonalEvent_Implementation(FName Event
 {
 	AMyCharacter* MyChar = Cast<AMyCharacter>(GetPawn());
 	if (!MyChar) return;
-	
+
+	// 만약 플레이어가 취소를 눌렀다면 여기서 조기 종료
+	if (!bIsConfirmed)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Event] %s 거절됨."), *EventID.ToString());
+		ActivePersonalEvent = nullptr;
+		return;
+	}
+
 	if (UBasePersonalEvent* TargetEvent = Cast<UBasePersonalEvent>(ActivePersonalEvent))
 	{
 		if (TargetEvent->EventID == EventID)
 		{
-			if (bIsConfirmed)
-			{
-				TargetEvent->ExecuteEvent(MyChar);
-				UE_LOG(LogTemp, Warning, TEXT("[Event] %s 수락됨! 로직 실행 시작."), *EventID.ToString());
-			}
-			else
-			{
-				UE_LOG(LogTemp, Warning, TEXT("[Event] %s 거절됨. 아무 일도 일어나지 않음."), *EventID.ToString());
-			}
+			TargetEvent->OnEventResolved(MyChar, bIsConfirmed);
+			UE_LOG(LogTemp, Warning, TEXT("[Event] %s 최종 수락 완료! 타이머 및 아이템 지급 시작."), *EventID.ToString());
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("[Event] ID 불일치! 타겟: %s / 요청: %s"), *TargetEvent->EventID.ToString(), *EventID.ToString());
 		}
 	}
-	
-	// 이벤트 초기화	
+    
+	// 이벤트 캐시 초기화
 	ActivePersonalEvent = nullptr;
 }
