@@ -16,6 +16,7 @@ class A302_API UPersonalEventTimeKnife : public UBasePersonalEvent
 
 public:
 	virtual void ExecuteEvent_Implementation(AMyCharacter* InstigatorCharacter) override;
+	virtual void OnEventResolved(AMyCharacter* InstigatorCharacter, bool bIsConfirmed) override;
 	void NotifyKillConfirmed();
 	void CancelCountdown();
 	virtual void BeginDestroy() override;

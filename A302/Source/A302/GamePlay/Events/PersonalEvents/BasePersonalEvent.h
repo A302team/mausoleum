@@ -14,6 +14,7 @@ class A302_API UBasePersonalEvent : public UBaseEvent
 
 public:
 	void InitializeContext(const URewardDefinition* InRewardDefinition, AActor* InSourceActor);
+	virtual void OnEventResolved(class AMyCharacter* InstigatorCharacter, bool bIsConfirmed) {}
 
 protected:
 	const URewardDefinition* GetRewardDefinition() const { return RewardDefinition; }
