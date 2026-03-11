@@ -651,6 +651,9 @@ void AMyCharacter::OnAttack(const FInputActionValue& Value)
 	{
 		BP_OnPrimaryItemUsed(UsedItemDefinition, UsedSlotIndex + 1);
 
+		UClass* UsedLogicClass = UsedItemDefinition ? UsedItemDefinition->ResolveRewardLogicClass() : nullptr;
+		const bool bUsedTimedKillKnife = UsedLogicClass && UsedLogicClass->IsChildOf(UItemTimeKnife::StaticClass());
+
 		if (UMyAnimInstance* Anim = Cast<UMyAnimInstance>(GetMesh()->GetAnimInstance()))
 		{
 			if (bUsedTimedKillKnife)
