@@ -1,7 +1,6 @@
 #include "GamePlay/Events/PersonalEvents/PersonalEventTimeKnife.h"
 
 #include "Character/Components/ItemManagerComponent.h"
-#include "Character/Components/QuickSlotComponent.h"
 #include "Character/MyCharacter.h"
 #include "Character/MyPlayerController.h"
 #include "GameData/ItemDefinition.h"
@@ -37,11 +36,6 @@ void UPersonalEventTimeKnife::ExecuteEvent_Implementation(AMyCharacter* Instigat
 		UE_LOG(LogTemp, Warning, TEXT("[PersonalEventTimeKnife] Failed to grant timed knife: add failed or slot full."));
 		OwnerCharacter = nullptr;
 		return;
-	}
-
-	if (UQuickSlotComponent* QuickSlotComponent = InstigatorCharacter->FindComponentByClass<UQuickSlotComponent>())
-	{
-		QuickSlotComponent->NotifyItemAddedToSlot(AddedSlotIndex, GrantedKnifeDefinition);
 	}
 
 	GrantedItemId = GrantedKnifeDefinition->ItemId;
@@ -152,16 +146,7 @@ void UPersonalEventTimeKnife::StopCountdown(bool bHideTimer)
 			int32 RemovedSlotIndex = INDEX_NONE;
 			if (UItemManagerComponent* ItemManagerComponent = Character->FindComponentByClass<UItemManagerComponent>())
 			{
-				if (ItemManagerComponent->RemoveFirstItemByItemId(GrantedItemId, RemovedSlotIndex))
-				{
-					if (RemovedSlotIndex != INDEX_NONE)
-					{
-						if (UQuickSlotComponent* QuickSlotComponent = Character->FindComponentByClass<UQuickSlotComponent>())
-						{
-							QuickSlotComponent->NotifyItemRemovedFromSlot(RemovedSlotIndex);
-						}
-					}
-				}
+				ItemManagerComponent->RemoveFirstItemByItemId(GrantedItemId, RemovedSlotIndex);
 			}
 		}
 

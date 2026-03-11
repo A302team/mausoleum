@@ -2,17 +2,98 @@
 
 #include "Character/Components/ItemManagerComponent.h"
 #include "Character/MyCharacter.h"
+#include "Character/MyPlayerController.h"
 #include "Engine/Engine.h"
 #include "GameData/ItemDefinition.h"
 #include "GameData/ItemTypes.h"
-#include "GamePlay/Items/BaseItem.h"
-#include "GamePlay/Items/ItemKnife.h"
-#include "GamePlay/Items/ItemShield.h"
-#include "Interface/UsableItem.h"
+#include "GameFramework/Controller.h"
+
+AMyCharacter* UQuickSlotComponent::GetOwnerCharacter() const
+{
+	return Cast<AMyCharacter>(GetOwner());
+}
+
+UItemManagerComponent* UQuickSlotComponent::GetItemManager() const
+{
+	UQuickSlotComponent* MutableThis = const_cast<UQuickSlotComponent*>(this);
+	if (!MutableThis->ItemManagerComponent && MutableThis->GetOwner())
+	{
+		MutableThis->ItemManagerComponent = MutableThis->GetOwner()->FindComponentByClass<UItemManagerComponent>();
+	}
+
+	return MutableThis->ItemManagerComponent;
+}
+
+bool UQuickSlotComponent::IsValidQuickSlotIndex(int32 SlotIndex) const
+{
+	const UItemManagerComponent* ItemManager = GetItemManager();
+	return ItemManager && ItemManager->IsValidSlotIndex(SlotIndex);
+}
+
+void UQuickSlotComponent::InitializeQuickSlots()
+{
+	if (UItemManagerComponent* ItemManager = GetItemManager())
+	{
+		ItemManager->InitializeSlots(MaxQuickSlotCount);
+	}
+
+	SelectedSlotIndex = INDEX_NONE;
+}
+
+void UQuickSlotComponent::UpdateQuickSlotSelectionUI() const
+{
+	AMyCharacter* OwnerCharacter = GetOwnerCharacter();
+	if (!OwnerCharacter)
+	{
+		return;
+	}
+
+	AController* RawController = OwnerCharacter->GetController();
+	AMyPlayerController* MyPlayerController = Cast<AMyPlayerController>(RawController);
+	if (!MyPlayerController)
+	{
+		return;
+	}
+
+	MyPlayerController->UpdateQuickSlotSelectionVisual(SelectedSlotIndex);
+}
+
+void UQuickSlotComponent::UpdateQuickSlotNameUI(int32 SlotIndex, const UItemDefinition* ItemDefinition) const
+{
+	AMyCharacter* OwnerCharacter = GetOwnerCharacter();
+	if (!OwnerCharacter)
+	{
+		return;
+	}
+
+	AController* RawController = OwnerCharacter->GetController();
+	AMyPlayerController* MyPlayerController = Cast<AMyPlayerController>(RawController);
+	if (!MyPlayerController)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[QuickSlot] UI skipped: PlayerController is not AMyPlayerController."));
+		return;
+	}
+
+	if (!ItemDefinition)
+	{
+		MyPlayerController->UpdateQuickSlotItemVisual(SlotIndex, FText::GetEmpty(), nullptr);
+		return;
+	}
+
+	const FText ItemName = ItemDefinition->DisplayName.IsEmpty()
+		? FText::FromName(ItemDefinition->ItemId)
+		: ItemDefinition->DisplayName;
+
+	if (!MyPlayerController->UpdateQuickSlotItemVisual(SlotIndex, ItemName, ItemDefinition->Icon))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[QuickSlot] Failed to refresh UI for slot %d."), SlotIndex + 1);
+		LogAndScreenQuickSlotMessage(TEXT("[QuickSlot] UI update failed. Check QuickSlot widget names."), FColor::Orange, 2.0f);
+	}
+}
 
 UQuickSlotComponent::UQuickSlotComponent()
 {
-	PrimaryComponentTick.bCanEverTick = true;
+	PrimaryComponentTick.bCanEverTick = false;
 }
 
 void UQuickSlotComponent::BeginPlay()
@@ -24,19 +105,27 @@ void UQuickSlotComponent::BeginPlay()
 	{
 		UE_LOG(LogTemp, Error, TEXT("[QuickSlot] ItemManagerComponent is missing on owner."));
 	}
+	else
+	{
+		ItemManagerComponent->DelegateAddItem.RemoveAll(this);
+		ItemManagerComponent->DelegateRemoveItem.RemoveAll(this);
+		ItemManagerComponent->DelegateAddItem.AddUObject(this, &UQuickSlotComponent::NotifyItemAddedToSlot);
+		ItemManagerComponent->DelegateRemoveItem.AddUObject(this, &UQuickSlotComponent::NotifyItemRemovedFromSlot);
+	}
 
 	InitializeQuickSlots();
 	UpdateQuickSlotSelectionUI();
 }
 
-void UQuickSlotComponent::TickComponent(
-	float DeltaTime,
-	ELevelTick TickType,
-	FActorComponentTickFunction* ThisTickFunction
-)
+void UQuickSlotComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-	UpdateAttackRangeDebugState();
+	if (ItemManagerComponent)
+	{
+		ItemManagerComponent->DelegateAddItem.RemoveAll(this);
+		ItemManagerComponent->DelegateRemoveItem.RemoveAll(this);
+	}
+
+	Super::EndPlay(EndPlayReason);
 }
 
 bool UQuickSlotComponent::SelectQuickSlotFromAxisValue(float AxisValue)
@@ -98,16 +187,9 @@ bool UQuickSlotComponent::TryUseSelectedItem(UItemDefinition*& OutUsedItemDefini
 	}
 
 	UItemDefinition* ItemDefinition = ItemManager->GetItemDefinitionAtSlot(SelectedSlotIndex);
-	UBaseItem* ItemLogic = ItemManager->GetItemLogicAtSlot(SelectedSlotIndex);
-	if (!ItemDefinition || !ItemLogic)
+	if (!ItemDefinition)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[QuickSlot] Use failed: selected slot %d has no usable item."), SelectedSlotIndex + 1);
-		return false;
-	}
-
-	if (!ItemLogic->GetClass()->ImplementsInterface(UUsableItem::StaticClass()))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[QuickSlot] Use failed: item logic does not implement IUsableItem."));
 		return false;
 	}
 
@@ -117,54 +199,21 @@ bool UQuickSlotComponent::TryUseSelectedItem(UItemDefinition*& OutUsedItemDefini
 		return false;
 	}
 
-	UClass* LogicClass = ItemDefinition->ResolveRewardLogicClass();
-	const bool bIsShieldLogicClass = LogicClass && LogicClass->IsChildOf(UItemShield::StaticClass());
-	const bool bIsKnifeLogicClass = LogicClass && LogicClass->IsChildOf(UItemKnife::StaticClass());
-
-	const bool bAutoUseOnly = ItemDefinition->AutoUse || bIsShieldLogicClass;
-	if (bAutoUseOnly)
-	{
-		LogAndScreenQuickSlotMessage(TEXT("[QuickSlot] This slot is AutoUse only."), FColor::Orange, 1.2f);
-		return false;
-	}
-
-	FItemTargetData TargetData;
-	const bool bNeedsTarget = ItemDefinition->UseMode == EItemUseMode::Targeted || bIsKnifeLogicClass;
-	if (bNeedsTarget)
-	{
-		FVector TargetLocation = FVector::ZeroVector;
-		AActor* TargetActor = FindTargetActorForUse(TargetLocation);
-		TargetData.TargetActor = TargetActor;
-		TargetData.TargetLocation = TargetLocation;
-
-		if (!TargetActor)
-		{
-			LogAndScreenQuickSlotMessage(TEXT("[QuickSlot] No attack target found."), FColor::Orange, 1.0f);
-			return false;
-		}
-	}
-
 	bool bBecameEmpty = false;
-	if (!ItemManager->TryUseItemAtSlot(SelectedSlotIndex, OwnerCharacter, TargetData, OutUsedItemDefinition, bBecameEmpty))
+	if (!ItemManager->TryUseItemAtSlot(SelectedSlotIndex, OwnerCharacter, OutUsedItemDefinition, bBecameEmpty))
 	{
 		UE_LOG(
 			LogTemp,
 			Warning,
-			TEXT("[QuickSlot] Use failed for slot %d. Item=%s UseMode=%d Logic=%s"),
+			TEXT("[QuickSlot] Use failed for slot %d. Item=%s UseMode=%d"),
 			SelectedSlotIndex + 1,
 			*GetNameSafe(ItemDefinition),
-			static_cast<int32>(ItemDefinition->UseMode),
-			*GetNameSafe(LogicClass)
+			static_cast<int32>(ItemDefinition->UseMode)
 		);
 		return false;
 	}
 
 	OutUsedSlotIndex = SelectedSlotIndex;
-	if (bBecameEmpty)
-	{
-		NotifyItemRemovedFromSlot(SelectedSlotIndex);
-	}
-
 	return true;
 }
 
@@ -197,11 +246,6 @@ bool UQuickSlotComponent::TryAutoUseItem()
 		1.2f
 	);
 
-	if (bBecameEmpty)
-	{
-		NotifyItemRemovedFromSlot(UsedSlotIndex);
-	}
-
 	return true;
 }
 
@@ -219,10 +263,6 @@ bool UQuickSlotComponent::RemoveFirstItemByItemId(const FName& ItemId)
 		return false;
 	}
 
-	if (RemovedSlotIndex != INDEX_NONE)
-	{
-		NotifyItemRemovedFromSlot(RemovedSlotIndex);
-	}
 	return true;
 }
 
@@ -285,25 +325,17 @@ bool UQuickSlotComponent::TryAddItemByDefinition(UItemDefinition* ItemDefinition
 		return false;
 	}
 
-	const int32 EmptySlotIndex = FindEmptyQuickSlotIndex();
-	if (EmptySlotIndex == INDEX_NONE)
+	UItemManagerComponent* ItemManager = GetItemManager();
+	if (!ItemManager)
+	{
+		return false;
+	}
+
+	int32 AddedSlotIndex = INDEX_NONE;
+	if (!ItemManager->TryAddItemToFirstEmptySlot(ItemDefinition, PickupStackCount, AddedSlotIndex))
 	{
 		LogAndScreenQuickSlotMessage(TEXT("[QuickSlot] Slot is full."), FColor::Orange, 2.0f);
 		return false;
-	}
-
-	if (!BuildQuickSlotItemForIndex(EmptySlotIndex, ItemDefinition))
-	{
-		LogAndScreenQuickSlotMessage(TEXT("[QuickSlot] AddItem failed: item build failed."), FColor::Orange, 2.0f);
-		return false;
-	}
-
-	UpdateQuickSlotNameUI(EmptySlotIndex, ItemDefinition);
-
-	if (SelectedSlotIndex == INDEX_NONE)
-	{
-		SelectedSlotIndex = EmptySlotIndex;
-		UpdateQuickSlotSelectionUI();
 	}
 
 	const FString PickedName = ItemDefinition->DisplayName.IsEmpty()
@@ -311,7 +343,7 @@ bool UQuickSlotComponent::TryAddItemByDefinition(UItemDefinition* ItemDefinition
 		: ItemDefinition->DisplayName.ToString();
 
 	LogAndScreenQuickSlotMessage(
-		FString::Printf(TEXT("[QuickSlot] Added '%s' -> Slot %d"), *PickedName, EmptySlotIndex + 1),
+		FString::Printf(TEXT("[QuickSlot] Added '%s' -> Slot %d"), *PickedName, AddedSlotIndex + 1),
 		FColor::Green,
 		2.0f
 	);

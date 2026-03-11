@@ -17,11 +17,7 @@ public:
 	UQuickSlotComponent();
 
 	virtual void BeginPlay() override;
-	virtual void TickComponent(
-		float DeltaTime,
-		ELevelTick TickType,
-		FActorComponentTickFunction* ThisTickFunction
-	) override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	bool SelectQuickSlotFromAxisValue(float AxisValue);
 	bool SelectQuickSlotByNumber(int32 SlotNumberOneBased);
@@ -38,14 +34,9 @@ public:
 private:
 	AMyCharacter* GetOwnerCharacter() const;
 	UItemManagerComponent* GetItemManager() const;
-	int32 FindEmptyQuickSlotIndex() const;
 	bool IsValidQuickSlotIndex(int32 SlotIndex) const;
 	void InitializeQuickSlots();
-	void ClearQuickSlot(int32 SlotIndex);
 	void UpdateQuickSlotSelectionUI() const;
-	AActor* FindTargetActorForUse(FVector& OutTargetLocation) const;
-	bool BuildQuickSlotItemForIndex(int32 SlotIndex, UItemDefinition* ItemDefinition);
-	void UpdateAttackRangeDebugState();
 	void UpdateQuickSlotNameUI(int32 SlotIndex, const UItemDefinition* ItemDefinition) const;
 	void LogAndScreenQuickSlotMessage(
 		const FString& Message,
@@ -59,14 +50,9 @@ private:
 	UPROPERTY(EditAnywhere, Category = "Item|QuickSlot", meta = (ClampMin = "1"))
 	int32 PickupStackCount = 1;
 
-	UPROPERTY(EditAnywhere, Category = "Item|QuickSlot", meta = (ClampMin = "1.0"))
-	float UseTraceDistance = 300.f;
-
 	UPROPERTY(VisibleInstanceOnly, Category = "Item|QuickSlot")
 	int32 SelectedSlotIndex = INDEX_NONE;
 
 	UPROPERTY()
 	TObjectPtr<UItemManagerComponent> ItemManagerComponent = nullptr;
-
-	bool bWasAttackTargetInRange = false;
 };
