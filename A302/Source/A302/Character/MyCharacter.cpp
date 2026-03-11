@@ -505,7 +505,18 @@ bool AMyCharacter::HandlePersonalEventPickup(AActor* InteractedActor, const URew
 
 	PersonalEvent->EventID = RewardDefinition->ItemId;
 	PersonalEvent->InitializeContext(RewardDefinition, InteractedActor);
-	PersonalEvent->ExecuteEvent(this);
+	// PersonalEvent->ExecuteEvent(this);
+	if (AMyPlayerController* PC = Cast<AMyPlayerController>(GetController()))
+	{
+		PC->ActivePersonalEvent = PersonalEvent;
+       
+		PC->Client_ShowPersonalEvent(
+		   RewardDefinition->ItemId, 
+		   RewardDefinition->DisplayName, 
+		   RewardDefinition->Description, 
+		   true // 취소 가능 여부
+		);
+	}
 	return true;
 }
 
