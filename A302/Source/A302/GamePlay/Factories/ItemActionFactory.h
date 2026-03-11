@@ -13,7 +13,7 @@ class A302_API UItemActionFactory : public UObject
     GENERATED_BODY()
 
 public:
-    // Instance -> Definition.ItemLogicClass -> NewObject 로 생성
+    // Instance -> Definition.RewardLogicClass -> NewObject
     UFUNCTION(BlueprintCallable, Category="Item")
     UBaseItem* CreateLogic(UObject* Outer, UItemInstance* Instance) const;
 };
