@@ -1,28 +1,36 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #include "Character/MyCharacter.h"
+
+#include "Animation/MyAnimInstance.h"
 #include "Character/Components/CombatStatusComponent.h"
 #include "Character/Components/InteractComponent.h"
+#include "Character/Components/ItemManagerComponent.h"
+#include "Character/Components/ItemTargetingComponent.h"
 #include "Character/Components/KnifeAutoTestComponent.h"
 #include "Character/Components/MaliceComponent.h"
 #include "Character/Components/QuickSlotComponent.h"
 #include "Character/MyPlayerController.h"
 #include "Engine/Engine.h"
-#include "Voice/PrivateVoiceChatComponent.h"
 #include "EnhancedInputComponent.h"
-#include "GameData/ItemDefinition.h"
 #include "EnhancedInputSubsystems.h"
+#include "GameData/Items/ItemDefinition.h"
+#include "GameData/Events/PersonalEvents/PersonalEventMaliceDefinition.h"
+#include "GameData/Events/PersonalEvents/PersonalEventTimeKnifeDefinition.h"
+#include "GameData/RewardDefinition.h"
+#include "GameData/RewardTypes.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/PlayerController.h"
-#include "GamePlay/Items/ItemMalice.h"
+#include "GamePlay/Events/GroupEvents/BaseGroupEvent.h"
+#include "GamePlay/Events/PersonalEvents/BasePersonalEvent.h"
+#include "GamePlay/Events/PersonalEvents/PersonalEventMalice.h"
+#include "GamePlay/Events/PersonalEvents/PersonalEventTimeKnife.h"
 #include "GamePlay/Items/ItemShield.h"
 #include "GamePlay/Items/ItemTimeKnife.h"
+#include "InputAction.h"
 #include "InputCoreTypes.h"
 #include "Net/UnrealNetwork.h"
-#include "InputAction.h"
 #include "Object/BaseInteractable.h"
-#include "Animation/MyAnimInstance.h"
+#include "Voice/PrivateVoiceChatComponent.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogMyInput, Log, All);
 
@@ -42,7 +50,11 @@ AMyCharacter::AMyCharacter()
 {
 	PrimaryActorTick.bCanEverTick = false;
 	bReplicates = true;
-    SetReplicateMovement(true);
+
+	SetReplicateMovement(true);
+
+	ItemManagerComponent = CreateDefaultSubobject<UItemManagerComponent>(TEXT("ItemManagerComponent"));
+	ItemTargetingComponent = CreateDefaultSubobject<UItemTargetingComponent>(TEXT("ItemTargetingComponent"));
 
 	// 무기 메쉬 컴포넌트 생성 및 설정
 	SwordMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("SwordMesh"));
@@ -85,7 +97,7 @@ void AMyCharacter::BeginPlay()
 
 void AMyCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
-    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 }
 
 void AMyCharacter::HandleShieldChanged(int32 NewCount)
@@ -132,102 +144,46 @@ float AMyCharacter::TakeDamage(
 
 void AMyCharacter::NotifyKilledCharacter()
 {
-	CompleteTimedKnifeObjective();
-}
-
-void AMyCharacter::CompleteTimedKnifeObjective()
-{
-	if (!bHasActiveTimedKnife)
+	if (ActiveTimedKnifeEvent && bTimedKnifeAttackInProgress)
 	{
-		return;
-	}
-
-	if (QuickSlotComponent && !ActiveTimedKnifeItemId.IsNone())
-	{
-		QuickSlotComponent->RemoveFirstItemByItemId(ActiveTimedKnifeItemId);
-	}
-
-	LogAndScreenCharacter(TEXT("[MyCharacter] Timed knife success"), FColor::Green, 2.0f);
-	ClearTimedKnifeState(true);
-}
-
-void AMyCharacter::StartTimedKnifeCountdown(const UItemDefinition* TimedKnifeDefinition)
-{
-	if (!TimedKnifeDefinition)
-	{
-		return;
-	}
-
-	const float Duration = FMath::Max(1.0f, TimedKnifeDefinition->TimedKillDuration);
-	bHasActiveTimedKnife = true;
-	TimedKnifeRemainingSeconds = Duration;
-	ActiveTimedKnifeItemId = TimedKnifeDefinition->ItemId;
-
-	if (AMyPlayerController* MyPlayerController = Cast<AMyPlayerController>(GetController()))
-	{
-		MyPlayerController->UpdateItemTimerText(TimedKnifeRemainingSeconds);
-		MyPlayerController->SetItemTimerVisible(true);
-	}
-
-	if (UWorld* World = GetWorld())
-	{
-		World->GetTimerManager().ClearTimer(TimedKnifeTimerHandle);
-		World->GetTimerManager().SetTimer(
-			TimedKnifeTimerHandle,
-			this,
-			&AMyCharacter::TickTimedKnifeCountdown,
-			1.0f,
-			true
-		);
+		ActiveTimedKnifeEvent->NotifyKillConfirmed();
 	}
 }
 
-void AMyCharacter::TickTimedKnifeCountdown()
+void AMyCharacter::NotifyTimedKnifeAttackSucceeded()
 {
-	if (!bHasActiveTimedKnife)
+	if (ActiveTimedKnifeEvent)
 	{
-		return;
+		ActiveTimedKnifeEvent->NotifyKillConfirmed();
+	}
+}
+
+void AMyCharacter::RegisterActiveTimedKnifeEvent(UPersonalEventTimeKnife* EventInstance)
+{
+	if (ActiveTimedKnifeEvent && ActiveTimedKnifeEvent != EventInstance)
+	{
+		ActiveTimedKnifeEvent->CancelCountdown();
 	}
 
-	TimedKnifeRemainingSeconds = FMath::Max(0.0f, TimedKnifeRemainingSeconds - 1.0f);
+	ActiveTimedKnifeEvent = EventInstance;
+}
 
-	if (AMyPlayerController* MyPlayerController = Cast<AMyPlayerController>(GetController()))
+void AMyCharacter::ClearActiveTimedKnifeEvent(UPersonalEventTimeKnife* EventInstance)
+{
+	if (!EventInstance || ActiveTimedKnifeEvent == EventInstance)
 	{
-		MyPlayerController->UpdateItemTimerText(TimedKnifeRemainingSeconds);
+		ActiveTimedKnifeEvent = nullptr;
 	}
+}
 
-	if (TimedKnifeRemainingSeconds > 0.0f)
-	{
-		return;
-	}
-
-	if (QuickSlotComponent && !ActiveTimedKnifeItemId.IsNone())
-	{
-		QuickSlotComponent->RemoveFirstItemByItemId(ActiveTimedKnifeItemId);
-	}
-
-	ClearTimedKnifeState(true);
+void AMyCharacter::ForceDeadByPersonalEvent()
+{
 	HandleDead();
 }
 
-void AMyCharacter::ClearTimedKnifeState(bool bHideTimer)
+void AMyCharacter::SetTimedKnifeAttackInProgress(bool bInProgress)
 {
-	bHasActiveTimedKnife = false;
-	TimedKnifeRemainingSeconds = 0.0f;
-	ActiveTimedKnifeItemId = NAME_None;
-
-	if (UWorld* World = GetWorld())
-	{
-		World->GetTimerManager().ClearTimer(TimedKnifeTimerHandle);
-	}
-
-	if (bHideTimer)
-	{
-		if (AMyPlayerController* MyPlayerController = Cast<AMyPlayerController>(GetController()))
-		{
-			MyPlayerController->SetItemTimerVisible(false);
-		}
-	}
+	bTimedKnifeAttackInProgress = bInProgress;
 }
 
 void AMyCharacter::SetQTEInputMode(bool bIsQTE)
@@ -238,30 +194,36 @@ void AMyCharacter::SetQTEInputMode(bool bIsQTE)
 		{
 			if (bIsQTE)
 			{
-				// 1. 기본 조작 차단 및 QTE 조작 활성화
-				if (IMC_Default) Subsystem->RemoveMappingContext(IMC_Default);
-				if (IMC_QTE) Subsystem->AddMappingContext(IMC_QTE, 1);
+				if (IMC_Default)
+				{
+					Subsystem->RemoveMappingContext(IMC_Default);
+				}
+				if (IMC_QTE)
+				{
+					Subsystem->AddMappingContext(IMC_QTE, 1);
+				}
 
-				// 2. 물리 관성 완벽 정지
 				if (GetCharacterMovement())
 				{
 					GetCharacterMovement()->StopMovementImmediately();
 					GetCharacterMovement()->SetMovementMode(MOVE_None);
 				}
-				UE_LOG(LogMyInput, Log, TEXT("[Input] QTE 전용 입력 모드로 전환 완료"));
 			}
 			else
 			{
-				// 1. QTE 조작 차단 및 기본 조작 복구
-				if (IMC_QTE) Subsystem->RemoveMappingContext(IMC_QTE);
-				if (IMC_Default) Subsystem->AddMappingContext(IMC_Default, 0);
+				if (IMC_QTE)
+				{
+					Subsystem->RemoveMappingContext(IMC_QTE);
+				}
+				if (IMC_Default)
+				{
+					Subsystem->AddMappingContext(IMC_Default, 0);
+				}
 
-				// 2. 물리 이동 복구
 				if (GetCharacterMovement())
 				{
 					GetCharacterMovement()->SetMovementMode(MOVE_Walking);
 				}
-				UE_LOG(LogMyInput, Log, TEXT("[Input] 기본 입력 모드로 복구 완료"));
 			}
 		}
 	}
@@ -274,11 +236,12 @@ void AMyCharacter::HandleDead()
 		return;
 	}
 
-	ClearTimedKnifeState(true);
 	bIsDead = true;
 
-	// Death 애니메이션 재생
-  GetCharacterMovement()->DisableMovement();
+	if (GetCharacterMovement())
+	{
+		GetCharacterMovement()->DisableMovement();
+	}
 
 	if (UMyAnimInstance* Anim = Cast<UMyAnimInstance>(GetMesh()->GetAnimInstance()))
 	{
@@ -299,18 +262,6 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 
 	UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(PlayerInputComponent);
 	UE_LOG(LogMyInput, Warning, TEXT("[Input] EnhancedInputComponent cast: %s"), EIC ? TEXT("OK") : TEXT("FAILED"));
-
-	UE_LOG(
-		LogMyInput,
-		Warning,
-		TEXT("[Input] IA_Move=%s IA_Look=%s IA_Jump=%s IA_Interact=%s IA_ItemSelect=%s IA_Attack=%s"),
-		*GetNameSafe(IA_Move),
-		*GetNameSafe(IA_Look),
-		*GetNameSafe(IA_Jump),
-		*GetNameSafe(IA_Interact),
-		*GetNameSafe(IA_ItemSelect),
-		*GetNameSafe(IA_Attack)
-	);
 
 	if (!EIC)
 	{
@@ -335,11 +286,10 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	}
 
 	if (IA_Interact)
-	{     
+	{
 		EIC->BindAction(IA_Interact, ETriggerEvent::Triggered, this, &AMyCharacter::OnInteractHoldProgress);
 		EIC->BindAction(IA_Interact, ETriggerEvent::Completed, this, &AMyCharacter::OnInteractHoldCanceled);
 		EIC->BindAction(IA_Interact, ETriggerEvent::Canceled, this, &AMyCharacter::OnInteractHoldCanceled);
-        
 		EIC->BindAction(IA_Interact, ETriggerEvent::Started, this, &AMyCharacter::OnQTEInteractStarted);
 	}
 
@@ -366,15 +316,7 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 
 	if (AMyPlayerController* MyPlayerController = Cast<AMyPlayerController>(GetController()))
 	{
-		if (bHasActiveTimedKnife)
-		{
-			MyPlayerController->UpdateItemTimerText(TimedKnifeRemainingSeconds);
-			MyPlayerController->SetItemTimerVisible(true);
-		}
-		else
-		{
-			MyPlayerController->SetItemTimerVisible(false);
-		}
+		MyPlayerController->SetItemTimerVisible(false);
 	}
 
 	if (IA_VoiceChat)
@@ -386,7 +328,7 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	{
 		EIC->BindAction(IA_ESC, ETriggerEvent::Started, this, &AMyCharacter::OnEscPressed);
 	}
-    
+
 	if (IA_QTE_Input)
 	{
 		EIC->BindAction(IA_QTE_Input, ETriggerEvent::Started, this, &AMyCharacter::OnQTEInput);
@@ -423,78 +365,217 @@ void AMyCharacter::OnJumpReleased(const FInputActionValue& Value)
 	StopJumping();
 }
 
+bool AMyCharacter::HandleRewardPickup(AActor* InteractedActor, const URewardDefinition* RewardDefinition)
+{
+	if (!InteractedActor || !RewardDefinition)
+	{
+		return false;
+	}
+
+	ERewardCategory EffectiveCategory = RewardDefinition->RewardCategory;
+	if (UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass())
+	{
+		const bool bIsLegacyPersonalEventClass =
+			LogicClass->IsChildOf(UItemTimeKnife::StaticClass());
+
+		if (LogicClass->IsChildOf(UBasePersonalEvent::StaticClass()) || bIsLegacyPersonalEventClass)
+		{
+			EffectiveCategory = ERewardCategory::PersonalEvent;
+		}
+		else if (LogicClass->IsChildOf(UBaseGroupEvent::StaticClass()))
+		{
+			EffectiveCategory = ERewardCategory::GroupEvent;
+		}
+	}
+
+	switch (EffectiveCategory)
+	{
+	case ERewardCategory::BasicItem:
+	{
+		const UItemDefinition* ItemDefinition = Cast<UItemDefinition>(const_cast<URewardDefinition*>(RewardDefinition));
+		if (!ItemDefinition)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[Reward] Basic item pickup failed: reward is not UItemDefinition. item=%s"), *GetNameSafe(RewardDefinition));
+			return false;
+		}
+		return HandleBasicItemPickup(InteractedActor, ItemDefinition);
+	}
+
+	case ERewardCategory::PersonalEvent:
+		return HandlePersonalEventPickup(InteractedActor, RewardDefinition);
+
+	case ERewardCategory::GroupEvent:
+		return HandleGroupEventPickup(InteractedActor, RewardDefinition);
+
+	default:
+		UE_LOG(LogTemp, Warning, TEXT("[Reward] Unknown category. item=%s"), *GetNameSafe(RewardDefinition));
+		return false;
+	}
+}
+
+bool AMyCharacter::HandleBasicItemPickup(AActor* InteractedActor, const UItemDefinition* RewardDefinition)
+{
+	(void)InteractedActor;
+
+	if (!RewardDefinition || RewardDefinition->RewardCategory != ERewardCategory::BasicItem)
+	{
+		return false;
+	}
+
+	if (!ItemManagerComponent)
+	{
+		return false;
+	}
+
+	int32 AddedSlotIndex = INDEX_NONE;
+	UItemDefinition* MutableDefinition = const_cast<UItemDefinition*>(RewardDefinition);
+	if (!ItemManagerComponent->TryAddItemToFirstEmptySlot(MutableDefinition, 1, AddedSlotIndex))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Reward] Basic item pickup failed: add failed or slot full. item=%s"), *GetNameSafe(RewardDefinition));
+		return false;
+	}
+
+	UClass* LogicClass = RewardDefinition ? RewardDefinition->ResolveRewardLogicClass() : nullptr;
+	const bool bIsShieldItem =
+		RewardDefinition &&
+		LogicClass &&
+		LogicClass->IsChildOf(UItemShield::StaticClass());
+
+	if (bIsShieldItem && CombatStatusComponent)
+	{
+		CombatStatusComponent->AddShield(FMath::Max(1, RewardDefinition->Payload.BlockCount));
+	}
+
+	return true;
+}
+
+bool AMyCharacter::HandlePersonalEventPickup(AActor* InteractedActor, const URewardDefinition* RewardDefinition)
+{
+	if (!RewardDefinition)
+	{
+		return false;
+	}
+
+	UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass();
+	UClass* PersonalEventClass = nullptr;
+	if (LogicClass)
+	{
+		if (LogicClass->IsChildOf(UBasePersonalEvent::StaticClass()))
+		{
+			PersonalEventClass = LogicClass;
+		}
+		else if (LogicClass->IsChildOf(UItemTimeKnife::StaticClass()))
+		{
+			PersonalEventClass = UPersonalEventTimeKnife::StaticClass();
+		}
+	}
+
+	// Fallback for assets with PersonalEvent category but missing/misaligned RewardLogicClass.
+	if (!PersonalEventClass)
+	{
+		URewardDefinition* MutableRewardDefinition = const_cast<URewardDefinition*>(RewardDefinition);
+		if (Cast<UPersonalEventTimeKnifeDefinition>(MutableRewardDefinition))
+		{
+			PersonalEventClass = UPersonalEventTimeKnife::StaticClass();
+		}
+		else if (Cast<UPersonalEventMaliceDefinition>(MutableRewardDefinition))
+		{
+			PersonalEventClass = UPersonalEventMalice::StaticClass();
+		}
+	}
+
+	if (!PersonalEventClass || !PersonalEventClass->IsChildOf(UBasePersonalEvent::StaticClass()))
+	{
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("[Reward] Personal event pickup failed: invalid logic class. item=%s logic=%s mapped=%s"),
+			*GetNameSafe(RewardDefinition),
+			*GetNameSafe(LogicClass),
+			*GetNameSafe(PersonalEventClass)
+		);
+		return false;
+	}
+
+	UBasePersonalEvent* PersonalEvent = NewObject<UBasePersonalEvent>(this, PersonalEventClass);
+	if (!PersonalEvent)
+	{
+		return false;
+	}
+
+	PersonalEvent->EventID = RewardDefinition->ItemId;
+	PersonalEvent->InitializeContext(RewardDefinition, InteractedActor);
+	PersonalEvent->ExecuteEvent(this);
+	return true;
+}
+
+bool AMyCharacter::HandleGroupEventPickup(AActor* InteractedActor, const URewardDefinition* RewardDefinition)
+{
+	if (!RewardDefinition)
+	{
+		return false;
+	}
+
+	UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass();
+	if (!LogicClass || !LogicClass->IsChildOf(UBaseGroupEvent::StaticClass()))
+	{
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("[Reward] Group event pickup failed: invalid logic class. item=%s logic=%s"),
+			*GetNameSafe(RewardDefinition),
+			*GetNameSafe(LogicClass)
+		);
+		return false;
+	}
+
+	UBaseGroupEvent* GroupEvent = NewObject<UBaseGroupEvent>(this, LogicClass);
+	if (!GroupEvent)
+	{
+		return false;
+	}
+
+	GroupEvent->EventID = RewardDefinition->ItemId;
+	GroupEvent->InitializeContext(RewardDefinition, InteractedActor);
+	GroupEvent->ExecuteEvent(this);
+	return true;
+}
+
 void AMyCharacter::InteractionCompleteResult()
 {
 	AActor* InteractedActor = InteractionComponent->GetLastInteractedActor();
+	if (!InteractedActor)
+	{
+		return;
+	}
 
-	if (!InteractedActor) return;
-	
-	// 상호작용 애니메이션 재생
 	if (UMyAnimInstance* Anim = Cast<UMyAnimInstance>(GetMesh()->GetAnimInstance()))
 	{
 		Anim->PlayInteractMontage();
 	}
-	
+
 	ABaseInteractable* Interactable = Cast<ABaseInteractable>(InteractedActor);
-	if (!Interactable) return;
-	
-	Interactable->OnInteractionSuccess(this);
-	
-	if (!IsValid(Interactable) || Interactable->IsPendingKillPending()) return;
-	
-	const UItemDefinition* PickedItemDefinition = Interactable ? Interactable->GetItemDefinition() : nullptr;
-	const bool bIsMalicePickup =
-		PickedItemDefinition &&
-		(
-			PickedItemDefinition->bApplyMaliceOnPickup ||
-			(
-				PickedItemDefinition->ItemLogicClass &&
-				PickedItemDefinition->ItemLogicClass->IsChildOf(UItemMalice::StaticClass())
-			)
-		);
-
-	if (bIsMalicePickup)
+	if (!Interactable)
 	{
-		if (MaliceComponent)
-		{
-			const int32 MaliceAmount = PickedItemDefinition->bApplyMaliceOnPickup
-				? PickedItemDefinition->MaliceAmount
-				: 1;
-			MaliceComponent->AddMalice(FMath::Max(1, MaliceAmount));
-		}
-
-		InteractedActor->Destroy();
 		return;
 	}
 
-	if (QuickSlotComponent && QuickSlotComponent->TryPickupItemToQuickSlot(InteractedActor))
+	Interactable->OnInteractionSuccess(this);
+
+	if (!IsValid(Interactable) || Interactable->IsPendingKillPending())
+	{
+		return;
+	}
+
+	const URewardDefinition* RewardDefinition = Interactable->GetRewardDefinition();
+	if (!RewardDefinition)
+	{
+		return;
+	}
+
+	if (HandleRewardPickup(InteractedActor, RewardDefinition))
 	{
 		InteractedActor->Destroy();
-
-		const bool bIsShieldItem =
-			PickedItemDefinition &&
-			PickedItemDefinition->ItemLogicClass &&
-			PickedItemDefinition->ItemLogicClass->IsChildOf(UItemShield::StaticClass());
-
-		if (bIsShieldItem && CombatStatusComponent)
-		{
-			CombatStatusComponent->AddShield(FMath::Max(1, PickedItemDefinition->BlockCount));
-		}
-
-		const bool bIsTimedKillKnife =
-			PickedItemDefinition &&
-			(
-				PickedItemDefinition->bIsTimedKillKnife ||
-				(
-					PickedItemDefinition->ItemLogicClass &&
-					PickedItemDefinition->ItemLogicClass->IsChildOf(UItemTimeKnife::StaticClass())
-				)
-			);
-
-		if (bIsTimedKillKnife)
-		{
-			StartTimedKnifeCountdown(PickedItemDefinition);
-		}
 	}
 }
 
@@ -507,8 +588,6 @@ void AMyCharacter::OnItemSelect(const FInputActionValue& Value)
 
 	int32 SlotNumberOneBased = INDEX_NONE;
 
-	// Fallback path: read actual key states so slot selection still works even when
-	// IA_ItemSelect value scaling in IMC is not configured as 1~5.
 	if (APlayerController* PC = Cast<APlayerController>(GetController()))
 	{
 		if (PC->IsInputKeyDown(EKeys::One) || PC->IsInputKeyDown(EKeys::NumPadOne))
@@ -530,6 +609,10 @@ void AMyCharacter::OnItemSelect(const FInputActionValue& Value)
 		else if (PC->IsInputKeyDown(EKeys::Five) || PC->IsInputKeyDown(EKeys::NumPadFive))
 		{
 			SlotNumberOneBased = 5;
+		}
+		else if (PC->IsInputKeyDown(EKeys::Six) || PC->IsInputKeyDown(EKeys::NumPadSix))
+		{
+			SlotNumberOneBased = 6;
 		}
 	}
 
@@ -566,24 +649,11 @@ void AMyCharacter::OnAttack(const FInputActionValue& Value)
 	int32 UsedSlotIndex = INDEX_NONE;
 	if (QuickSlotComponent->TryUseSelectedItem(UsedItemDefinition, UsedSlotIndex))
 	{
-		const bool bUsedTimedKillKnife =
-			UsedItemDefinition &&
-			(
-				UsedItemDefinition->bIsTimedKillKnife ||
-				(
-					UsedItemDefinition->ItemLogicClass &&
-					UsedItemDefinition->ItemLogicClass->IsChildOf(UItemTimeKnife::StaticClass())
-				)
-			);
-
-		if (bUsedTimedKillKnife)
-		{
-			CompleteTimedKnifeObjective();
-		}
-
 		BP_OnPrimaryItemUsed(UsedItemDefinition, UsedSlotIndex + 1);
 
-		// 공격 애니메이션 재생
+		UClass* UsedLogicClass = UsedItemDefinition ? UsedItemDefinition->ResolveRewardLogicClass() : nullptr;
+		const bool bUsedTimedKillKnife = UsedLogicClass && UsedLogicClass->IsChildOf(UItemTimeKnife::StaticClass());
+
 		if (UMyAnimInstance* Anim = Cast<UMyAnimInstance>(GetMesh()->GetAnimInstance()))
 		{
 			if (bUsedTimedKillKnife)
@@ -602,9 +672,7 @@ void AMyCharacter::OnInteractHoldProgress(const FInputActionValue& Value)
 {
 	if (InteractionComponent)
 	{
-		// 매 프레임 게이지를 채우고, 100%가 되었는지 bool 값으로 돌려받습니다.
-		bool bIsComplete = InteractionComponent->HandleInteractHoldProgress(GetWorld()->GetDeltaSeconds());
-       
+		const bool bIsComplete = InteractionComponent->HandleInteractHoldProgress(GetWorld()->GetDeltaSeconds());
 		if (bIsComplete)
 		{
 			InteractionCompleteResult();
@@ -627,11 +695,7 @@ void AMyCharacter::OnQTEInteractStarted(const FInputActionValue& Value)
 		InteractionComponent->HandleInteractQTEStarted();
 	}
 }
-/**
- * @brief V키를 입력 받아, 마이크 껐다 켰다하기
- * 
- * @param Value 
- */
+
 void AMyCharacter::OnToggleVoiceChat(const FInputActionValue& Value)
 {
 	PrivateVoiceChatComponent = FindComponentByClass<UPrivateVoiceChatComponent>();
@@ -651,7 +715,10 @@ void AMyCharacter::OnEscPressed(const FInputActionValue& Value)
 
 void AMyCharacter::OnQTEInput(const FInputActionValue& Value)
 {
-	if (!InteractionComponent) return;
+	if (!InteractionComponent)
+	{
+		return;
+	}
 
 	FVector2D InputVector = Value.Get<FVector2D>();
 	EQTEDirection FinalDir = EQTEDirection::None;
@@ -673,3 +740,5 @@ void AMyCharacter::OnQTEInput(const FInputActionValue& Value)
 		}
 	}
 }
+
+

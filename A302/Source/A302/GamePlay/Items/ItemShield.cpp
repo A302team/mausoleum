@@ -1,6 +1,6 @@
 #include "GamePlay/Items/ItemShield.h"
 #include "Character/Components/CombatStatusComponent.h"
-#include "GameData/ItemInstance.h"
+#include "GameData/Items/ItemInstance.h"
 #include "GameFramework/Character.h"
 
 bool UItemShield::CanUse_Implementation(ACharacter* Instigator, const FItemTargetData& /*TargetData*/) const
@@ -54,3 +54,4 @@ bool UItemShield::Use_Implementation(ACharacter* Instigator, const FItemTargetDa
 
     return true;
 }
+
