@@ -7,6 +7,7 @@
 
 class UCombatStatusComponent;
 class UItemDefinition;
+class UMaliceComponent;
 
 UCLASS()
 class A302_API ADummyCharacter : public ACharacter
@@ -15,6 +16,7 @@ class A302_API ADummyCharacter : public ACharacter
 
 public:
     ADummyCharacter();
+    int32 GetCurrentMaliceCount() const;
 
     virtual float TakeDamage(
         float DamageAmount,
@@ -28,6 +30,9 @@ protected:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Combat")
     TObjectPtr<UCombatStatusComponent> CombatStatusComponent;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Malice")
+    TObjectPtr<UMaliceComponent> MaliceComponent;
 
     UPROPERTY(EditDefaultsOnly, Category="Item|Definition")
     TObjectPtr<UItemDefinition> KnifeDef;
@@ -50,8 +55,12 @@ protected:
     UPROPERTY(EditAnywhere, Category="Combat|Test", meta=(ClampMin="0.0"))
     float AutoAttackDamage = 9999.0f;
 
+    UPROPERTY(EditAnywhere, Category="Malice|Test", meta=(ClampMin="0"))
+    int32 InitialMaliceCount = 3;
+
 private:
     void SetupInitialShield();
+    void SetupInitialMalice();
     void TryAutoAttackPlayer();
 
     bool bIsDead = false;
