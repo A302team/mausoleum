@@ -13,7 +13,9 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "GameData/Items/ItemDefinition.h"
+#include "GameData/Events/PersonalEvents/PersonalEventInspectMaliceDefinition.h"
 #include "GameData/Events/PersonalEvents/PersonalEventMaliceDefinition.h"
+#include "GameData/Events/PersonalEvents/PersonalEventPublicMaliceDefinition.h"
 #include "GameData/Events/PersonalEvents/PersonalEventTimeKnifeDefinition.h"
 #include "GameData/RewardDefinition.h"
 #include "GameData/RewardTypes.h"
@@ -23,7 +25,9 @@
 #include "GamePlay/Actor/WeaponActor.h"
 #include "GamePlay/Events/GroupEvents/BaseGroupEvent.h"
 #include "GamePlay/Events/PersonalEvents/BasePersonalEvent.h"
+#include "GamePlay/Events/PersonalEvents/PersonalEventInspectMalice.h"
 #include "GamePlay/Events/PersonalEvents/PersonalEventMalice.h"
+#include "GamePlay/Events/PersonalEvents/PersonalEventPublicMalice.h"
 #include "GamePlay/Events/PersonalEvents/PersonalEventTimeKnife.h"
 #include "GamePlay/Items/ItemShield.h"
 #include "GamePlay/Items/ItemTimeKnife.h"
@@ -176,6 +180,14 @@ void AMyCharacter::ForceDeadByPersonalEvent()
 void AMyCharacter::SetTimedKnifeAttackInProgress(bool bInProgress)
 {
 	bTimedKnifeAttackInProgress = bInProgress;
+}
+
+void AMyCharacter::Multicast_ShowPublicMaliceAnnouncement_Implementation(const FString& PlayerName, int32 MaliceCount)
+{
+	if (AMyPlayerController* LocalPlayerController = Cast<AMyPlayerController>(UGameplayStatics::GetPlayerController(this, 0)))
+	{
+		LocalPlayerController->ShowPublicMaliceAnnouncement(PlayerName, MaliceCount);
+	}
 }
 
 void AMyCharacter::SetQTEInputMode(bool bIsQTE)
@@ -470,6 +482,14 @@ bool AMyCharacter::HandlePersonalEventPickup(AActor* InteractedActor, const URew
 		{
 			PersonalEventClass = UPersonalEventTimeKnife::StaticClass();
 		}
+		else if (Cast<UPersonalEventInspectMaliceDefinition>(MutableRewardDefinition))
+		{
+			PersonalEventClass = UPersonalEventInspectMalice::StaticClass();
+		}
+		else if (Cast<UPersonalEventPublicMaliceDefinition>(MutableRewardDefinition))
+		{
+			PersonalEventClass = UPersonalEventPublicMalice::StaticClass();
+		}
 		else if (Cast<UPersonalEventMaliceDefinition>(MutableRewardDefinition))
 		{
 			PersonalEventClass = UPersonalEventMalice::StaticClass();
@@ -498,6 +518,7 @@ bool AMyCharacter::HandlePersonalEventPickup(AActor* InteractedActor, const URew
 	PersonalEvent->EventID = RewardDefinition->ItemId;
 	PersonalEvent->InitializeContext(RewardDefinition, InteractedActor);
 	PersonalEvent->ExecuteEvent(this);
+	
 	return true;
 }
 

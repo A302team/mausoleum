@@ -21,7 +21,7 @@ void UPersonalEventWidget::SetupEventUI(FName InEventID, const FText& EventTitle
 	CurrentEventID = InEventID;
 	if (Text_Title) Text_Title->SetText(EventTitle);
 	if (Text_Description) Text_Description->SetText(EventDescription);
-	if (Btn_Cancel)	{Btn_Cancel->SetVisibility(bIsCancelable ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);}
+	if (Btn_Cancel) Btn_Cancel->SetVisibility(bIsCancelable ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
 }
 
 void UPersonalEventWidget::OnConfirmClicked()
@@ -32,7 +32,6 @@ void UPersonalEventWidget::OnConfirmClicked()
 		PC->bShowMouseCursor = false;
 		PC->SetInputMode(FInputModeGameOnly());
 	}
-
 	// 화면에서 위젯 제거
 	RemoveFromParent();
 }

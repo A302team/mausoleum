@@ -23,7 +23,8 @@ public:
             handleVoiceData(packet);
         });
         packetRouter.registerHandler(VoicePacketType::Leave, [this](ParsedPacket& packet){
-            handleLeave(packet);
+            handleLeave(packet);\
+            
         });
     }
 protected:

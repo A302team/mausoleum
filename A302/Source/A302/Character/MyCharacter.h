@@ -45,6 +45,8 @@ public:
 	void ClearActiveTimedKnifeEvent(UPersonalEventTimeKnife* EventInstance);
 	void ForceDeadByPersonalEvent();
 	void SetTimedKnifeAttackInProgress(bool bInProgress);
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount);
 
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;

@@ -15,7 +15,7 @@ void UA302GameInstance::Init()
 {
     Super::Init();
     
-    GameNetworkSubsystem = GetSubsystem<UGameNetworkSubsystem>();
+    GameNetworkSubsystem = Cast<UGameNetworkSubsystem>(GetSubsystemBase(UGameNetworkSubsystem::StaticClass()));
     if (GameNetworkSubsystem)
     {
         GameNetworkSubsystem->Connect(EProtocolType::WebSocket, GameNetworkSubsystem->GetLobbyURL());
@@ -91,7 +91,9 @@ void UA302GameInstance::ConnectToServer(const FString &URL)
 {
     if (GameNetworkSubsystem)
     {
-        GameNetworkSubsystem->Connect(EProtocolType::WebSocket, URL);
+        FString TargetURL = GameNetworkSubsystem->GetLobbyURL();
+        UE_LOG(LogTemp, Warning, TEXT("[GameMode/A302GameInstance] Blueprint requested connect to %s, but overriding with Config URL: %s"), *URL, *TargetURL);
+        GameNetworkSubsystem->Connect(EProtocolType::WebSocket, TargetURL);
     }
 }
 
