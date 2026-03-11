@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "ItemTypes.generated.h"
+#include "RewardTypes.generated.h"
 
 class AActor;
 

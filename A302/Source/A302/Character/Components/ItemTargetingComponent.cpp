@@ -7,7 +7,7 @@
 #include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "GameData/ItemDefinition.h"
-#include "GameData/ItemTypes.h"
+#include "GameData/RewardTypes.h"
 #include "GameFramework/Character.h"
 #include "GamePlay/Items/BaseItem.h"
 #include "Interface/UsableItem.h"
