@@ -8,6 +8,12 @@ bool UItemTimeKnife::Use_Implementation(ACharacter* Instigator, const FItemTarge
 	if (MyCharacter)
 	{
 		MyCharacter->SetTimedKnifeAttackInProgress(true);
+
+		// TimeKnifeActor 장착 (애니메이션에서 위치 참조용)
+        if (MyCharacter->TimeKnifeActorClass)
+        {
+            MyCharacter->EquipWeapon(MyCharacter->TimeKnifeActorClass);
+        }
 	}
 
 	const bool bUsed = Super::Use_Implementation(Instigator, TargetData);

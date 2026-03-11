@@ -22,8 +22,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/PlayerController.h"
-#include "Kismet/GameplayStatics.h"
-#include "GamePlay/Actor/KnifeActor.h"
+#include "GamePlay/Actor/WeaponActor.h"
 #include "GamePlay/Events/GroupEvents/BaseGroupEvent.h"
 #include "GamePlay/Events/PersonalEvents/BasePersonalEvent.h"
 #include "GamePlay/Events/PersonalEvents/PersonalEventInspectMalice.h"
@@ -73,17 +72,6 @@ AMyCharacter::AMyCharacter()
 void AMyCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-
-	if (KnifeActorClass)
-	{
-			KnifeActor = GetWorld()->SpawnActor<AKnifeActor>(KnifeActorClass);
-
-			if (KnifeActor)
-			{
-					KnifeActor->AttachToCharacter(GetMesh(), TEXT("HandGrip_R"));
-					KnifeActor->HideWeapon();
-			}
-	}
 
 	if (CombatStatusComponent)
 	{
@@ -683,10 +671,12 @@ void AMyCharacter::OnAttack(const FInputActionValue& Value)
 		{
 			if (bUsedTimedKillKnife)
 			{
+				EquipWeapon(TimeKnifeActorClass);
 				Anim->PlayTimeKnifeMontage();
 			}
 			else
 			{
+				EquipWeapon(KnifeActorClass);
 				Anim->PlayAttackMontage();
 			}
 		}
@@ -766,19 +756,75 @@ void AMyCharacter::OnQTEInput(const FInputActionValue& Value)
 	}
 }
 
-// 무기 표시/숨김 함수 추가(애니메이션 재생 시 위치 참조용)
-void AMyCharacter::ShowKnife()
+// 무기 숨김 함수 (애니메이션 재생 시 위치 참조용)
+void AMyCharacter::EquipWeapon(TSubclassOf<AWeaponActor> WeaponClass)
 {
-    if (KnifeActor)
+    UE_LOG(LogTemp, Warning, TEXT("EquipWeapon called"));
+
+    if (!WeaponClass)
     {
-        KnifeActor->ShowWeapon();
+        UE_LOG(LogTemp, Error, TEXT("WeaponClass is NULL"));
+        return;
+    }
+
+    // 기존 무기 제거
+    if (CurrentWeaponActor)
+    {
+        CurrentWeaponActor->Destroy();
+        CurrentWeaponActor = nullptr;
+    }
+
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        UE_LOG(LogTemp, Error, TEXT("World is NULL"));
+        return;
+    }
+
+    FActorSpawnParameters Params;
+    Params.Owner = this;
+    Params.Instigator = this;
+
+    // 무기 Spawn
+    CurrentWeaponActor = World->SpawnActor<AWeaponActor>(
+        WeaponClass,
+        FVector::ZeroVector,
+        FRotator::ZeroRotator,
+        Params
+    );
+
+    if (!CurrentWeaponActor)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Weapon Spawn FAILED"));
+        return;
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("Weapon Spawn SUCCESS"));
+
+    // 캐릭터 손 소켓에 부착
+    CurrentWeaponActor->AttachToComponent(
+        GetMesh(),
+        FAttachmentTransformRules::SnapToTargetIncludingScale,
+        TEXT("HandGrip_R")
+    );
+
+    // 무기 표시
+    CurrentWeaponActor->ShowWeapon();
+}
+
+void AMyCharacter::ShowWeapon()
+{
+		UE_LOG(LogTemp, Warning, TEXT("ShowWeapon called"));
+    if (CurrentWeaponActor)
+    {
+        CurrentWeaponActor->ShowWeapon();
     }
 }
 
-void AMyCharacter::HideKnife()
+void AMyCharacter::HideWeapon()
 {
-    if (KnifeActor)
+    if (CurrentWeaponActor)
     {
-        KnifeActor->HideWeapon();
+        CurrentWeaponActor->HideWeapon();
     }
 }
