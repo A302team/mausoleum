@@ -1,5 +1,9 @@
 #pragma once
 
+/**
+ * @brief 플랫폼 별 소켓 관련 정의 및 유틸리티.
+ * 
+ */
 #ifdef _WIN32
     #ifndef WIN32_LEAN_AND_MEAN
         #define WIN32_LEAN_AND_MEAN
@@ -19,7 +23,7 @@
     #define ERR_CONNRESET WSAECONNRESET
     #define ERR_WOULDBLOCK WSAEWOULDBLOCK
 
-    #define FUNC_SIG __FUNCSIG__
+    #define FUNC_SIG __FUNCSIG__ // Visual Studio에서 함수 시그니처를 얻는 매크로
 #else
     #include <sys/socket.h>
     #include <netinet/in.h>
@@ -40,5 +44,5 @@
     #define ERR_CONNRESET ECONNRESET
     #define ERR_WOULDBLOCK EWOULDBLOCK
 
-    #define FUNC_SIG __PRETTY_FUNCTION__
+    #define FUNC_SIG __PRETTY_FUNCTION__ // GCC/Clang에서 함수 시그니처를 얻는 매크로
 #endif
