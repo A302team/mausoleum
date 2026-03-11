@@ -9,21 +9,29 @@
 #include <windows.h>
 #endif
 
-std::ofstream Logger::logFile;
+/**
+ * @brief Logger 
+ * 
+ */
+std::ofstream Logger::logFile; // 로그 파일 스트림
 
-std::queue<Logger::LogMessage> Logger::queue;
-std::mutex Logger::queueMutex;
-std::condition_variable Logger::cv;
+std::queue<Logger::LogMessage> Logger::queue; // 로그 메시지 큐
+std::mutex Logger::queueMutex; // 큐 접근 동기화
+std::condition_variable Logger::cv; // 큐에 새 메시지가 추가될 때 알림
 
-std::thread Logger::workerThread;
-std::atomic<bool> Logger::running(false);
+std::thread Logger::workerThread; // 로그 처리 스레드
+std::atomic<bool> Logger::running(false); // 로그 처리 스레드 실행 여부
 
 void Logger::Init(const std::string& file)
 {
+    // 없다면 새로 생성, 있다면 덮어쓰기
     logFile.open(file);
+    if (!logFile.is_open()) {
+        std::cerr << "Failed to open log file: " << file << std::endl;
+        return;
+    }
 
     running = true;
-
     workerThread = std::thread(Worker);
 }
 
@@ -34,9 +42,9 @@ void Logger::Shutdown()
     cv.notify_all();
 
     if (workerThread.joinable())
-        workerThread.join();
+        workerThread.join(); // 로그 처리 스레드 종료 대기
 
-    logFile.close();
+    logFile.close(); // 로그 파일 닫기
 }
 
 std::string Logger::GetTime()
@@ -92,7 +100,8 @@ void Logger::Worker()
 {
     while (running)
     {
-        std::unique_lock<std::mutex> lock(queueMutex);
+        // 큐에서 로그 메시지를 가져와 처리
+        std::unique_lock<std::mutex> lock(queueMutex); // 
 
         cv.wait(lock, [] { return !queue.empty() || !running; });
 

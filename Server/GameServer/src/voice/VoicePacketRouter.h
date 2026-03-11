@@ -35,7 +35,7 @@ public:
     void dispatch(ParsedPacket& packet) {
         auto it = handlers.find(packet.header->packetType);
         if(it != handlers.end()) {
-            it->second(packet);
+            it->second(packet); // 해당 패킷 타입에 등록된 핸들러 호출
         } else {
             LOG_WARN("VoicePacketRouter", "No handler registered for packet type: " << static_cast<int>(packet.header->packetType));
         }
