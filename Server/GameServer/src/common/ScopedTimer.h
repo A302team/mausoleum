@@ -8,15 +8,16 @@
  * @brief RAII 스코프 프로파일러
  * @details
  * - 특정 코드 블록의 실행 시간을 측정하여 로그로 출력
- * - 사용 예시:
- *   LOG_INFO("MyTag", "This is an info message");
+ * - 사용 예시: `{ PROFILE_SCOPE("MyBlock"); 코드/// }`
  */
 class ScopedTimer
 {
 public:
     /**
      * @brief 생성자
-     * @param name 프로파일러 이름
+     * @param name 측정할 코드 블록의 이름 (로그에 출력됨)
+     * @details
+     * - 객체가 생성되는 시점의 시간을 기록
      */
     ScopedTimer(const std::string& name)
         : name(name)
@@ -41,7 +42,6 @@ public:
     }
 
 private:
-
     std::string name;
     std::chrono::high_resolution_clock::time_point start;
 };
