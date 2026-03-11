@@ -15,6 +15,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/PlayerController.h"
+#include "GamePlay/Actor/KnifeActor.h"
 #include "GamePlay/Items/ItemMalice.h"
 #include "GamePlay/Items/ItemShield.h"
 #include "GamePlay/Items/ItemTimeKnife.h"
@@ -43,15 +44,6 @@ AMyCharacter::AMyCharacter()
 	PrimaryActorTick.bCanEverTick = false;
 	bReplicates = true;
     SetReplicateMovement(true);
-
-	// 무기 메쉬 컴포넌트 생성 및 설정
-	SwordMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("SwordMesh"));
-	SwordMesh->SetupAttachment(GetMesh(), TEXT("HandGrip_R"));
-	SwordMesh->SetHiddenInGame(true);   // 기본 숨김
-
-	ShieldMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ShieldMesh"));
-	ShieldMesh->SetupAttachment(GetMesh(), TEXT("HandGrip_L"));
-	ShieldMesh->SetHiddenInGame(true);  // 기본 숨김
     
 	InteractionComponent = CreateDefaultSubobject<UInteractComponent>(TEXT("InteractionComponent"));
 	QuickSlotComponent = CreateDefaultSubobject<UQuickSlotComponent>(TEXT("QuickSlotComponent"));
@@ -64,6 +56,17 @@ AMyCharacter::AMyCharacter()
 void AMyCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	if (KnifeActorClass)
+	{
+			KnifeActor = GetWorld()->SpawnActor<AKnifeActor>(KnifeActorClass);
+
+			if (KnifeActor)
+			{
+					KnifeActor->AttachToCharacter(GetMesh(), TEXT("HandGrip_R"));
+					KnifeActor->HideWeapon();
+			}
+	}
 
 	if (CombatStatusComponent)
 	{
@@ -672,4 +675,21 @@ void AMyCharacter::OnQTEInput(const FInputActionValue& Value)
 			InteractionCompleteResult();
 		}
 	}
+}
+
+// 무기 표시/숨김 함수 구현
+void AMyCharacter::ShowKnife()
+{
+    if (KnifeActor)
+    {
+        KnifeActor->ShowWeapon();
+    }
+}
+
+void AMyCharacter::HideKnife()
+{
+    if (KnifeActor)
+    {
+        KnifeActor->HideWeapon();
+    }
 }
