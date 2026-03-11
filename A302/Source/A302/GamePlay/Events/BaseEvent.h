@@ -8,13 +8,6 @@
 
 class AMyCharacter;
 
-UENUM(BlueprintType)
-enum class EEventScope : uint8
-{
-	Personal    UMETA(DisplayName = "Personal Event"),
-	Group       UMETA(DisplayName = "Group Event")
-};
-
 UCLASS(Blueprintable, BlueprintType, Abstract)
 class A302_API UBaseEvent : public UObject
 {
@@ -24,9 +17,6 @@ public:
 	// 1. 이벤트 데이터
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Event Info")
 	FName EventID;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Event Info")
-	EEventScope EventScope;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Event Info")
 	FText EventTitle;
