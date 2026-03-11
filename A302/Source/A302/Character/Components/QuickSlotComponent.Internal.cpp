@@ -9,7 +9,6 @@
 #include "GameFramework/Character.h"
 #include "GamePlay/Items/BaseItem.h"
 #include "Interface/UsableItem.h"
-#include "Object/BaseInteractable.h"
 
 AMyCharacter* UQuickSlotComponent::GetOwnerCharacter() const
 {
@@ -25,21 +24,6 @@ UItemManagerComponent* UQuickSlotComponent::GetItemManager() const
 	}
 
 	return MutableThis->ItemManagerComponent;
-}
-
-bool UQuickSlotComponent::TryGetItemDefinitionFromActor(
-	AActor* TargetActor,
-	UItemDefinition*& OutItemDefinition
-) const
-{
-	OutItemDefinition = nullptr;
-
-	if (ABaseInteractable* InteractableActor = Cast<ABaseInteractable>(TargetActor))
-	{
-		OutItemDefinition = InteractableActor->GetRewardDefinition();
-	}
-
-	return OutItemDefinition != nullptr;
 }
 
 int32 UQuickSlotComponent::FindEmptyQuickSlotIndex() const

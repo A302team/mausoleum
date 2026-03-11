@@ -39,62 +39,6 @@ void UQuickSlotComponent::TickComponent(
 	UpdateAttackRangeDebugState();
 }
 
-bool UQuickSlotComponent::TryPickupItemToQuickSlot(AActor* TargetActor)
-{
-	UItemDefinition* ItemDefinition = nullptr;
-	if (!TryGetItemDefinitionFromActor(TargetActor, ItemDefinition) || !ItemDefinition)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[QuickSlot] Target has no ItemDefinition: %s"), *GetNameSafe(TargetActor));
-		LogAndScreenQuickSlotMessage(TEXT("[QuickSlot] Pickup failed: ItemDefinition is missing on actor."), FColor::Orange, 2.0f);
-		return false;
-	}
-
-	if (ItemDefinition->RewardCategory != ERewardCategory::BasicItem)
-	{
-		UE_LOG(
-			LogTemp,
-			Warning,
-			TEXT("[QuickSlot] Pickup skipped: non-basic reward. item=%s category=%d"),
-			*GetNameSafe(ItemDefinition),
-			static_cast<int32>(ItemDefinition->RewardCategory)
-		);
-		return false;
-	}
-
-	const int32 EmptySlotIndex = FindEmptyQuickSlotIndex();
-	if (EmptySlotIndex == INDEX_NONE)
-	{
-		LogAndScreenQuickSlotMessage(TEXT("[QuickSlot] Slot is full."), FColor::Orange, 2.0f);
-		return false;
-	}
-
-	if (!BuildQuickSlotItemForIndex(EmptySlotIndex, ItemDefinition))
-	{
-		LogAndScreenQuickSlotMessage(TEXT("[QuickSlot] Pickup failed: item build failed."), FColor::Orange, 2.0f);
-		return false;
-	}
-
-	UpdateQuickSlotNameUI(EmptySlotIndex, ItemDefinition);
-
-	if (SelectedSlotIndex == INDEX_NONE)
-	{
-		SelectedSlotIndex = EmptySlotIndex;
-		UpdateQuickSlotSelectionUI();
-	}
-
-	const FString PickedName = ItemDefinition->DisplayName.IsEmpty()
-		? ItemDefinition->ItemId.ToString()
-		: ItemDefinition->DisplayName.ToString();
-
-	LogAndScreenQuickSlotMessage(
-		FString::Printf(TEXT("[QuickSlot] Picked '%s' -> Slot %d"), *PickedName, EmptySlotIndex + 1),
-		FColor::Green,
-		2.0f
-	);
-
-	return true;
-}
-
 bool UQuickSlotComponent::SelectQuickSlotFromAxisValue(float AxisValue)
 {
 	if (FMath::IsNearlyZero(AxisValue))
@@ -218,7 +162,7 @@ bool UQuickSlotComponent::TryUseSelectedItem(UItemDefinition*& OutUsedItemDefini
 	OutUsedSlotIndex = SelectedSlotIndex;
 	if (bBecameEmpty)
 	{
-		UpdateQuickSlotNameUI(SelectedSlotIndex, nullptr);
+		NotifyItemRemovedFromSlot(SelectedSlotIndex);
 	}
 
 	return true;
@@ -255,7 +199,7 @@ bool UQuickSlotComponent::TryAutoUseItem()
 
 	if (bBecameEmpty)
 	{
-		UpdateQuickSlotNameUI(UsedSlotIndex, nullptr);
+		NotifyItemRemovedFromSlot(UsedSlotIndex);
 	}
 
 	return true;
@@ -277,9 +221,35 @@ bool UQuickSlotComponent::RemoveFirstItemByItemId(const FName& ItemId)
 
 	if (RemovedSlotIndex != INDEX_NONE)
 	{
-		UpdateQuickSlotNameUI(RemovedSlotIndex, nullptr);
+		NotifyItemRemovedFromSlot(RemovedSlotIndex);
 	}
 	return true;
+}
+
+void UQuickSlotComponent::NotifyItemAddedToSlot(int32 SlotIndex, const UItemDefinition* ItemDefinition)
+{
+	if (!IsValidQuickSlotIndex(SlotIndex))
+	{
+		return;
+	}
+
+	UpdateQuickSlotNameUI(SlotIndex, ItemDefinition);
+	if (SelectedSlotIndex == INDEX_NONE)
+	{
+		SelectedSlotIndex = SlotIndex;
+		UpdateQuickSlotSelectionUI();
+	}
+}
+
+void UQuickSlotComponent::NotifyItemRemovedFromSlot(int32 SlotIndex)
+{
+	if (!IsValidQuickSlotIndex(SlotIndex))
+	{
+		return;
+	}
+
+	UpdateQuickSlotNameUI(SlotIndex, nullptr);
+	UpdateQuickSlotSelectionUI();
 }
 
 void UQuickSlotComponent::LogAndScreenQuickSlotMessage(

@@ -24,6 +24,8 @@ public:
 	bool IsValidSlotIndex(int32 SlotIndex) const;
 	bool IsSlotEmpty(int32 SlotIndex) const;
 	int32 GetSlotCount() const { return ItemDefinitions.Num(); }
+	int32 FindFirstEmptySlotIndex() const;
+	bool TryAddItemToFirstEmptySlot(UItemDefinition* ItemDefinition, int32 StackCount, int32& OutAddedSlotIndex);
 
 	bool AddItemToSlot(int32 SlotIndex, UItemDefinition* ItemDefinition, int32 StackCount);
 	bool RemoveItemFromSlot(int32 SlotIndex);
