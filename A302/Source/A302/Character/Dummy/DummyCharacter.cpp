@@ -150,11 +150,11 @@ void ADummyCharacter::SetupInitialShield()
         return;
     }
 
-    int32 ShieldAmount = FMath::Max(0, InitialShieldStack);
-    if (ShieldDef)
-    {
-        ShieldAmount *= FMath::Max(1, ShieldDef->BlockCount);
-    }
+	int32 ShieldAmount = FMath::Max(0, InitialShieldStack);
+	if (ShieldDef)
+	{
+		ShieldAmount *= FMath::Max(1, ShieldDef->Payload.BlockCount);
+	}
 
     if (ShieldAmount <= 0)
     {

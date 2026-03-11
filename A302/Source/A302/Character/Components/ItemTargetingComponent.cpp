@@ -7,7 +7,6 @@
 #include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "GameData/ItemDefinition.h"
-#include "GameData/RewardTypes.h"
 #include "GameFramework/Character.h"
 #include "GamePlay/Items/BaseItem.h"
 #include "Interface/UsableItem.h"
@@ -155,7 +154,7 @@ bool UItemTargetingComponent::TryBuildTargetDataForUse(
 		return false;
 	}
 
-	const bool bNeedsTargetActor = bForceTargetActor || ItemDefinition->UseMode == EItemUseMode::Targeted;
+	const bool bNeedsTargetActor = bForceTargetActor || ItemDefinition->Payload.UseMode == EItemUseMode::Targeted;
 	if (!bNeedsTargetActor)
 	{
 		return true;
@@ -191,7 +190,7 @@ void UItemTargetingComponent::UpdateAttackRangeDebugState()
 			if (
 				ItemDefinition &&
 				ItemLogic &&
-				ItemDefinition->UseMode == EItemUseMode::Targeted &&
+				ItemDefinition->Payload.UseMode == EItemUseMode::Targeted &&
 				ItemLogic->GetClass()->ImplementsInterface(UUsableItem::StaticClass())
 			)
 			{

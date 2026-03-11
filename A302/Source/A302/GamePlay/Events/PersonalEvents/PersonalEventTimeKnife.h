@@ -6,6 +6,8 @@
 #include "PersonalEventTimeKnife.generated.h"
 
 class UItemDefinition;
+class UPersonalEventTimeKnifeDefinition;
+class URewardDefinition;
 
 UCLASS(BlueprintType)
 class A302_API UPersonalEventTimeKnife : public UBasePersonalEvent
@@ -22,7 +24,7 @@ private:
 	void HandleCountdownTick();
 	void RefreshTimerUI() const;
 	void StopCountdown(bool bHideTimer);
-	UItemDefinition* ResolveGrantedKnifeDefinition(const UItemDefinition* EventDefinition) const;
+	UItemDefinition* ResolveGrantedKnifeDefinition(const URewardDefinition* SourceRewardDefinition, const UPersonalEventTimeKnifeDefinition* EventDefinition) const;
 
 	UPROPERTY()
 	TObjectPtr<AMyCharacter> OwnerCharacter = nullptr;

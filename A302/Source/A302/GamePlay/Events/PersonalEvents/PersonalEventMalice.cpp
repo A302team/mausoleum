@@ -2,7 +2,8 @@
 
 #include "Character/Components/MaliceComponent.h"
 #include "Character/MyCharacter.h"
-#include "GameData/ItemDefinition.h"
+#include "GameData/PersonalEventDefinition.h"
+#include "GameData/RewardDefinition.h"
 
 void UPersonalEventMalice::ExecuteEvent_Implementation(AMyCharacter* InstigatorCharacter)
 {
@@ -11,8 +12,9 @@ void UPersonalEventMalice::ExecuteEvent_Implementation(AMyCharacter* InstigatorC
 		return;
 	}
 
-	const UItemDefinition* ItemDef = GetRewardDefinition();
-	const int32 MaliceAmount = ItemDef ? FMath::Max(1, ItemDef->MaliceAmount) : 1;
+	const UPersonalEventMaliceDefinition* EventDef =
+		Cast<UPersonalEventMaliceDefinition>(const_cast<URewardDefinition*>(GetRewardDefinition()));
+	const int32 MaliceAmount = EventDef ? FMath::Max(1, EventDef->Payload.MaliceAmount) : 1;
 
 	if (UMaliceComponent* MaliceComponent = InstigatorCharacter->FindComponentByClass<UMaliceComponent>())
 	{

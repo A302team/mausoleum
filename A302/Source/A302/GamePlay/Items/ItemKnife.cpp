@@ -25,7 +25,7 @@ bool UItemKnife::CanUse_Implementation(ACharacter* Instigator, const FItemTarget
         return false;
     }
 
-    const float AllowedRange = FMath::Max(Def->ItemUseRange, 50.0f);
+    const float AllowedRange = FMath::Max(Def->Payload.ItemUseRange, 50.0f);
     const float InstigatorRadius = Instigator->GetSimpleCollisionRadius();
 
     float TargetRadius = 0.0f;
@@ -51,7 +51,7 @@ bool UItemKnife::CanUse_Implementation(ACharacter* Instigator, const FItemTarget
         return false;
     }
 
-    if (Def->bRequiresLineOfSight && !HasLineOfSight(Instigator, TargetActor))
+    if (Def->Payload.bRequiresLineOfSight && !HasLineOfSight(Instigator, TargetActor))
     {
         UE_LOG(LogTemp, Warning, TEXT("[ItemKnife] CanUse failed: no line of sight to %s"), *GetNameSafe(TargetActor));
         return false;
