@@ -393,10 +393,27 @@ bool AMyCharacter::HandleRewardPickup(AActor* InteractedActor, const UItemDefini
 
 bool AMyCharacter::HandleBasicItemPickup(AActor* InteractedActor, const UItemDefinition* RewardDefinition)
 {
-	if (!QuickSlotComponent || !QuickSlotComponent->TryPickupItemToQuickSlot(InteractedActor))
+	(void)InteractedActor;
+
+	if (!RewardDefinition || RewardDefinition->RewardCategory != ERewardCategory::BasicItem)
 	{
 		return false;
 	}
+
+	if (!ItemManagerComponent || !QuickSlotComponent)
+	{
+		return false;
+	}
+
+	int32 AddedSlotIndex = INDEX_NONE;
+	UItemDefinition* MutableDefinition = const_cast<UItemDefinition*>(RewardDefinition);
+	if (!ItemManagerComponent->TryAddItemToFirstEmptySlot(MutableDefinition, 1, AddedSlotIndex))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Reward] Basic item pickup failed: add failed or slot full. item=%s"), *GetNameSafe(RewardDefinition));
+		return false;
+	}
+
+	QuickSlotComponent->NotifyItemAddedToSlot(AddedSlotIndex, RewardDefinition);
 
 	UClass* LogicClass = RewardDefinition ? RewardDefinition->ResolveRewardLogicClass() : nullptr;
 	const bool bIsShieldItem =
@@ -450,7 +467,6 @@ bool AMyCharacter::HandlePersonalEventPickup(AActor* InteractedActor, const UIte
 	}
 
 	PersonalEvent->EventID = RewardDefinition->ItemId;
-	PersonalEvent->EventScope = EEventScope::Personal;
 	PersonalEvent->InitializeContext(RewardDefinition, InteractedActor);
 	PersonalEvent->ExecuteEvent(this);
 	return true;
@@ -483,7 +499,6 @@ bool AMyCharacter::HandleGroupEventPickup(AActor* InteractedActor, const UItemDe
 	}
 
 	GroupEvent->EventID = RewardDefinition->ItemId;
-	GroupEvent->EventScope = EEventScope::Group;
 	GroupEvent->InitializeContext(RewardDefinition, InteractedActor);
 	GroupEvent->ExecuteEvent(this);
 	return true;

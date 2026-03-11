@@ -1,5 +1,6 @@
 #include "GamePlay/Events/PersonalEvents/PersonalEventTimeKnife.h"
 
+#include "Character/Components/ItemManagerComponent.h"
 #include "Character/Components/QuickSlotComponent.h"
 #include "Character/MyCharacter.h"
 #include "Character/MyPlayerController.h"
@@ -29,12 +30,18 @@ void UPersonalEventTimeKnife::ExecuteEvent_Implementation(AMyCharacter* Instigat
 		return;
 	}
 
-	UQuickSlotComponent* QuickSlotComponent = InstigatorCharacter->FindComponentByClass<UQuickSlotComponent>();
-	if (!QuickSlotComponent || !QuickSlotComponent->TryAddItemByDefinition(GrantedKnifeDefinition))
+	UItemManagerComponent* ItemManagerComponent = InstigatorCharacter->FindComponentByClass<UItemManagerComponent>();
+	int32 AddedSlotIndex = INDEX_NONE;
+	if (!ItemManagerComponent || !ItemManagerComponent->TryAddItemToFirstEmptySlot(GrantedKnifeDefinition, 1, AddedSlotIndex))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[PersonalEventTimeKnife] Failed to grant timed knife to quick slot."));
+		UE_LOG(LogTemp, Warning, TEXT("[PersonalEventTimeKnife] Failed to grant timed knife: add failed or slot full."));
 		OwnerCharacter = nullptr;
 		return;
+	}
+
+	if (UQuickSlotComponent* QuickSlotComponent = InstigatorCharacter->FindComponentByClass<UQuickSlotComponent>())
+	{
+		QuickSlotComponent->NotifyItemAddedToSlot(AddedSlotIndex, GrantedKnifeDefinition);
 	}
 
 	GrantedItemId = GrantedKnifeDefinition->ItemId;
@@ -142,9 +149,19 @@ void UPersonalEventTimeKnife::StopCountdown(bool bHideTimer)
 
 		if (!GrantedItemId.IsNone())
 		{
-			if (UQuickSlotComponent* QuickSlotComponent = Character->FindComponentByClass<UQuickSlotComponent>())
+			int32 RemovedSlotIndex = INDEX_NONE;
+			if (UItemManagerComponent* ItemManagerComponent = Character->FindComponentByClass<UItemManagerComponent>())
 			{
-				QuickSlotComponent->RemoveFirstItemByItemId(GrantedItemId);
+				if (ItemManagerComponent->RemoveFirstItemByItemId(GrantedItemId, RemovedSlotIndex))
+				{
+					if (RemovedSlotIndex != INDEX_NONE)
+					{
+						if (UQuickSlotComponent* QuickSlotComponent = Character->FindComponentByClass<UQuickSlotComponent>())
+						{
+							QuickSlotComponent->NotifyItemRemovedFromSlot(RemovedSlotIndex);
+						}
+					}
+				}
 			}
 		}
 

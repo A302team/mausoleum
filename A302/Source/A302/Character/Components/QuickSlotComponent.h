@@ -23,12 +23,13 @@ public:
 		FActorComponentTickFunction* ThisTickFunction
 	) override;
 
-	bool TryPickupItemToQuickSlot(AActor* TargetActor);
 	bool SelectQuickSlotFromAxisValue(float AxisValue);
 	bool SelectQuickSlotByNumber(int32 SlotNumberOneBased);
 	bool TryUseSelectedItem(UItemDefinition*& OutUsedItemDefinition, int32& OutUsedSlotIndex);
 	bool TryAutoUseItem();
 	bool RemoveFirstItemByItemId(const FName& ItemId);
+	void NotifyItemAddedToSlot(int32 SlotIndex, const UItemDefinition* ItemDefinition);
+	void NotifyItemRemovedFromSlot(int32 SlotIndex);
 	int32 GetSelectedSlotIndex() const { return SelectedSlotIndex; }
 
 	UFUNCTION(BlueprintCallable, Category = "QuickSlot|Item")
@@ -37,7 +38,6 @@ public:
 private:
 	AMyCharacter* GetOwnerCharacter() const;
 	UItemManagerComponent* GetItemManager() const;
-	bool TryGetItemDefinitionFromActor(AActor* TargetActor, UItemDefinition*& OutItemDefinition) const;
 	int32 FindEmptyQuickSlotIndex() const;
 	bool IsValidQuickSlotIndex(int32 SlotIndex) const;
 	void InitializeQuickSlots();

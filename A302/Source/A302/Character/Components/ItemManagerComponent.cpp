@@ -42,6 +42,46 @@ bool UItemManagerComponent::IsSlotEmpty(int32 SlotIndex) const
 	return IsValidSlotIndex(SlotIndex) && ItemDefinitions[SlotIndex] == nullptr;
 }
 
+int32 UItemManagerComponent::FindFirstEmptySlotIndex() const
+{
+	for (int32 SlotIndex = 0; SlotIndex < ItemDefinitions.Num(); ++SlotIndex)
+	{
+		if (ItemDefinitions[SlotIndex] == nullptr)
+		{
+			return SlotIndex;
+		}
+	}
+
+	return INDEX_NONE;
+}
+
+bool UItemManagerComponent::TryAddItemToFirstEmptySlot(
+	UItemDefinition* ItemDefinition,
+	int32 StackCount,
+	int32& OutAddedSlotIndex
+)
+{
+	OutAddedSlotIndex = INDEX_NONE;
+	if (!ItemDefinition)
+	{
+		return false;
+	}
+
+	const int32 EmptySlotIndex = FindFirstEmptySlotIndex();
+	if (EmptySlotIndex == INDEX_NONE)
+	{
+		return false;
+	}
+
+	if (!AddItemToSlot(EmptySlotIndex, ItemDefinition, StackCount))
+	{
+		return false;
+	}
+
+	OutAddedSlotIndex = EmptySlotIndex;
+	return true;
+}
+
 bool UItemManagerComponent::AddItemToSlot(int32 SlotIndex, UItemDefinition* ItemDefinition, int32 StackCount)
 {
 	if (!IsValidSlotIndex(SlotIndex) || !ItemDefinition)
