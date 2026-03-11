@@ -30,7 +30,7 @@ void UPrivateVoiceChatComponent::BeginPlay()
     {
         if (UGameInstance* GI = UGameplayStatics::GetGameInstance(this))
         {
-            if (UGameNetworkSubsystem* NetworkSubsystem = GI->GetSubsystem<UGameNetworkSubsystem>())
+            if (UGameNetworkSubsystem* NetworkSubsystem = Cast<UGameNetworkSubsystem>(GI->GetSubsystemBase(UGameNetworkSubsystem::StaticClass())))
             {
                 VoiceServerUrl = NetworkSubsystem->GetVoiceURL();
             }
@@ -95,6 +95,10 @@ void UPrivateVoiceChatComponent::BeginPlay()
         {
             if (OwnerPawn->IsLocallyControlled())
             {
+                if (UA302GameInstance* GI = Cast<UA302GameInstance>(UGameplayStatics::GetGameInstance(this)))
+                {
+                    SetRoomCode(GI->CurrentRoomCode);
+                }
                 ConnectToVoiceServer();
             }
         }
@@ -353,4 +357,3 @@ void UPrivateVoiceChatComponent::OnNetworkBinaryMessageReceived(const FString& I
         });
     });
 }
-

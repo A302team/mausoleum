@@ -27,13 +27,17 @@ bool VoiceServer::initSocket(int port) {
     }
     return true;
 }
+
+// UDP 패킷 수신 및 처리 루프
+// Todo : 클린업 로직은 별도 스레드로 분리하는 것도 고려
+// Todo : 멀티플레이어 지원을 위해 멀티 스레드 또는 비동기 I/O 도입 고려
 void VoiceServer::runLoop() {
-    char buffer[65536];
-    sockaddr_in clinetAddr;
-    SockLenType addrLen = sizeof(clinetAddr);
+    char buffer[1024]; // 최대 1KB 패킷 처리 (헤더 + 음성 데이터)
+    sockaddr_in clinetAddr; // 수신한 패킷의 발신자 주소 저장
+    SockLenType addrLen = sizeof(clinetAddr); // recvfrom에서 주소 길이 정보로 사용
     while(running){
         int bytesRecv = recvfrom(sock, buffer, sizeof(buffer), 
-                                0, (sockaddr*)&clinetAddr, &addrLen);
+                                0, (sockaddr*)&clinetAddr, &addrLen); // recvfrom로 UDP 패킷 수신, 발신자 주소도 함께 얻음
         if(bytesRecv == SOCK_ERROR){
             int err = GET_LAST_ERROR();
             if(err == ERR_CONNRESET || err == ERR_WOULDBLOCK) continue;
