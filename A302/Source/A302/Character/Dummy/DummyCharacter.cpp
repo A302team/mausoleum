@@ -3,7 +3,7 @@
 #include "Character/Components/CombatStatusComponent.h"
 #include "Character/MyCharacter.h"
 #include "Engine/Engine.h"
-#include "GameData/ItemDefinition.h"
+#include "GameData/Items/ItemDefinition.h"
 #include "Kismet/GameplayStatics.h"
 
 namespace
@@ -164,3 +164,4 @@ void ADummyCharacter::SetupInitialShield()
     CombatStatusComponent->AddShield(ShieldAmount);
     LogAndScreenDummy(FString::Printf(TEXT("Shield applied x%d"), ShieldAmount));
 }
+

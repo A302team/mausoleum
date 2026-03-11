@@ -3,8 +3,8 @@
 #include "Character/Components/ItemManagerComponent.h"
 #include "Character/MyCharacter.h"
 #include "Character/MyPlayerController.h"
-#include "GameData/ItemDefinition.h"
-#include "GameData/PersonalEventDefinition.h"
+#include "GameData/Items/ItemDefinition.h"
+#include "GameData/Events/PersonalEvents/PersonalEventTimeKnifeDefinition.h"
 #include "GameData/RewardDefinition.h"
 #include "GamePlay/Items/ItemTimeKnife.h"
 #include "Engine/World.h"
@@ -201,3 +201,5 @@ UItemDefinition* UPersonalEventTimeKnife::ResolveGrantedKnifeDefinition(const UR
 
 	return nullptr;
 }
+
+

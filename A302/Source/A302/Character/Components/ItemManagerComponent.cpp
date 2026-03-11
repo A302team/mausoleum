@@ -1,8 +1,8 @@
 #include "Character/Components/ItemManagerComponent.h"
 
 #include "Character/Components/ItemTargetingComponent.h"
-#include "GameData/ItemDefinition.h"
-#include "GameData/ItemInstance.h"
+#include "GameData/Items/ItemDefinition.h"
+#include "GameData/Items/ItemInstance.h"
 #include "GamePlay/Factories/ItemActionFactory.h"
 #include "GamePlay/Items/BaseItem.h"
 #include "GamePlay/Items/ItemKnife.h"
@@ -336,3 +336,4 @@ bool UItemManagerComponent::IsAutoUseItem(const UItemDefinition* ItemDefinition)
 	UClass* LogicClass = ItemDefinition->ResolveRewardLogicClass();
 	return ItemDefinition->Payload.AutoUse || (LogicClass && LogicClass->IsChildOf(UItemShield::StaticClass()));
 }
+

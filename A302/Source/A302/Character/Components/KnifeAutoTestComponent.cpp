@@ -4,9 +4,9 @@
 #include "Character/MyCharacter.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
-#include "GameData/ItemDefinition.h"
-#include "GameData/ItemInstance.h"
-#include "GameData/ItemTypes.h"
+#include "GameData/Items/ItemDefinition.h"
+#include "GameData/Items/ItemInstance.h"
+#include "GameData/Items/ItemTypes.h"
 #include "GamePlay/Items/BaseItem.h"
 #include "Interface/UsableItem.h"
 #include "Kismet/GameplayStatics.h"
@@ -191,4 +191,5 @@ void UKnifeAutoTestComponent::ExecuteAutoKnifeAttack()
 		);
 	}
 }
+
 

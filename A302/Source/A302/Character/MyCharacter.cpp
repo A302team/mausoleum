@@ -12,8 +12,9 @@
 #include "Engine/Engine.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
-#include "GameData/ItemDefinition.h"
-#include "GameData/PersonalEventDefinition.h"
+#include "GameData/Items/ItemDefinition.h"
+#include "GameData/Events/PersonalEvents/PersonalEventMaliceDefinition.h"
+#include "GameData/Events/PersonalEvents/PersonalEventTimeKnifeDefinition.h"
 #include "GameData/RewardDefinition.h"
 #include "GameData/RewardTypes.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -718,3 +719,5 @@ void AMyCharacter::OnQTEInput(const FInputActionValue& Value)
 		}
 	}
 }
+
+
