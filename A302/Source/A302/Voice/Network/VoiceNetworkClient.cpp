@@ -18,7 +18,7 @@ void UVoiceNetworkClient::Initialize(UObject* OuterObj)
     UGameInstance* GameInstance = OuterObj->GetWorld() ? OuterObj->GetWorld()->GetGameInstance() : nullptr;
     if (GameInstance)
     {
-        GameNetworkSubsystem = GameInstance->GetSubsystem<UGameNetworkSubsystem>();
+        GameNetworkSubsystem = Cast<UGameNetworkSubsystem>(GameInstance->GetSubsystemBase(UGameNetworkSubsystem::StaticClass()));
         if (GameNetworkSubsystem)
         {
             // UDP 바이너리 수신 리스너
