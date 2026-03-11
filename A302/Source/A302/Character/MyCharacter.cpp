@@ -13,6 +13,7 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "GameData/Items/ItemDefinition.h"
+#include "GameData/Events/PersonalEvents/PersonalEventInspectMaliceDefinition.h"
 #include "GameData/Events/PersonalEvents/PersonalEventMaliceDefinition.h"
 #include "GameData/Events/PersonalEvents/PersonalEventTimeKnifeDefinition.h"
 #include "GameData/RewardDefinition.h"
@@ -23,6 +24,7 @@
 #include "GamePlay/Actor/KnifeActor.h"
 #include "GamePlay/Events/GroupEvents/BaseGroupEvent.h"
 #include "GamePlay/Events/PersonalEvents/BasePersonalEvent.h"
+#include "GamePlay/Events/PersonalEvents/PersonalEventInspectMalice.h"
 #include "GamePlay/Events/PersonalEvents/PersonalEventMalice.h"
 #include "GamePlay/Events/PersonalEvents/PersonalEventTimeKnife.h"
 #include "GamePlay/Items/ItemShield.h"
@@ -480,6 +482,10 @@ bool AMyCharacter::HandlePersonalEventPickup(AActor* InteractedActor, const URew
 		if (Cast<UPersonalEventTimeKnifeDefinition>(MutableRewardDefinition))
 		{
 			PersonalEventClass = UPersonalEventTimeKnife::StaticClass();
+		}
+		else if (Cast<UPersonalEventInspectMaliceDefinition>(MutableRewardDefinition))
+		{
+			PersonalEventClass = UPersonalEventInspectMalice::StaticClass();
 		}
 		else if (Cast<UPersonalEventMaliceDefinition>(MutableRewardDefinition))
 		{

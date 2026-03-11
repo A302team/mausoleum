@@ -1,6 +1,7 @@
 #include "Character/Dummy/DummyCharacter.h"
 
 #include "Character/Components/CombatStatusComponent.h"
+#include "Character/Components/MaliceComponent.h"
 #include "Character/MyCharacter.h"
 #include "Engine/Engine.h"
 #include "GameData/Items/ItemDefinition.h"
@@ -22,12 +23,14 @@ ADummyCharacter::ADummyCharacter()
 {
     PrimaryActorTick.bCanEverTick = false;
     CombatStatusComponent = CreateDefaultSubobject<UCombatStatusComponent>(TEXT("CombatStatusComponent"));
+    MaliceComponent = CreateDefaultSubobject<UMaliceComponent>(TEXT("MaliceComponent"));
 }
 
 void ADummyCharacter::BeginPlay()
 {
     Super::BeginPlay();
     SetupInitialShield();
+    SetupInitialMalice();
 
     UWorld* World = GetWorld();
     if (!bEnableAutoAttack)
@@ -97,6 +100,11 @@ float ADummyCharacter::TakeDamage(
     return Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 }
 
+int32 ADummyCharacter::GetCurrentMaliceCount() const
+{
+    return MaliceComponent ? FMath::Max(0, MaliceComponent->MaliceCount) : 0;
+}
+
 void ADummyCharacter::TryAutoAttackPlayer()
 {
     if (bIsDead)
@@ -163,5 +171,16 @@ void ADummyCharacter::SetupInitialShield()
 
     CombatStatusComponent->AddShield(ShieldAmount);
     LogAndScreenDummy(FString::Printf(TEXT("Shield applied x%d"), ShieldAmount));
+}
+
+void ADummyCharacter::SetupInitialMalice()
+{
+    if (!MaliceComponent || InitialMaliceCount <= 0)
+    {
+        return;
+    }
+
+    MaliceComponent->AddMalice(InitialMaliceCount);
+    LogAndScreenDummy(FString::Printf(TEXT("Malice applied x%d"), InitialMaliceCount));
 }
 
