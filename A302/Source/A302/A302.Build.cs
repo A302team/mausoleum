@@ -27,7 +27,8 @@ public class A302 : ModuleRules
 			"Voice",
 			"AudioCapture",
 			"AudioMixer",
-			"libOpus"
+			"libOpus",
+			"Niagara"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
