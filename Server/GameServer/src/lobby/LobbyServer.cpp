@@ -1,8 +1,6 @@
 #include "lobby/LobbyServer.h"
 
-LobbyServer::LobbyServer() : router(roomManager, clientManager)
-{
-}
+LobbyServer::LobbyServer() = default;
 
 void LobbyServer::run(int port)
 {
@@ -43,28 +41,10 @@ void LobbyServer::shutdown()
 
 void LobbyServer::onMessage(WebSocketType *ws, std::string_view msg)
 {
-    router.dispatch(ws, msg);
+    service.onMessage(ws, msg);
 }
 
 void LobbyServer::onDisconnect(WebSocketType *ws)
 {
-    auto* info = clientManager.getClientInfo(ws);
-    if (info)
-    {
-        std::string roomCode = info->roomCode;
-        std::string playerName = info->playerName;
-
-        Room* room = roomManager.getRoom(roomCode);
-        if (room)
-        {
-            room->removePlayer(playerName);
-            LOG_INFO("Lobby", "[" << roomCode << "] " << playerName << " 님 연결 해제 및 퇴장");
-
-            room->broadcast({{"type", "player_left"},
-                             {"data", {{"playerName", playerName}}}});
-
-            roomManager.removeRoomIfEmpty(roomCode);
-        }
-        clientManager.removeClient(ws);
-    }
+    service.onDisconnect(ws);
 }

@@ -9,6 +9,7 @@
 #include "common/IClientManager.h"
 #include "common/logging/Logger.h"
 #include "common/ScopedTimer.h"
+#include "voice/VoiceConstants.h"
 
 using CLIENT_KEY = uint64_t;
 struct ClientInfo {
@@ -28,7 +29,7 @@ private:
     // roomCode → speaker → clientKey
     std::unordered_map<std::string, std::unordered_map<std::string, CLIENT_KEY>> rooms;
 
-    const int TIMEOUT_SECONDS = 300;
+    static constexpr int TIMEOUT_SECONDS = Voice::Config::CLIENT_TIMEOUT_SECONDS;
     mutable std::mutex mutex_;
 
 public:

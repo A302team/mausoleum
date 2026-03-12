@@ -8,6 +8,7 @@
 #include <uwebsockets/App.h>
 #include "lobby/domain/RoomManager.h"
 #include "lobby/LobbyClientManager.h"
+#include "lobby/LobbyConstants.h"
 #include "common/logging/Logger.h"
 
 using json = nlohmann::json;
@@ -32,4 +33,5 @@ public:
 
 private:
     void registerHandlers();
+    void sendError(WebSocketType* ws, std::string_view message);
 };

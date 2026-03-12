@@ -26,25 +26,32 @@ LobbyPacketRouter::~LobbyPacketRouter() = default;
 
 void LobbyPacketRouter::dispatch(WebSocketType* ws, std::string_view msg)
 {
-    try
-    {
-        json received = json::parse(msg);
-        std::string type = received[KEY_TYPE];
-        json data = received[KEY_DATA];
-
-        auto it = handlers.find(type);
-        if (it != handlers.end())
-        {
-            it->second(ws, data);
-        }
-        else
-        {
-            LOG_WARN("Lobby", "알 수 없는 메시지 타입: " << type);
-        }
+    json received = json::parse(msg, nullptr, false);
+    if (received.is_discarded() || !received.is_object()) {
+        LOG_WARN("Lobby", "JSON 파싱 오류");
+        sendError(ws, Lobby::Errors::INVALID_JSON);
+        return;
     }
-    catch (const std::exception& e)
+
+    if (!received.contains(KEY_TYPE) || !received[KEY_TYPE].is_string()
+        || !received.contains(KEY_DATA) || !received[KEY_DATA].is_object()) {
+        LOG_WARN("Lobby", "잘못된 메시지 형식");
+        sendError(ws, Lobby::Errors::INVALID_MESSAGE);
+        return;
+    }
+
+    std::string type = received[KEY_TYPE];
+    json data = received[KEY_DATA];
+
+    auto it = handlers.find(type);
+    if (it != handlers.end())
     {
-        LOG_ERROR("Lobby", "JSON 파싱 오류: " << e.what());
+        it->second(ws, data);
+    }
+    else
+    {
+        LOG_WARN("Lobby", "알 수 없는 메시지 타입: " << type);
+        sendError(ws, Lobby::Errors::UNKNOWN_TYPE);
     }
 }
 
@@ -60,4 +67,11 @@ void LobbyPacketRouter::registerHandlers()
     handlers[std::string(REQ_START_GAME)] = [this](auto* ws, const json& data) { pImpl->gameHandler.handleStartGame(ws, data); };
 
     handlers[std::string(REQ_CHAT_MESSAGE)] = [this](auto* ws, const json& data) { pImpl->chatHandler.handleChatMessage(ws, data); };
+}
+
+void LobbyPacketRouter::sendError(WebSocketType* ws, std::string_view message) {
+    ws->send(json({{std::string(KEY_TYPE), RES_ERROR},
+                   {std::string(KEY_DATA), {{std::string(KEY_MESSAGE), std::string(message)}}}})
+                 .dump(),
+             uWS::OpCode::TEXT);
 }
