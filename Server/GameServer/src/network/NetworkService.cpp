@@ -1,0 +1,93 @@
+#include "network/NetworkService.h"
+#include <algorithm>
+#include "common/logging/Logger.h"
+
+NetworkService::NetworkService()
+    : io_(connections_, inboundQueue_, outboundQueue_) {}
+
+NetworkService::~NetworkService() {
+    stop();
+}
+
+bool NetworkService::start() {
+    if (running_.exchange(true)) {
+        return true;
+    }
+
+    if (!io_.start()) {
+        running_ = false;
+        return false;
+    }
+
+    unsigned int hc = std::thread::hardware_concurrency();
+    size_t workerCount = (hc == 0) ? 2 : std::min<size_t>(4, std::max<size_t>(2, hc));
+    workers_.reserve(workerCount);
+    for (size_t i = 0; i < workerCount; ++i) {
+        workers_.emplace_back([this]() { workerLoop(); });
+    }
+    return true;
+}
+
+void NetworkService::stop() {
+    if (!running_.exchange(false)) {
+        return;
+    }
+
+    inboundQueue_.close();
+    outboundQueue_.close();
+
+    io_.stop();
+
+    for (auto& t : workers_) {
+        if (t.joinable()) t.join();
+    }
+    workers_.clear();
+}
+
+bool NetworkService::addUdpEndpoint(int port, int maxPacketSize) {
+    return io_.addUdpEndpoint(port, maxPacketSize);
+}
+
+bool NetworkService::addTcpListener(int port) {
+    return io_.addTcpListener(port);
+}
+
+void NetworkService::registerHandler(NetProtocol protocol, Handler handler) {
+    handlers_[protocol] = std::move(handler);
+}
+
+void NetworkService::sendUdp(const sockaddr_in& addr, const char* data, size_t size) {
+    NetPacket packet;
+    packet.protocol = NetProtocol::Udp;
+    packet.addr = addr;
+    packet.data.assign(data, data + size);
+    outboundQueue_.push(std::move(packet));
+}
+
+void NetworkService::sendUdp(const sockaddr_in& addr, const std::vector<char>& data) {
+    sendUdp(addr, data.data(), data.size());
+}
+
+void NetworkService::sendTcp(ConnectionId id, const char* data, size_t size) {
+    NetPacket packet;
+    packet.protocol = NetProtocol::Tcp;
+    packet.connectionId = id;
+    packet.data.assign(data, data + size);
+    outboundQueue_.push(std::move(packet));
+}
+
+void NetworkService::sendTcp(ConnectionId id, const std::vector<char>& data) {
+    sendTcp(id, data.data(), data.size());
+}
+
+void NetworkService::workerLoop() {
+    NetPacket packet;
+    while (inboundQueue_.pop(packet)) {
+        auto it = handlers_.find(packet.protocol);
+        if (it != handlers_.end()) {
+            it->second(packet, *this);
+        } else {
+            LOG_WARN("NetworkService", "핸들러 없음. protocol=" << static_cast<int>(packet.protocol));
+        }
+    }
+}
