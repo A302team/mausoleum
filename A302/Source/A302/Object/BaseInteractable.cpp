@@ -9,6 +9,8 @@
 ABaseInteractable::ABaseInteractable()
 {
 	PrimaryActorTick.bCanEverTick = false;
+	bReplicates = true;
+	SetReplicateMovement(false);
 
 	CurrentInteractType = EInteractType::Hold;
 
