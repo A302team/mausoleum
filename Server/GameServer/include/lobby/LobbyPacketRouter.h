@@ -29,9 +29,8 @@ public:
     LobbyPacketRouter(RoomManager& rm, LobbyClientManager& cm);
     ~LobbyPacketRouter();
 
-    void dispatch(WebSocketType* ws, std::string_view msg);
+    void dispatch(WebSocketType* ws, std::string_view type, const json& data);
 
 private:
     void registerHandlers();
-    void sendError(WebSocketType* ws, std::string_view message);
 };

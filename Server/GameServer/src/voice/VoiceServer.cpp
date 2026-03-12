@@ -68,12 +68,6 @@ void VoiceServer::onUdpPacket(const NetPacket& packet) {
     if (!buildPacket(packet, parsed)) {
         return;
     }
-    if (parsed.header->packetType != VoicePacketType::VoiceData) {
-        LOG_INFO(tag(), "수신 패킷 타입: " << static_cast<int>(parsed.header->packetType)
-                 << " / 방: " << parsed.roomCode
-                 << " / 화자: " << parsed.speakerName
-                 << " / " << parsed.rawSize << "B");
-    }
     packetRouter.dispatch(parsed);
 }
 
