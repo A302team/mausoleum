@@ -24,6 +24,9 @@ public:
 
     UFUNCTION(BlueprintCallable, Category="Item")
     const UItemDefinition* GetDefinition() const;
+    
+    virtual void OnItemAcquired(class AMyCharacter* OwnerCharacter) const {}
+    virtual void OnItemUsed(class AMyCharacter* OwnerCharacter) const {}
 
 protected:
     UPROPERTY()

@@ -62,11 +62,11 @@ public:
 
 	// 클라이언트의 화면에 이벤트를 띄우는 함수
 	UFUNCTION(Client, Reliable)
-	void Client_ShowPersonalEvent(FName EventID, const FText& EventTitle, const FText& EventDescription, bool bIsCancelable);
+    void Client_ShowPersonalEvent(FName EventID, const FText& Title, const FText& Description, const TArray<FText>& Choices);
 
 	// 클라이언트가 확인 버튼을 눌렀을 때 서버로 알리는 함수
 	UFUNCTION(Server, Reliable, BlueprintCallable, Category = "PersonalEvent")
-	void Server_ResolvePersonalEvent(FName EventID, bool bIsConfirmed);
+	void Server_ResolvePersonalEvent(FName EventID, int32 ChoiceIndex);
 
 	void ShowInspectMaliceSelectionWidget();
 

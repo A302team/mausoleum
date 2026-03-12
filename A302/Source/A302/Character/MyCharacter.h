@@ -24,7 +24,7 @@ class UQuickSlotComponent;
 class UPrivateVoiceChatComponent;
 class UBasePersonalEvent;
 class UBaseGroupEvent;
-class UPersonalEventTimeKnife;
+class UPersonalEventCursedSword;
 
 UCLASS()
 class A302_API AMyCharacter : public ACharacter
@@ -41,8 +41,8 @@ public:
 	) override;
 	void NotifyKilledCharacter();
 	void NotifyTimedKnifeAttackSucceeded();
-	void RegisterActiveTimedKnifeEvent(UPersonalEventTimeKnife* EventInstance);
-	void ClearActiveTimedKnifeEvent(UPersonalEventTimeKnife* EventInstance);
+	void RegisterActiveTimedKnifeEvent(UPersonalEventCursedSword* EventInstance);
+	void ClearActiveTimedKnifeEvent(UPersonalEventCursedSword* EventInstance);
 	void ForceDeadByPersonalEvent();
 	void SetTimedKnifeAttackInProgress(bool bInProgress);
 	UFUNCTION(NetMulticast, Reliable)
@@ -197,7 +197,7 @@ private:
 	bool bIsDead = false;
 
 	UPROPERTY()
-	TObjectPtr<UPersonalEventTimeKnife> ActiveTimedKnifeEvent = nullptr;
+	TObjectPtr<UPersonalEventCursedSword> ActiveTimedKnifeEvent = nullptr;
 
 	bool bTimedKnifeAttackInProgress = false;
 
