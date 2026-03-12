@@ -9,6 +9,8 @@
 ABaseInteractable::ABaseInteractable()
 {
 	PrimaryActorTick.bCanEverTick = false;
+	bReplicates = true;
+	SetReplicateMovement(false);
 
 	CurrentInteractType = EInteractType::Hold;
 
@@ -22,6 +24,20 @@ ABaseInteractable::ABaseInteractable()
 UItemDefinition* ABaseInteractable::GetItemDefinition() const
 {
 	return Cast<UItemDefinition>(RewardDefinition);
+}
+
+bool ABaseInteractable::TryConsumeInteraction()
+{
+	if (!HasAuthority() || bInteractionConsumed)
+	{
+		return false;
+	}
+
+	bInteractionConsumed = true;
+	SetActorEnableCollision(false);
+	SetActorHiddenInGame(true);
+	ForceNetUpdate();
+	return true;
 }
 
 void ABaseInteractable::Interact(AMyCharacter* PlayerCharacter)
