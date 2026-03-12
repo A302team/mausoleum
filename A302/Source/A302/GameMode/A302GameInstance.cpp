@@ -14,7 +14,7 @@
 void UA302GameInstance::Init()
 {
     Super::Init();
-    
+
     GameNetworkSubsystem = Cast<UGameNetworkSubsystem>(GetSubsystemBase(UGameNetworkSubsystem::StaticClass()));
     if (GameNetworkSubsystem)
     {
@@ -178,24 +178,27 @@ void UA302GameInstance::OnMessageReceived(const FString &Message)
         if (!MyWorld)
             return;
 
-        ENetMode NetMode = MyWorld->GetNetMode();
-        UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] 내 NetMode: %d"), (int32)NetMode);
+        // 데디케이트 서버이면 무시
+        if (MyWorld->GetNetMode() == NM_DedicatedServer)
+            return;
+
+        // 서버 주소 파싱 (WebSocket 서버가 보내준 주소)
+        FString ServerIP = TEXT("j14a302.p.ssafy.io");
+        int32 ServerPort = 47777;
+
+        if (Data->HasField(TEXT("serverIP")))
+            ServerIP = Data->GetStringField(TEXT("serverIP"));
+        if (Data->HasField(TEXT("serverPort")))
+            ServerPort = (int32)Data->GetNumberField(TEXT("serverPort"));
+
+        FString TravelURL = FString::Printf(TEXT("%s:%d"), *ServerIP, ServerPort);
+        UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] 데디케이트 서버로 이동: %s"), *TravelURL);
 
         APlayerController *PC = MyWorld->GetFirstPlayerController();
-        UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] PC: %s"), *GetNameSafe(PC));
+        if (!PC)
+            return;
 
-        AMyPlayerController *MyPC = Cast<AMyPlayerController>(PC);
-        UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] MyPC: %s"), *GetNameSafe(MyPC));
-
-        // if (MyPC)
-        // {
-        //     UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] IsLocalController: %d"), (int32)MyPC->IsLocalController());
-        //     if (MyPC->IsLocalController())
-        //     {
-        //         UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] ServerRequestGameStart 호출!"));
-        //         MyPC->ServerRequestGameStart();
-        //     }
-        // }
+        PC->ClientTravel(TravelURL, TRAVEL_Absolute);
     }
     else if (Type == LobbyProtocol::ResNicknameAvailable)
     {

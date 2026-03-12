@@ -14,17 +14,19 @@
  *
  */
 
-class UInputMappingContext;
-class UUserWidget;
-class UTextBlock;
-class UWidget;
-class UImage;
-class UTexture2D;
-class UComboBoxString;
-class UButton;
-class UBaseEvent;
-class UPersonalEventWidget;
 class APlayerState;
+class UBaseEvent;
+class UBaseGroupEvent;
+class UButton;
+class UComboBoxString;
+class UImage;
+class UInputMappingContext;
+class UPersonalEventWidget;
+class UTextBlock;
+class UTexture2D;
+class UUserWidget;
+class UVoteClickableUserWidget;
+class UWidget;
 
 UCLASS()
 class A302_API AMyPlayerController : public APlayerController
@@ -33,8 +35,8 @@ class A302_API AMyPlayerController : public APlayerController
 
 public:
 	AMyPlayerController();
-	bool UpdateQuickSlotItemName(int32 SlotIndex, const FText &ItemName);
-	bool UpdateQuickSlotItemVisual(int32 SlotIndex, const FText &ItemName, UTexture2D *ItemIcon);
+	bool UpdateQuickSlotItemName(int32 SlotIndex, const FText& ItemName);
+	bool UpdateQuickSlotItemVisual(int32 SlotIndex, const FText& ItemName, UTexture2D* ItemIcon);
 	void UpdateQuickSlotSelectionVisual(int32 SelectedSlotIndex);
 	bool UpdateShieldCountText(int32 ShieldCount);
 	bool UpdateMaliceCountText(int32 MaliceCount);
@@ -43,10 +45,9 @@ public:
 	void ToggleInGameSettingMenu();
 	bool IsInGameSettingMenuOpen() const;
 	void ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount);
-	
-	// Event UI 위젯 클래스 (블루프린트에서 세팅)
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI|Event")
-	TSubclassOf<class UPersonalEventWidget> PersonalEventWidgetClass;
+	TSubclassOf<UPersonalEventWidget> PersonalEventWidgetClass;
 
 	UPROPERTY()
 	TObjectPtr<UPersonalEventWidget> PersonalEventWidgetInstance;
@@ -57,20 +58,41 @@ public:
 	UPROPERTY()
 	TObjectPtr<UUserWidget> InspectMaliceWidgetInstance;
 
-	// 서버가 이 플레이어의 현재 진행 중인 이벤트를 기억해두기 위한 포인터
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI|Event")
+	TSubclassOf<UUserWidget> GroupEventVoteWidgetClass;
+
+	UPROPERTY()
+	TObjectPtr<UUserWidget> GroupEventVoteWidgetInstance;
+
 	UPROPERTY()
 	TObjectPtr<UBaseEvent> ActivePersonalEvent;
 
-	// 클라이언트의 화면에 이벤트를 띄우는 함수
-	UFUNCTION(Client, Reliable)
-	void Client_ShowPersonalEvent(FName EventID, const FText& EventTitle, const FText& EventDescription, bool bIsCancelable);
+	UPROPERTY()
+	TObjectPtr<UBaseGroupEvent> ActiveGroupEvent;
 
-	// 클라이언트가 확인 버튼을 눌렀을 때 서버로 알리는 함수
+	UFUNCTION(Client, Reliable)
+	void Client_ShowPersonalEvent(FName EventID, const FText& Title, const FText& Description, const TArray<FText>& Choices);
+
+	UFUNCTION(Client, Reliable)
+	void Client_ShowInspectMaliceSelectionWidget();
+
 	UFUNCTION(Server, Reliable, BlueprintCallable, Category = "PersonalEvent")
-	void Server_ResolvePersonalEvent(FName EventID, bool bIsConfirmed);
+	void Server_ResolvePersonalEvent(FName EventID, int32 ChoiceIndex);
 
 	UFUNCTION(Server, Reliable)
 	void Server_RegisterPlayerDisplayName(const FString& DesiredName);
+
+	UFUNCTION(Client, Reliable)
+	void Client_OpenGroupEventVote(FName EventID, const FText& EventTitle, const FText& EventDescription, float VoteDuration);
+
+	UFUNCTION(Client, Reliable)
+	void Client_FinishGroupEventVote(FName EventID, const FText& ResultText);
+
+	UFUNCTION(Client, Reliable)
+	void Client_ApplyConfiscationToLocalInventory();
+
+	UFUNCTION(Server, Reliable)
+	void Server_SubmitGroupVote(FName EventID, int32 TargetPlayerId);
 
 	void ShowInspectMaliceSelectionWidget();
 
@@ -80,41 +102,49 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<UUserWidget> QuickSlotBarClass;
 
-	// 런타임에 생성된 위젯 인스턴스(화면에 띄운 객체)
 	UPROPERTY()
 	TObjectPtr<UUserWidget> QuickSlotBarWidget;
 
-	UPROPERTY(EditDefaultsOnly, Category="UI")
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<UUserWidget> InGameSettingClass;
 
 	UPROPERTY()
 	TObjectPtr<UUserWidget> InGameSettingWidget;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
-	UInputMappingContext *DefaultMappingContext;
+	UInputMappingContext* DefaultMappingContext;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	int32 MappingPriority = 0;
 
 private:
-	UUserWidget *FindQuickSlotWidget(int32 SlotIndex) const;
-	class UTextBlock *FindQuickSlotItemNameText(int32 SlotIndex) const;
-	class UImage *FindQuickSlotItemIconImage(int32 SlotIndex) const;
-	class UImage *FindQuickSlotItemSelectedImage(int32 SlotIndex) const;
-	class UButton *FindInspectMaliceButton(const FName& WidgetName) const;
-	class UTextBlock *FindInspectMaliceText(const FName& WidgetName) const;
-	class UWidget *FindPublicMaliceAnnouncementWidget() const;
-	class UTextBlock *FindPublicMaliceAnnouncementText(const FName& WidgetName) const;
-	class UTextBlock *FindShieldCountText() const;
-	class UTextBlock *FindMaliceCountText() const;
-	class UTextBlock *FindItemTimerText() const;
+	UUserWidget* FindQuickSlotWidget(int32 SlotIndex) const;
+	UTextBlock* FindQuickSlotItemNameText(int32 SlotIndex) const;
+	UImage* FindQuickSlotItemIconImage(int32 SlotIndex) const;
+	UImage* FindQuickSlotItemSelectedImage(int32 SlotIndex) const;
+	UButton* FindInspectMaliceButton(const FName& WidgetName) const;
+	UTextBlock* FindInspectMaliceText(const FName& WidgetName) const;
+	UTextBlock* FindGroupEventVoteText(const FName& WidgetName) const;
+	UVoteClickableUserWidget* FindVoteUserSlot(int32 SlotIndex) const;
+	UWidget* FindPublicMaliceAnnouncementWidget() const;
+	UTextBlock* FindPublicMaliceAnnouncementText(const FName& WidgetName) const;
+	UTextBlock* FindShieldCountText() const;
+	UTextBlock* FindMaliceCountText() const;
+	UTextBlock* FindItemTimerText() const;
 	void InitializeQuickSlotVisualState();
 	void InitializeInGameSettingWidget();
 	void InitializeInspectMaliceWidget();
+	void InitializeGroupEventVoteWidget();
 	void PopulateInspectMaliceSelectionWidget();
 	void ResetInspectMaliceSelectionWidget();
 	void SetInspectMaliceResultVisible(bool bVisible);
 	void HideInspectMaliceSelectionWidget();
+	void PopulateGroupEventVoteCandidates();
+	void UpdateGroupEventVoteTimerDisplay();
+	void TickGroupEventVoteCountdown();
+	void HandleLocalGroupVoteSelection(int32 TargetPlayerId);
+	void DisableGroupVoteInteractions();
+	void CloseGroupEventVoteWidget();
 	void ApplyInspectMaliceSelection(int32 EntryIndex);
 	int32 QueryPlayerMaliceCount(const APlayerState* TargetPlayerState) const;
 	FString ResolvePlayerDisplayName(const APlayerState* TargetPlayerState) const;
@@ -157,9 +187,25 @@ private:
 
 	FTimerHandle InspectMaliceHideTimerHandle;
 	FTimerHandle PublicMaliceAnnouncementHideTimerHandle;
+	FTimerHandle GroupEventVoteCountdownHandle;
+	FTimerHandle GroupEventVoteCloseHandle;
+
+	UPROPERTY()
+	TObjectPtr<UTextBlock> GroupEventVoteTimerText = nullptr;
+
+	UPROPERTY()
+	TObjectPtr<UTextBlock> GroupEventVoteTitleText = nullptr;
+
+	UPROPERTY()
+	TObjectPtr<UTextBlock> GroupEventVoteDescriptionText = nullptr;
+
+	UPROPERTY()
+	TArray<TObjectPtr<UVoteClickableUserWidget>> VoteUserSlotWidgets;
+
+	FName ActiveGroupVoteEventID = NAME_None;
+	int32 GroupEventVoteRemainingSeconds = 0;
+	bool bHasSubmittedGroupVote = false;
 
 	UPROPERTY()
 	TArray<TObjectPtr<APlayerState>> InspectMaliceSelectablePlayers;
-
-public:
 };
