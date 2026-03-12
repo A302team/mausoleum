@@ -896,7 +896,7 @@ void AMyPlayerController::OnInspectMalicePlayer5Clicked()
 	ApplyInspectMaliceSelection(4);
 }
 
-void AMyPlayerController::Client_ShowPersonalEvent_Implementation(FName EventID, const FText& EventTitle, const FText& EventDescription, bool bIsCancelable)
+void AMyPlayerController::Client_ShowPersonalEvent_Implementation(FName EventID, const FText& EventTitle, const FText& EventDescription, const TArray<FText>& Choices)
 {
 	this->FlushPressedKeys();
 
@@ -909,7 +909,7 @@ void AMyPlayerController::Client_ShowPersonalEvent_Implementation(FName EventID,
 
 	if (PersonalEventWidgetInstance)
 	{
-		PersonalEventWidgetInstance->SetupEventUI(EventID, EventTitle, EventDescription, bIsCancelable);
+		PersonalEventWidgetInstance->SetupEventUI(EventID, EventTitle, EventDescription, Choices);
         
 		if (!PersonalEventWidgetInstance->IsInViewport())
 		{
@@ -926,32 +926,24 @@ void AMyPlayerController::Client_ShowPersonalEvent_Implementation(FName EventID,
 	}
 }
 
-void AMyPlayerController::Server_ResolvePersonalEvent_Implementation(FName EventID, bool bIsConfirmed)
+void AMyPlayerController::Server_ResolvePersonalEvent_Implementation(FName EventID, int32 ChoiceIndex)
 {
 	AMyCharacter* MyChar = Cast<AMyCharacter>(GetPawn());
 	if (!MyChar) return;
 
 	// 만약 플레이어가 취소를 눌렀다면 여기서 조기 종료
-	if (!bIsConfirmed)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[Event] %s 거절됨."), *EventID.ToString());
-		ActivePersonalEvent = nullptr;
-		return;
-	}
+	if (ChoiceIndex == 0)
+    {
+       UE_LOG(LogTemp, Warning, TEXT("[Event] %s 거절됨."), *EventID.ToString());
+    }
 
 	if (UBasePersonalEvent* TargetEvent = Cast<UBasePersonalEvent>(ActivePersonalEvent))
-	{
-		if (TargetEvent->EventID == EventID)
-		{
-			TargetEvent->OnEventResolved(MyChar, bIsConfirmed);
-			UE_LOG(LogTemp, Warning, TEXT("[Event] %s 최종 수락 완료! 타이머 및 아이템 지급 시작."), *EventID.ToString());
-		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("[Event] ID 불일치! 타겟: %s / 요청: %s"), *TargetEvent->EventID.ToString(), *EventID.ToString());
-		}
-	}
-    
+    {
+       if (TargetEvent->EventID == EventID)
+       {
+           TargetEvent->OnEventResolvedMulti(MyChar, ChoiceIndex);
+       }
+    }
 	// 이벤트 캐시 초기화
 	ActivePersonalEvent = nullptr;
 }
