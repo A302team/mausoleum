@@ -19,6 +19,15 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category="Malice")
 	FOnMaliceChanged OnMaliceChanged;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Malice")
+	int32 ItemizeMalice = 0;
+	
+	UFUNCTION(BlueprintCallable, Category = "Malice")
+	int32 GetRawMalice() const 
+	{ 
+		return MaliceCount - ItemizeMalice; 
+	}
 
 	UFUNCTION(BlueprintCallable, Category="Malice")
 	void AddMalice(int32 Count);

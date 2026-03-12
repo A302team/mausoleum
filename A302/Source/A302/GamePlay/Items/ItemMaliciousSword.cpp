@@ -10,6 +10,7 @@ void UItemMaliciousSword::OnItemAcquired(AMyCharacter* OwnerCharacter) const
 	{
 		if (UMaliceComponent* MaliceComp = OwnerCharacter->FindComponentByClass<UMaliceComponent>())
 		{
+			MaliceComp->ItemizeMalice += 1;
 			MaliceComp->AddMalice(1); 
 			UE_LOG(LogTemp, Warning, TEXT("[ItemMaliciousSword] 획득: 악의 +1"));
 		}
@@ -24,6 +25,7 @@ void UItemMaliciousSword::OnItemUsed(AMyCharacter* OwnerCharacter) const
 	{
 		if (UMaliceComponent* MaliceComp = OwnerCharacter->FindComponentByClass<UMaliceComponent>())
 		{
+			MaliceComp->ItemizeMalice -= 1;
 			MaliceComp->ConsumeMalice(1); 
 			UE_LOG(LogTemp, Warning, TEXT("[ItemMaliciousSword] 사용: 악의 -1"));
 		}

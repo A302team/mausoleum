@@ -16,9 +16,9 @@ void UPersonalEventBizarreForge::ExecuteEvent_Implementation(AMyCharacter* Insti
     PC->ActivePersonalEvent = this;
 
     UMaliceComponent* MaliceComp = InstigatorCharacter->FindComponentByClass<UMaliceComponent>();
-    int32 CurrentMalice = MaliceComp ? MaliceComp->MaliceCount : 0;
+    int32 CurrentRawMalice = MaliceComp ? MaliceComp->GetRawMalice() : 0;
 
-    bIsMaliceZeroBranch = (CurrentMalice == 0);
+    bIsMaliceZeroBranch = (CurrentRawMalice <= 0);
 
     TArray<FText> Choices;
 
@@ -61,7 +61,7 @@ void UPersonalEventBizarreForge::OnEventResolvedMulti(AMyCharacter* InstigatorCh
     // 악의 1 이상 분기
     if (ChoiceIndex == 0) return; // 0번은 무시(취소)
 
-    if (MaliceComp && MaliceComp->MaliceCount >= 1)
+    if (MaliceComp && MaliceComp->GetRawMalice() >= 1)
     {
         const UPersonalEventBizarreForgeDefinition* EventDef = Cast<UPersonalEventBizarreForgeDefinition>(GetRewardDefinition());
         if (!EventDef) return;
