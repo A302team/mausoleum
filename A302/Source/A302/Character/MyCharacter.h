@@ -66,6 +66,9 @@ public:
   UPROPERTY(EditAnywhere, Category="Weapon")
   TSubclassOf<AWeaponActor> TimeKnifeActorClass;
 
+	UPROPERTY(EditAnywhere, Category="Weapon")
+	TSubclassOf<AWeaponActor> ShieldActorClass;
+
 	UPROPERTY()
 	AWeaponActor* CurrentWeaponActor;
 
