@@ -19,6 +19,8 @@ public:
 
 	URewardDefinition* GetRewardDefinition() const { return RewardDefinition; }
 	UItemDefinition* GetItemDefinition() const; // backward compatibility
+	bool TryConsumeInteraction();
+	bool IsInteractionConsumed() const { return bInteractionConsumed; }
 
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
 	virtual void OnInteractionSuccess(class AMyCharacter* PlayerCharacter);
@@ -37,4 +39,7 @@ protected:
 	// Reward definition consumed by character-side reward routing.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Reward")
 	TObjectPtr<URewardDefinition> RewardDefinition = nullptr;
+
+	UPROPERTY()
+	bool bInteractionConsumed = false;
 };
