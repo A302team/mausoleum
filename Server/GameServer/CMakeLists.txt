@@ -14,7 +14,7 @@ endif()
 
 add_executable(Server ${SOURCES})
 
-target_include_directories(Server PRIVATE src)
+target_include_directories(Server PRIVATE include src)
 
 target_link_libraries(Server 
     PRIVATE 

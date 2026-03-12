@@ -1,26 +1,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/Actor.h"
+#include "GamePlay/Actor/WeaponActor.h"
 #include "KnifeActor.generated.h"
 
 UCLASS()
-class A302_API AKnifeActor : public AActor
+class A302_API AKnifeActor : public AWeaponActor
 {
     GENERATED_BODY()
 
 public:
     AKnifeActor();
-
-protected:
-
-    UPROPERTY(VisibleAnywhere)
-    UStaticMeshComponent* KnifeMesh;
-
-public:
-
-    void AttachToCharacter(USkeletalMeshComponent* CharacterMesh, FName SocketName);
-
-    void ShowWeapon();
-    void HideWeapon();
 };

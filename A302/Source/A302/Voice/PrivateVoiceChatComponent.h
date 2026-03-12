@@ -85,8 +85,12 @@ private:
     // 내 플레이어 이름을 가져오는 헬퍼 (PlayerState → GameInstance 순서로 탐색)
     FString GetMyPlayerName() const;
 
+    // 송신 콜백
     void OnVoiceDataCaptured(const TArray<uint8>& VoiceData);
     void OnNetworkBinaryMessageReceived(const FString& RoomCode, const FString& SpeakerName, const TArray<uint8>& VoiceData);
+
+    // 컴포넌트 생성 시점에 로컬 컨트롤 유무 저장 (종속성 해제 시 IsLocallyControlled 신뢰성 저하 대비)
+    bool bIsInitializedAsLocal = false;
 
     UPROPERTY()
     TObjectPtr<UVoiceCaptureProcessor> CaptureProcessor = nullptr;

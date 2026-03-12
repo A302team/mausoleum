@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "Components/StaticMeshComponent.h"
-#include "GamePlay/Actor/KnifeActor.h"
+#include "GamePlay/Actor/WeaponActor.h"
 #include "InputActionValue.h"
 #include "Interface/InteractableInterface.h"
 #include "MyCharacter.generated.h"
@@ -25,6 +25,8 @@ class UPrivateVoiceChatComponent;
 class UBasePersonalEvent;
 class UBaseGroupEvent;
 class UPersonalEventCursedSword;
+class AShieldActor;
+class ABaseInteractable;
 
 UCLASS()
 class A302_API AMyCharacter : public ACharacter
@@ -47,15 +49,36 @@ public:
 	void SetTimedKnifeAttackInProgress(bool bInProgress);
 	UFUNCTION(NetMulticast, Reliable)
 	void Multicast_ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount);
+	UFUNCTION(Server, Reliable)
+	void Server_RequestInteractionReward(ABaseInteractable* Interactable);
+	UFUNCTION(Client, Reliable)
+	void Client_GrantInteractionReward(URewardDefinition* RewardDefinition);
 
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 	void SetQTEInputMode(bool bIsQTE);
 
-		// 무기 표시
-		void ShowKnife();
-    void HideKnife();
+	// 애니메이션 무기 표시/비표시 
+	void ShowWeapon();
+  void HideWeapon();
+	void EquipWeapon(TSubclassOf<AWeaponActor> WeaponClass);
+
+	// 무기 액터 참조 (애니메이션 재생 시 위치 참조용)
+	UPROPERTY(EditAnywhere, Category="Weapon")
+  TSubclassOf<AWeaponActor> KnifeActorClass;
+
+  UPROPERTY(EditAnywhere, Category="Weapon")
+  TSubclassOf<AWeaponActor> TimeKnifeActorClass;
+
+	UPROPERTY(EditAnywhere, Category="Weapon")
+	TSubclassOf<AWeaponActor> ShieldActorClass;
+
+	UPROPERTY()
+	AWeaponActor* CurrentWeaponActor;
+
+	UPROPERTY()
+	AShieldActor* CurrentShield = nullptr;
 
 protected:
 	virtual void BeginPlay() override;
@@ -125,6 +148,7 @@ protected:
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
+
 private:
 	UFUNCTION()
 	void HandleShieldChanged(int32 NewCount);
@@ -133,6 +157,8 @@ private:
 	void HandleMaliceChanged(int32 NewCount);
 
 	bool HandleRewardPickup(AActor* InteractedActor, const URewardDefinition* RewardDefinition);
+	bool ShouldGrantRewardLocally(const URewardDefinition* RewardDefinition) const;
+	void ResolveInteractionRewardOnServer(ABaseInteractable* Interactable);
 	bool HandleBasicItemPickup(AActor* InteractedActor, const UItemDefinition* RewardDefinition);
 	bool HandlePersonalEventPickup(AActor* InteractedActor, const URewardDefinition* RewardDefinition);
 	bool HandleGroupEventPickup(AActor* InteractedActor, const URewardDefinition* RewardDefinition);
@@ -206,16 +232,4 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|Timed", meta = (AllowPrivateAccess = "true"))
 	FName ActiveTimedKnifeItemId = NAME_None;
-	
-	// 무기 액터 참조 (애니메이션 재생 시 위치 참조용)
-	UPROPERTY()
-	AKnifeActor* KnifeActor = nullptr;
-
-	UPROPERTY(EditAnywhere, Category="Weapon")
-	TSubclassOf<AKnifeActor> KnifeActorClass;
-
-	FTimerHandle TimedKnifeTimerHandle;
-
-	UPROPERTY(VisibleAnywhere, Category = "Item|Test")
-	int32 AutoAttackCount = 0;
 };

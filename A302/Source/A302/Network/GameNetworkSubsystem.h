@@ -31,7 +31,8 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FOnBinaryPacketReceived, const TArray<uint8>
 namespace PORT
 {
 	static constexpr int32 LOBBY_PORT = 8001;
-	static constexpr int32 VOICE_PORT = 40000;
+	static constexpr int32 VOICE_PORT = 48100;
+
 }
 
 /**
@@ -49,7 +50,7 @@ public:
 
 	// 서버 주소 설정 (DefaultEngine.ini 등에서 오버라이드 가능)
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Network|Config")
-	FString ServerIP = GetServerAddress(EAddress::SERVER);
+	FString ServerIP = GetServerAddress(EAddress::LOCAL);
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Network|Config")
 	int32 LobbyPort = PORT::LOBBY_PORT;
@@ -66,6 +67,7 @@ public:
 		CleanIP.ReplaceInline(TEXT("ws://"), TEXT(""));
 		CleanIP.ReplaceInline(TEXT("wss://"), TEXT(""));
         CleanIP.TrimStartAndEndInline();
+		//
 		return CleanIP;
 	}
 

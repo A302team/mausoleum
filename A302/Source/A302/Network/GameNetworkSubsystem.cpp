@@ -19,6 +19,7 @@ void UGameNetworkSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		WebSocketHandler->OnMessageReceived.AddDynamic(this, &UGameNetworkSubsystem::HandleWebSocketMessage);
 		WebSocketHandler->OnBinaryMessageReceived.AddUObject(this, &UGameNetworkSubsystem::HandleWebSocketBinaryMessage);
 	}
+	
 
 	UDPHandler = NewObject<UUDPHandler>(this);
 

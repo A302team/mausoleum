@@ -5,6 +5,8 @@
 #include "GameData/Items/ItemInstance.h"
 #include "GameFramework/Character.h"
 #include "Kismet/GameplayStatics.h"
+#include "Character/MyCharacter.h"
+#include "GamePlay/Actor/WeaponActor.h"
 
 bool UItemKnife::CanUse_Implementation(ACharacter* Instigator, const FItemTargetData& TargetData) const
 {
@@ -65,6 +67,15 @@ bool UItemKnife::Use_Implementation(ACharacter* Instigator, const FItemTargetDat
     if (!CanUse_Implementation(Instigator, TargetData))
     {
         return false;
+    }
+
+    // KnifeActor 장착 (애니메이션에서 위치 참조용)
+    if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(Instigator))
+    {
+        if (MyCharacter->KnifeActorClass)
+        {
+            MyCharacter->EquipWeapon(MyCharacter->KnifeActorClass);
+        }
     }
 
     AActor* Target = TargetData.TargetActor;

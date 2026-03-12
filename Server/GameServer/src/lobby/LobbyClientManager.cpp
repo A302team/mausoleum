@@ -1,4 +1,4 @@
-#include "LobbyClientManager.h"
+#include "lobby/LobbyClientManager.h"
 
 void LobbyClientManager::addClient(WebSocketType* const& key, const LobbyClientInfo& data) {
     clients[key] = data;

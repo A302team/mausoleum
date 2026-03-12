@@ -5,6 +5,6 @@ void UShowWeapon::Notify(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* An
 {
     if (AMyCharacter* Character = Cast<AMyCharacter>(MeshComp->GetOwner()))
     {
-        Character->ShowKnife();
+        Character->ShowWeapon();
     }
 }
