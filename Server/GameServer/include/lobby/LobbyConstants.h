@@ -13,6 +13,9 @@ namespace Lobby::Protocol {
     constexpr std::string_view KEY_ROOMS = "rooms";
     constexpr std::string_view KEY_PLAYER_COUNT = "playerCount";
 
+    // Domain
+    constexpr std::string_view LOBBY_DOMAIN = "lobby";
+
     // Request Types
     constexpr std::string_view REQ_CREATE_ROOM = "create_room";
     constexpr std::string_view REQ_JOIN_ROOM = "join_room";

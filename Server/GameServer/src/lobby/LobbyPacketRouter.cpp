@@ -1,8 +1,8 @@
-#include "LobbyPacketRouter.h"
-#include "handlers/RoomHandler.h"
-#include "handlers/GameHandler.h"
-#include "handlers/ChatHandler.h"
-#include "LobbyConstants.h"
+#include "lobby/LobbyPacketRouter.h"
+#include "lobby/handlers/RoomHandler.h"
+#include "lobby/handlers/GameHandler.h"
+#include "lobby/handlers/ChatHandler.h"
+#include "lobby/LobbyConstants.h"
 
 using namespace Lobby::Protocol;
 
@@ -24,27 +24,16 @@ LobbyPacketRouter::LobbyPacketRouter(RoomManager& rm, LobbyClientManager& cm)
 
 LobbyPacketRouter::~LobbyPacketRouter() = default;
 
-void LobbyPacketRouter::dispatch(WebSocketType* ws, std::string_view msg)
+void LobbyPacketRouter::dispatch(WebSocketType* ws, std::string_view type, const json& data)
 {
-    try
+    auto it = handlers.find(std::string(type));
+    if (it != handlers.end())
     {
-        json received = json::parse(msg);
-        std::string type = received[KEY_TYPE];
-        json data = received[KEY_DATA];
-
-        auto it = handlers.find(type);
-        if (it != handlers.end())
-        {
-            it->second(ws, data);
-        }
-        else
-        {
-            LOG_WARN("Lobby", "알 수 없는 메시지 타입: " << type);
-        }
+        it->second(ws, data);
     }
-    catch (const std::exception& e)
+    else
     {
-        LOG_ERROR("Lobby", "JSON 파싱 오류: " << e.what());
+        LOG_WARN("Lobby", "알 수 없는 메시지 타입: " << type);
     }
 }
 
@@ -61,4 +50,3 @@ void LobbyPacketRouter::registerHandlers()
 
     handlers[std::string(REQ_CHAT_MESSAGE)] = [this](auto* ws, const json& data) { pImpl->chatHandler.handleChatMessage(ws, data); };
 }
-
