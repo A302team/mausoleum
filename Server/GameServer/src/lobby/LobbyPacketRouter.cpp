@@ -1,8 +1,8 @@
-#include "LobbyPacketRouter.h"
-#include "handlers/RoomHandler.h"
-#include "handlers/GameHandler.h"
-#include "handlers/ChatHandler.h"
-#include "LobbyConstants.h"
+#include "lobby/LobbyPacketRouter.h"
+#include "lobby/handlers/RoomHandler.h"
+#include "lobby/handlers/GameHandler.h"
+#include "lobby/handlers/ChatHandler.h"
+#include "lobby/LobbyConstants.h"
 
 using namespace Lobby::Protocol;
 
@@ -61,4 +61,3 @@ void LobbyPacketRouter::registerHandlers()
 
     handlers[std::string(REQ_CHAT_MESSAGE)] = [this](auto* ws, const json& data) { pImpl->chatHandler.handleChatMessage(ws, data); };
 }
-

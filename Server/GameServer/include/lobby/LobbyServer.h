@@ -2,9 +2,9 @@
 #include <uwebsockets/App.h>
 #include <iostream>
 #include <string_view>
-#include "domain/RoomManager.h"
-#include "LobbyClientManager.h"
-#include "LobbyPacketRouter.h"
+#include "lobby/domain/RoomManager.h"
+#include "lobby/LobbyClientManager.h"
+#include "lobby/LobbyPacketRouter.h"
 #include "common/IServer.h"
 #include "common/logging/Logger.h"
 

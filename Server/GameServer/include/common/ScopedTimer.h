@@ -2,7 +2,7 @@
 
 #include <chrono>
 #include <string>
-#include "logging/Logger.h"
+#include "common/logging/Logger.h"
 
 /**
  * @brief RAII 스코프 프로파일러
