@@ -36,6 +36,7 @@
 #include "Net/UnrealNetwork.h"
 #include "Object/BaseInteractable.h"
 #include "Voice/PrivateVoiceChatComponent.h"
+#include "Kismet/GameplayStatics.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogMyInput, Log, All);
 
