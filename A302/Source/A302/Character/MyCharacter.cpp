@@ -13,28 +13,33 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "GameData/Items/ItemDefinition.h"
+#include "GameData/Events/GroupEvents/GroupEventConfiscateDefinition.h"
 #include "GameData/Events/PersonalEvents/PersonalEventInspectMaliceDefinition.h"
 #include "GameData/Events/PersonalEvents/PersonalEventMaliceDefinition.h"
 #include "GameData/Events/PersonalEvents/PersonalEventPublicMaliceDefinition.h"
-#include "GameData/Events/PersonalEvents/PersonalEventTimeKnifeDefinition.h"
+#include "GameData/Events/PersonalEvents/PersonalEventCursedSwordDefinition.h"
 #include "GameData/RewardDefinition.h"
 #include "GameData/RewardTypes.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Controller.h"
+#include "GameFramework/GameModeBase.h"
 #include "GameFramework/PlayerController.h"
 #include "GamePlay/Actor/WeaponActor.h"
 #include "GamePlay/Events/GroupEvents/BaseGroupEvent.h"
+#include "GamePlay/Events/GroupEvents/GroupEventConfiscate.h"
 #include "GamePlay/Events/PersonalEvents/BasePersonalEvent.h"
 #include "GamePlay/Events/PersonalEvents/PersonalEventInspectMalice.h"
 #include "GamePlay/Events/PersonalEvents/PersonalEventMalice.h"
 #include "GamePlay/Events/PersonalEvents/PersonalEventPublicMalice.h"
-#include "GamePlay/Events/PersonalEvents/PersonalEventTimeKnife.h"
+#include "GamePlay/Events/PersonalEvents/PersonalEventCursedSword.h"
+#include "GamePlay/Items/BaseItem.h"
 #include "GamePlay/Items/ItemShield.h"
 #include "GamePlay/Items/ItemTimeKnife.h"
 #include "InputAction.h"
 #include "InputCoreTypes.h"
 #include "Net/UnrealNetwork.h"
 #include "Object/BaseInteractable.h"
+#include "GameMode/A302PlayerState.h"
 #include "Voice/PrivateVoiceChatComponent.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -155,7 +160,7 @@ void AMyCharacter::NotifyTimedKnifeAttackSucceeded()
 	}
 }
 
-void AMyCharacter::RegisterActiveTimedKnifeEvent(UPersonalEventTimeKnife* EventInstance)
+void AMyCharacter::RegisterActiveTimedKnifeEvent(UPersonalEventCursedSword* EventInstance)
 {
 	if (ActiveTimedKnifeEvent && ActiveTimedKnifeEvent != EventInstance)
 	{
@@ -165,7 +170,7 @@ void AMyCharacter::RegisterActiveTimedKnifeEvent(UPersonalEventTimeKnife* EventI
 	ActiveTimedKnifeEvent = EventInstance;
 }
 
-void AMyCharacter::ClearActiveTimedKnifeEvent(UPersonalEventTimeKnife* EventInstance)
+void AMyCharacter::ClearActiveTimedKnifeEvent(UPersonalEventCursedSword* EventInstance)
 {
 	if (!EventInstance || ActiveTimedKnifeEvent == EventInstance)
 	{
@@ -242,6 +247,14 @@ void AMyCharacter::HandleDead()
 	}
 
 	bIsDead = true;
+
+	if (HasAuthority())
+	{
+		if (AA302PlayerState* A302PlayerState = GetPlayerState<AA302PlayerState>())
+		{
+			A302PlayerState->bIsAlive = false;
+		}
+	}
 
 	if (GetCharacterMovement())
 	{
@@ -439,7 +452,7 @@ bool AMyCharacter::ShouldGrantRewardLocally(const URewardDefinition* RewardDefin
 	URewardDefinition* MutableRewardDefinition = const_cast<URewardDefinition*>(RewardDefinition);
 	return
 		Cast<UPersonalEventInspectMaliceDefinition>(MutableRewardDefinition) != nullptr ||
-		Cast<UPersonalEventTimeKnifeDefinition>(MutableRewardDefinition) != nullptr;
+		Cast<UPersonalEventCursedSwordDefinition>(MutableRewardDefinition) != nullptr;
 }
 
 void AMyCharacter::ResolveInteractionRewardOnServer(ABaseInteractable* Interactable)
@@ -473,6 +486,24 @@ void AMyCharacter::ResolveInteractionRewardOnServer(ABaseInteractable* Interacta
 
 void AMyCharacter::Server_RequestInteractionReward_Implementation(ABaseInteractable* Interactable)
 {
+	if (!HasAuthority() || !IsValid(Interactable))
+	{
+		return;
+	}
+
+	const float MaxAllowedDistance = FMath::Max(InteractionDistance, 0.f) + 200.f;
+	if (GetDistanceTo(Interactable) > MaxAllowedDistance)
+	{
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("[Interaction] Server rejected interactable reward: too far. player=%s actor=%s"),
+			*GetName(),
+			*GetNameSafe(Interactable)
+		);
+		return;
+	}
+
 	ResolveInteractionRewardOnServer(Interactable);
 }
 
@@ -497,116 +528,103 @@ bool AMyCharacter::HandleBasicItemPickup(AActor* InteractedActor, const UItemDef
 
 	int32 AddedSlotIndex = INDEX_NONE;
 	UItemDefinition* MutableDefinition = const_cast<UItemDefinition*>(RewardDefinition);
-	if (!ItemManagerComponent->TryAddItemToFirstEmptySlot(MutableDefinition, 1, AddedSlotIndex))
+	if (ItemManagerComponent->TryAddItemToFirstEmptySlot(MutableDefinition, 1, AddedSlotIndex))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[Reward] Basic item pickup failed: add failed or slot full. item=%s"), *GetNameSafe(RewardDefinition));
-		return false;
+		UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass();
+		
+		if (LogicClass && LogicClass->IsChildOf(UBaseItem::StaticClass()))
+		{
+			if (const UBaseItem* BaseItemLogic = Cast<UBaseItem>(LogicClass->GetDefaultObject()))
+			{
+				BaseItemLogic->OnItemAcquired(this);
+			}
+		}
+		
+		const bool bIsShieldItem = RewardDefinition && LogicClass && LogicClass->IsChildOf(UItemShield::StaticClass());
+		if (bIsShieldItem && CombatStatusComponent)
+		{
+			CombatStatusComponent->AddShield(FMath::Max(1, RewardDefinition->Payload.BlockCount));
+		}
+
+		return true;
 	}
 
-	UClass* LogicClass = RewardDefinition ? RewardDefinition->ResolveRewardLogicClass() : nullptr;
-	const bool bIsShieldItem =
-		RewardDefinition &&
-		LogicClass &&
-		LogicClass->IsChildOf(UItemShield::StaticClass());
-
-	if (bIsShieldItem && CombatStatusComponent)
-	{
-		CombatStatusComponent->AddShield(FMath::Max(1, RewardDefinition->Payload.BlockCount));
-	}
-
-	return true;
+	UE_LOG(LogTemp, Warning, TEXT("[Reward] Basic item pickup failed: add failed or slot full. item=%s"), *GetNameSafe(RewardDefinition));
+	return false;
 }
 
 bool AMyCharacter::HandlePersonalEventPickup(AActor* InteractedActor, const URewardDefinition* RewardDefinition)
 {
-	if (!RewardDefinition)
-	{
-		return false;
-	}
-
-	UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass();
-	UClass* PersonalEventClass = nullptr;
-	if (LogicClass)
-	{
-		if (LogicClass->IsChildOf(UBasePersonalEvent::StaticClass()))
-		{
-			PersonalEventClass = LogicClass;
-		}
-		else if (LogicClass->IsChildOf(UItemTimeKnife::StaticClass()))
-		{
-			PersonalEventClass = UPersonalEventTimeKnife::StaticClass();
-		}
-	}
-
-	// Fallback for assets with PersonalEvent category but missing/misaligned RewardLogicClass.
-	if (!PersonalEventClass)
-	{
-		URewardDefinition* MutableRewardDefinition = const_cast<URewardDefinition*>(RewardDefinition);
-		if (Cast<UPersonalEventTimeKnifeDefinition>(MutableRewardDefinition))
-		{
-			PersonalEventClass = UPersonalEventTimeKnife::StaticClass();
-		}
-		else if (Cast<UPersonalEventInspectMaliceDefinition>(MutableRewardDefinition))
-		{
-			PersonalEventClass = UPersonalEventInspectMalice::StaticClass();
-		}
-		else if (Cast<UPersonalEventPublicMaliceDefinition>(MutableRewardDefinition))
-		{
-			PersonalEventClass = UPersonalEventPublicMalice::StaticClass();
-		}
-		else if (Cast<UPersonalEventMaliceDefinition>(MutableRewardDefinition))
-		{
-			PersonalEventClass = UPersonalEventMalice::StaticClass();
-		}
-	}
-
-	if (!PersonalEventClass || !PersonalEventClass->IsChildOf(UBasePersonalEvent::StaticClass()))
-	{
-		UE_LOG(
-			LogTemp,
-			Warning,
-			TEXT("[Reward] Personal event pickup failed: invalid logic class. item=%s logic=%s mapped=%s"),
-			*GetNameSafe(RewardDefinition),
-			*GetNameSafe(LogicClass),
-			*GetNameSafe(PersonalEventClass)
-		);
-		return false;
-	}
-
-	UBasePersonalEvent* PersonalEvent = NewObject<UBasePersonalEvent>(this, PersonalEventClass);
-	if (!PersonalEvent)
-	{
-		return false;
-	}
-
-	PersonalEvent->EventID = RewardDefinition->ItemId;
-	PersonalEvent->InitializeContext(RewardDefinition, InteractedActor);
-	PersonalEvent->ExecuteEvent(this);
+	if (!RewardDefinition) return false;
 	
-	return true;
+	UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass();
+	
+	if (!LogicClass || !LogicClass->IsChildOf(UBasePersonalEvent::StaticClass()))
+	{
+		UE_LOG(LogTemp, Error, TEXT("[Event] %s의 RewardLogicClass가 비어있거나 올바른 이벤트 클래스가 아닙니다! 에디터를 확인하세요."), *RewardDefinition->GetName());
+		return false;
+	}
+	
+	UBasePersonalEvent* PersonalEvent = NewObject<UBasePersonalEvent>(this, LogicClass);
+	if (PersonalEvent)
+	{
+		PersonalEvent->EventID = RewardDefinition->ItemId;
+		PersonalEvent->InitializeContext(RewardDefinition, InteractedActor);
+		PersonalEvent->ExecuteEvent(this);
+		return true;
+	}
+
+	return false;
 }
 
 bool AMyCharacter::HandleGroupEventPickup(AActor* InteractedActor, const URewardDefinition* RewardDefinition)
 {
+	if (!HasAuthority())
+	{
+		return false;
+	}
+
 	if (!RewardDefinition)
 	{
 		return false;
 	}
 
 	UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass();
-	if (!LogicClass || !LogicClass->IsChildOf(UBaseGroupEvent::StaticClass()))
+	UClass* GroupEventClass = nullptr;
+	if (LogicClass && LogicClass->IsChildOf(UBaseGroupEvent::StaticClass()))
+	{
+		GroupEventClass = LogicClass;
+	}
+
+	if (!GroupEventClass)
+	{
+		URewardDefinition* MutableRewardDefinition = const_cast<URewardDefinition*>(RewardDefinition);
+		if (Cast<UGroupEventConfiscateDefinition>(MutableRewardDefinition))
+		{
+			GroupEventClass = UGroupEventConfiscate::StaticClass();
+		}
+	}
+
+	if (!GroupEventClass || !GroupEventClass->IsChildOf(UBaseGroupEvent::StaticClass()))
 	{
 		UE_LOG(
 			LogTemp,
 			Warning,
-			TEXT("[Reward] Group event pickup failed: invalid logic class. item=%s logic=%s"),
+			TEXT("[Reward] Group event pickup failed: invalid logic class. item=%s logic=%s mapped=%s"),
 			*GetNameSafe(RewardDefinition),
-			*GetNameSafe(LogicClass)
+			*GetNameSafe(LogicClass),
+			*GetNameSafe(GroupEventClass)
 		);
 		return false;
 	}
 
-	UBaseGroupEvent* GroupEvent = NewObject<UBaseGroupEvent>(this, LogicClass);
+	UObject* GroupEventOuter = GetWorld() ? Cast<UObject>(GetWorld()->GetAuthGameMode()) : nullptr;
+	if (!GroupEventOuter)
+	{
+		GroupEventOuter = this;
+	}
+
+	UBaseGroupEvent* GroupEvent = NewObject<UBaseGroupEvent>(GroupEventOuter, GroupEventClass);
 	if (!GroupEvent)
 	{
 		return false;
@@ -722,6 +740,13 @@ void AMyCharacter::OnAttack(const FInputActionValue& Value)
 		BP_OnPrimaryItemUsed(UsedItemDefinition, UsedSlotIndex + 1);
 
 		UClass* UsedLogicClass = UsedItemDefinition ? UsedItemDefinition->ResolveRewardLogicClass() : nullptr;
+		if (UsedLogicClass && UsedLogicClass->IsChildOf(UBaseItem::StaticClass()))
+		{
+			if (const UBaseItem* BaseItemLogic = Cast<UBaseItem>(UsedLogicClass->GetDefaultObject()))
+			{
+				BaseItemLogic->OnItemUsed(this);
+			}
+		}
 		const bool bUsedTimedKillKnife = UsedLogicClass && UsedLogicClass->IsChildOf(UItemTimeKnife::StaticClass());
 
 		if (UMyAnimInstance* Anim = Cast<UMyAnimInstance>(GetMesh()->GetAnimInstance()))

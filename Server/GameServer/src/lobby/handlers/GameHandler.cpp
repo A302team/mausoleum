@@ -54,6 +54,10 @@ void GameHandler::handleStartGame(WebSocketType* ws, const json& data) {
         LOG_INFO("Lobby", "===== [" << roomCode << "] 게임 시작! =====");
 
         room->broadcast({{std::string(KEY_TYPE), RES_GAME_STARTED},
-                         {std::string(KEY_DATA), {{std::string(KEY_ROOM_CODE), roomCode}}}});
+                         {std::string(KEY_DATA), {
+                             {std::string(KEY_ROOM_CODE), roomCode},
+                             {"serverIP", "j14a302.p.ssafy.io"},
+                             {"serverPort", 47777}
+                         }}});
     }
 }
