@@ -803,11 +803,18 @@ void AMyCharacter::EquipWeapon(TSubclassOf<AWeaponActor> WeaponClass)
     UE_LOG(LogTemp, Warning, TEXT("Weapon Spawn SUCCESS"));
 
     // 캐릭터 손 소켓에 부착
-    CurrentWeaponActor->AttachToComponent(
-        GetMesh(),
-        FAttachmentTransformRules::SnapToTargetIncludingScale,
-        TEXT("HandGrip_R")
-    );
+    FName SocketName = TEXT("HandGrip_R");
+
+		if (WeaponClass == ShieldActorClass)
+		{
+				SocketName = TEXT("HandGrip_L");
+		}
+
+		CurrentWeaponActor->AttachToComponent(
+				GetMesh(),
+				FAttachmentTransformRules::SnapToTargetIncludingScale,
+				SocketName
+		);
 
     // 무기 표시
     CurrentWeaponActor->ShowWeapon();

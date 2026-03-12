@@ -2,6 +2,8 @@
 #include "Character/Components/CombatStatusComponent.h"
 #include "GameData/Items/ItemInstance.h"
 #include "GameFramework/Character.h"
+#include "Character/MyCharacter.h"
+#include "Animation/MyAnimInstance.h"
 
 bool UItemShield::CanUse_Implementation(ACharacter* Instigator, const FItemTargetData& /*TargetData*/) const
 {
@@ -50,6 +52,17 @@ bool UItemShield::Use_Implementation(ACharacter* Instigator, const FItemTargetDa
     if (UItemInstance* Inst = GetInstance())
     {
         Inst->Consume(1);
+    }
+
+    if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(Instigator))
+    {
+        // 방패 Actor 장착 (애니메이션에서 위치 참조용)
+        MyCharacter->EquipWeapon(MyCharacter->ShieldActorClass);
+
+        if (UMyAnimInstance* Anim = Cast<UMyAnimInstance>(MyCharacter->GetMesh()->GetAnimInstance()))
+        {
+            Anim->PlayBlockMontage();
+        }
     }
 
     return true;
