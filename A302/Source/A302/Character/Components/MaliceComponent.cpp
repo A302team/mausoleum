@@ -1,5 +1,7 @@
 #include "Character/Components/MaliceComponent.h"
 
+#include "Net/UnrealNetwork.h"
+
 UMaliceComponent::UMaliceComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
@@ -9,12 +11,18 @@ UMaliceComponent::UMaliceComponent()
 void UMaliceComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
 	DOREPLIFETIME(UMaliceComponent, MaliceCount);
+}
+
+void UMaliceComponent::OnRep_MaliceCount()
+{
+	OnMaliceChanged.Broadcast(MaliceCount);
 }
 
 void UMaliceComponent::AddMalice(int32 Count)
 {
-	if (Count <= 0)
+	if (Count <= 0 || !GetOwner() || !GetOwner()->HasAuthority())
 	{
 		return;
 	}
@@ -25,16 +33,11 @@ void UMaliceComponent::AddMalice(int32 Count)
 
 void UMaliceComponent::ConsumeMalice(int32 Count)
 {
-	if (Count <= 0)
+	if (Count <= 0 || !GetOwner() || !GetOwner()->HasAuthority())
 	{
 		return;
 	}
 
 	MaliceCount = FMath::Max(0, MaliceCount - Count);
-	OnMaliceChanged.Broadcast(MaliceCount);
-}
-
-void UMaliceComponent::OnRep_MaliceCount()
-{
 	OnMaliceChanged.Broadcast(MaliceCount);
 }

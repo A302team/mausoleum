@@ -13,7 +13,7 @@ enum class EAddress : uint8
 
 inline FString GetServerAddress(EAddress Type)
 {
-	return Type == EAddress::LOCAL ? TEXT("127.0.0.1") : TEXT("j14a302.p.ssafy.io");
+	return Type == EAddress::LOCAL ? TEXT("127.0.0.1") : TEXT("43.201.83.68");
 }
 
 UENUM(BlueprintType)
@@ -27,6 +27,13 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPacketReceived, const FString&, M
 
 // C++ 전용 델리게이트 (바이너리 패킷/Protobuf 등 수신용)
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnBinaryPacketReceived, const TArray<uint8>&);
+
+namespace PORT
+{
+	static constexpr int32 LOBBY_PORT = 8001;
+	static constexpr int32 VOICE_PORT = 48100;
+
+}
 
 /**
  * 전역 네트워크 상태를 관리하는 서브시스템 (GameInstance 종속)
@@ -46,16 +53,40 @@ public:
 	FString ServerIP = GetServerAddress(EAddress::LOCAL);
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Network|Config")
-	int32 LobbyPort = 8001;
+	int32 LobbyPort = PORT::LOBBY_PORT;
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Network|Config")
-	int32 VoicePort = 8100;
+	int32 VoicePort = PORT::VOICE_PORT;
 
 	UFUNCTION(BlueprintPure, Category = "Network")
-	FString GetLobbyURL() const { return FString::Printf(TEXT("ws://%s:%d"), *ServerIP, LobbyPort); }
+	FString GetCleanServerIP() const
+	{
+		FString CleanIP = ServerIP;
+		CleanIP.ReplaceInline(TEXT("http://"), TEXT(""));
+		CleanIP.ReplaceInline(TEXT("https://"), TEXT(""));
+		CleanIP.ReplaceInline(TEXT("ws://"), TEXT(""));
+		CleanIP.ReplaceInline(TEXT("wss://"), TEXT(""));
+        CleanIP.TrimStartAndEndInline();
+		//
+		return CleanIP;
+	}
 
 	UFUNCTION(BlueprintPure, Category = "Network")
-	FString GetVoiceURL() const { return FString::Printf(TEXT("%s:%d"), *ServerIP, VoicePort); }
+	FString GetLobbyURL() const { return GetURL(EProtocolType::WebSocket); }
+
+	UFUNCTION(BlueprintPure, Category = "Network")
+	FString GetVoiceURL() const { return GetURL(EProtocolType::UDP); }
+
+	UFUNCTION(BlueprintPure, Category = "Network")
+	FString GetURL(EProtocolType Protocol) const
+	{
+		const FString CleanIP = GetCleanServerIP();
+		if (Protocol == EProtocolType::WebSocket)
+		{
+			return FString::Printf(TEXT("ws://%s:%d"), *CleanIP, LobbyPort);
+		}
+		return FString::Printf(TEXT("%s:%d"), *CleanIP, VoicePort);
+	}
 
 	// 연결 관리
 	UFUNCTION(BlueprintCallable, Category = "Network")
