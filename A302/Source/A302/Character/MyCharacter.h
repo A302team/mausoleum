@@ -25,6 +25,7 @@ class UPrivateVoiceChatComponent;
 class UBasePersonalEvent;
 class UBaseGroupEvent;
 class UPersonalEventTimeKnife;
+class ABaseInteractable;
 
 UCLASS()
 class A302_API AMyCharacter : public ACharacter
@@ -136,7 +137,11 @@ private:
 	bool HandleBasicItemPickup(AActor* InteractedActor, const UItemDefinition* RewardDefinition);
 	bool HandlePersonalEventPickup(AActor* InteractedActor, const URewardDefinition* RewardDefinition);
 	bool HandleGroupEventPickup(AActor* InteractedActor, const URewardDefinition* RewardDefinition);
+	bool ResolveInteractableReward(ABaseInteractable* Interactable);
 	void HandleDead();
+
+	UFUNCTION(Server, Reliable)
+	void Server_ResolveInteractableReward(ABaseInteractable* Interactable);
 
 	void OnMove(const FInputActionValue& Value);
 	void OnLook(const FInputActionValue& Value);

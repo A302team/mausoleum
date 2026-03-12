@@ -1,6 +1,7 @@
 #include "Character/MyPlayerController.h"
 
 #include "Blueprint/UserWidget.h"
+#include "Character/Components/ItemManagerComponent.h"
 #include "Character/Dummy/DummyCharacter.h"
 #include "Character/MyCharacter.h"
 #include "Components/Button.h"
@@ -10,11 +11,16 @@
 #include "Components/TextBlock.h"
 #include "EnhancedInputSubsystems.h"
 #include "GamePlay/Events/BaseEvent.h"
+#include "GamePlay/Events/GroupEvents/BaseGroupEvent.h"
+#include "GameFramework/GameStateBase.h"
+#include "GameFramework/PlayerState.h"
+#include "GameMode/A302PlayerState.h"
 #include "InputMappingContext.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "GameMode/A302GameMode.h"
 #include "UI/ChatWidget.h"
 #include "UI/PersonalEventWidget.h"
+#include "UI/VoteClickableUserWidget.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
 #include "Net/UnrealNetwork.h"
@@ -23,6 +29,7 @@
 namespace
 {
 	constexpr int32 PlayerControllerQuickSlotCount = 5;
+	constexpr int32 GroupEventVoteSlotCount = 6;
 }
 
 // bool AMyPlayerController::ServerRequestGameStart_Validate()
@@ -103,6 +110,27 @@ UTextBlock *AMyPlayerController::FindInspectMaliceText(const FName& WidgetName) 
 	}
 
 	return Cast<UTextBlock>(InspectMaliceWidgetInstance->GetWidgetFromName(WidgetName));
+}
+
+UTextBlock *AMyPlayerController::FindGroupEventVoteText(const FName& WidgetName) const
+{
+	if (!GroupEventVoteWidgetInstance)
+	{
+		return nullptr;
+	}
+
+	return Cast<UTextBlock>(GroupEventVoteWidgetInstance->GetWidgetFromName(WidgetName));
+}
+
+UVoteClickableUserWidget *AMyPlayerController::FindVoteUserSlot(int32 SlotIndex) const
+{
+	if (!GroupEventVoteWidgetInstance || SlotIndex < 0 || SlotIndex >= GroupEventVoteSlotCount)
+	{
+		return nullptr;
+	}
+
+	const FName SlotWidgetName(*FString::Printf(TEXT("VoteUserSlot%d"), SlotIndex + 1));
+	return Cast<UVoteClickableUserWidget>(GroupEventVoteWidgetInstance->GetWidgetFromName(SlotWidgetName));
 }
 
 UWidget *AMyPlayerController::FindPublicMaliceAnnouncementWidget() const
@@ -429,6 +457,12 @@ AMyPlayerController::AMyPlayerController()
 	{
 		InspectMaliceWidgetClass = InspectMaliceWidgetBPClass.Class;
 	}
+
+	static ConstructorHelpers::FClassFinder<UUserWidget> GroupEventVoteWidgetBPClass(TEXT("/Game/WorkSpace/UI/GroupEvent/WBP_GroupEventVote"));
+	if (GroupEventVoteWidgetBPClass.Succeeded())
+	{
+		GroupEventVoteWidgetClass = GroupEventVoteWidgetBPClass.Class;
+	}
 }
 
 void AMyPlayerController::BeginPlay()
@@ -487,6 +521,7 @@ void AMyPlayerController::BeginPlay()
 
 	InitializeInGameSettingWidget();
 	InitializeInspectMaliceWidget();
+	InitializeGroupEventVoteWidget();
 }
 
 void AMyPlayerController::InitializeQuickSlotVisualState()
@@ -581,8 +616,212 @@ void AMyPlayerController::InitializeInspectMaliceWidget()
 	ResetInspectMaliceSelectionWidget();
 }
 
+void AMyPlayerController::InitializeGroupEventVoteWidget()
+{
+	if (!GroupEventVoteWidgetClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[GroupEventVote] GroupEventVoteWidgetClass is null."));
+		return;
+	}
+
+	if (!GroupEventVoteWidgetInstance)
+	{
+		GroupEventVoteWidgetInstance = CreateWidget<UUserWidget>(this, GroupEventVoteWidgetClass);
+		if (!GroupEventVoteWidgetInstance)
+		{
+			UE_LOG(LogTemp, Error, TEXT("[GroupEventVote] Failed to create group event vote widget."));
+			return;
+		}
+
+		GroupEventVoteWidgetInstance->AddToViewport(122);
+	}
+
+	GroupEventVoteWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+	GroupEventVoteTimerText = FindGroupEventVoteText(TEXT("VoteTimer"));
+	GroupEventVoteTitleText = FindGroupEventVoteText(TEXT("GroupEventVoteTitle"));
+	GroupEventVoteDescriptionText = FindGroupEventVoteText(TEXT("GroupEventVoteDes"));
+
+	VoteUserSlotWidgets.Reset();
+	VoteUserSlotWidgets.Reserve(GroupEventVoteSlotCount);
+
+	for (int32 SlotIndex = 0; SlotIndex < GroupEventVoteSlotCount; ++SlotIndex)
+	{
+		UVoteClickableUserWidget* VoteSlotWidget = FindVoteUserSlot(SlotIndex);
+		if (!VoteSlotWidget)
+		{
+			UE_LOG(
+				LogTemp,
+				Warning,
+				TEXT("[GroupEventVote] VoteUserSlot%d is missing or not reparented to UVoteClickableUserWidget."),
+				SlotIndex + 1
+			);
+			VoteUserSlotWidgets.Add(nullptr);
+			continue;
+		}
+
+		VoteSlotWidget->OnVoteClickableUserSelected.RemoveAll(this);
+		VoteSlotWidget->OnVoteClickableUserSelected.AddUObject(this, &AMyPlayerController::HandleLocalGroupVoteSelection);
+		VoteSlotWidget->SetCandidateVisible(false);
+		VoteUserSlotWidgets.Add(VoteSlotWidget);
+	}
+}
+
+void AMyPlayerController::PopulateGroupEventVoteCandidates()
+{
+	if (!GroupEventVoteWidgetInstance)
+	{
+		return;
+	}
+
+	AGameStateBase* GameState = GetWorld() ? GetWorld()->GetGameState() : nullptr;
+	TArray<APlayerState*> CandidateStates = GameState ? GameState->PlayerArray : TArray<APlayerState*>();
+
+	int32 VisibleSlotIndex = 0;
+	for (APlayerState* CandidatePlayerState : CandidateStates)
+	{
+		if (!CandidatePlayerState)
+		{
+			continue;
+		}
+
+		if (const AA302PlayerState* ExtendedPlayerState = Cast<AA302PlayerState>(CandidatePlayerState))
+		{
+			if (!ExtendedPlayerState->bIsAlive || ExtendedPlayerState->bIsEscaped)
+			{
+				continue;
+			}
+		}
+
+		if (!VoteUserSlotWidgets.IsValidIndex(VisibleSlotIndex))
+		{
+			break;
+		}
+
+		if (UVoteClickableUserWidget* VoteSlotWidget = VoteUserSlotWidgets[VisibleSlotIndex])
+		{
+			VoteSlotWidget->SetupCandidate(
+				CandidatePlayerState->GetPlayerId(),
+				ResolveDisplayedPlayerName(CandidatePlayerState)
+			);
+			VoteSlotWidget->SetSelected(false);
+			VoteSlotWidget->SetVotingEnabled(!bHasSubmittedGroupVote);
+			VoteSlotWidget->SetCandidateVisible(true);
+		}
+
+		++VisibleSlotIndex;
+	}
+
+	for (int32 SlotIndex = VisibleSlotIndex; SlotIndex < VoteUserSlotWidgets.Num(); ++SlotIndex)
+	{
+		if (UVoteClickableUserWidget* VoteSlotWidget = VoteUserSlotWidgets[SlotIndex])
+		{
+			VoteSlotWidget->SetCandidateVisible(false);
+		}
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[GroupEventVote] Populated vote UI with %d candidates"), VisibleSlotIndex);
+}
+
+void AMyPlayerController::UpdateGroupEventVoteTimerDisplay()
+{
+	if (!GroupEventVoteTimerText)
+	{
+		GroupEventVoteTimerText = FindGroupEventVoteText(TEXT("VoteTimer"));
+	}
+
+	if (!GroupEventVoteTimerText)
+	{
+		return;
+	}
+
+	GroupEventVoteTimerText->SetText(
+		GroupEventVoteRemainingSeconds > 0
+			? FText::AsNumber(GroupEventVoteRemainingSeconds)
+			: FText::GetEmpty()
+	);
+}
+
+void AMyPlayerController::TickGroupEventVoteCountdown()
+{
+	GroupEventVoteRemainingSeconds = FMath::Max(0, GroupEventVoteRemainingSeconds - 1);
+	UpdateGroupEventVoteTimerDisplay();
+
+	if (GroupEventVoteRemainingSeconds <= 0)
+	{
+		GetWorldTimerManager().ClearTimer(GroupEventVoteCountdownHandle);
+	}
+}
+
+void AMyPlayerController::HandleLocalGroupVoteSelection(int32 TargetPlayerId)
+{
+	if (bHasSubmittedGroupVote || ActiveGroupVoteEventID.IsNone())
+	{
+		return;
+	}
+
+	bHasSubmittedGroupVote = true;
+	DisableGroupVoteInteractions();
+
+	for (UVoteClickableUserWidget* VoteSlotWidget : VoteUserSlotWidgets)
+	{
+		if (VoteSlotWidget)
+		{
+			VoteSlotWidget->SetSelected(VoteSlotWidget->GetTargetPlayerId() == TargetPlayerId);
+		}
+	}
+
+	if (GroupEventVoteDescriptionText)
+	{
+		GroupEventVoteDescriptionText->SetText(FText::FromString(TEXT("투표가 완료되었습니다.")));
+	}
+
+	Server_SubmitGroupVote(ActiveGroupVoteEventID, TargetPlayerId);
+}
+
+void AMyPlayerController::DisableGroupVoteInteractions()
+{
+	for (UVoteClickableUserWidget* VoteSlotWidget : VoteUserSlotWidgets)
+	{
+		if (VoteSlotWidget)
+		{
+			VoteSlotWidget->SetVotingEnabled(false);
+		}
+	}
+}
+
+void AMyPlayerController::CloseGroupEventVoteWidget()
+{
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(GroupEventVoteCountdownHandle);
+		World->GetTimerManager().ClearTimer(GroupEventVoteCloseHandle);
+	}
+
+	if (GroupEventVoteWidgetInstance)
+	{
+		GroupEventVoteWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+	}
+
+	ActiveGroupVoteEventID = NAME_None;
+	GroupEventVoteRemainingSeconds = 0;
+	bHasSubmittedGroupVote = false;
+
+	FInputModeGameOnly InputMode;
+	SetInputMode(InputMode);
+
+	bShowMouseCursor = false;
+	bEnableClickEvents = false;
+	bEnableMouseOverEvents = false;
+}
+
 void AMyPlayerController::ShowInspectMaliceSelectionWidget()
 {
+	if (!IsLocalController())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[InspectMalice] Ignored widget open on non-local controller: %s"), *GetName());
+		return;
+	}
+
 	InitializeInspectMaliceWidget();
 	if (!InspectMaliceWidgetInstance)
 	{
@@ -607,6 +846,11 @@ void AMyPlayerController::ShowInspectMaliceSelectionWidget()
 	bEnableMouseOverEvents = true;
 
 	UE_LOG(LogTemp, Log, TEXT("[InspectMalice] Selection widget opened."));
+}
+
+void AMyPlayerController::Client_ShowInspectMaliceSelectionWidget_Implementation()
+{
+	ShowInspectMaliceSelectionWidget();
 }
 
 void AMyPlayerController::ResetInspectMaliceSelectionWidget()
@@ -715,6 +959,162 @@ void AMyPlayerController::OnInspectMaliceDummy1Clicked()
 			false
 		);
 	}
+}
+
+FString AMyPlayerController::ResolveDisplayedPlayerName(const APlayerState* InPlayerState) const
+{
+	if (!InPlayerState)
+	{
+		return TEXT("Unknown");
+	}
+
+	FString PlayerName = InPlayerState->GetPlayerName();
+	if (PlayerName.IsEmpty())
+	{
+		PlayerName = InPlayerState->GetName();
+	}
+
+	if (PlayerName.IsEmpty())
+	{
+		PlayerName = FString::Printf(TEXT("Player %d"), InPlayerState->GetPlayerId());
+	}
+
+	return PlayerName;
+}
+
+void AMyPlayerController::Client_OpenGroupEventVote_Implementation(
+	FName EventID,
+	const FText& EventTitle,
+	const FText& EventDescription,
+	float VoteDuration
+)
+{
+	InitializeGroupEventVoteWidget();
+	if (!GroupEventVoteWidgetInstance)
+	{
+		return;
+	}
+
+	FlushPressedKeys();
+	ActiveGroupVoteEventID = EventID;
+	GroupEventVoteRemainingSeconds = FMath::Max(1, FMath::CeilToInt(VoteDuration));
+	bHasSubmittedGroupVote = false;
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(GroupEventVoteCountdownHandle);
+		World->GetTimerManager().ClearTimer(GroupEventVoteCloseHandle);
+	}
+
+	if (GroupEventVoteTitleText)
+	{
+		GroupEventVoteTitleText->SetText(EventTitle);
+	}
+
+	if (GroupEventVoteDescriptionText)
+	{
+		GroupEventVoteDescriptionText->SetText(EventDescription);
+	}
+
+	PopulateGroupEventVoteCandidates();
+	UpdateGroupEventVoteTimerDisplay();
+	GroupEventVoteWidgetInstance->SetVisibility(ESlateVisibility::Visible);
+	UE_LOG(LogTemp, Log, TEXT("[GroupEventVote] Vote widget opened. event=%s duration=%d"), *EventID.ToString(), GroupEventVoteRemainingSeconds);
+
+	FInputModeUIOnly InputMode;
+	InputMode.SetWidgetToFocus(GroupEventVoteWidgetInstance->TakeWidget());
+	SetInputMode(InputMode);
+
+	bShowMouseCursor = true;
+	bEnableClickEvents = true;
+	bEnableMouseOverEvents = true;
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().SetTimer(
+			GroupEventVoteCountdownHandle,
+			this,
+			&AMyPlayerController::TickGroupEventVoteCountdown,
+			1.0f,
+			true
+		);
+	}
+}
+
+void AMyPlayerController::Client_FinishGroupEventVote_Implementation(FName EventID, const FText& ResultText)
+{
+	if (ActiveGroupVoteEventID != NAME_None && EventID != ActiveGroupVoteEventID)
+	{
+		return;
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(GroupEventVoteCountdownHandle);
+		World->GetTimerManager().ClearTimer(GroupEventVoteCloseHandle);
+	}
+
+	DisableGroupVoteInteractions();
+	ActiveGroupVoteEventID = EventID;
+
+	if (GroupEventVoteTitleText)
+	{
+		GroupEventVoteTitleText->SetText(FText::FromString(TEXT("Result")));
+	}
+
+	if (GroupEventVoteDescriptionText)
+	{
+		GroupEventVoteDescriptionText->SetText(ResultText);
+	}
+
+	if (GroupEventVoteTimerText)
+	{
+		GroupEventVoteTimerText->SetText(FText::GetEmpty());
+	}
+
+	if (GroupEventVoteWidgetInstance)
+	{
+		GroupEventVoteWidgetInstance->SetVisibility(ESlateVisibility::Visible);
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().SetTimer(
+			GroupEventVoteCloseHandle,
+			this,
+			&AMyPlayerController::CloseGroupEventVoteWidget,
+			2.5f,
+			false
+		);
+	}
+	else
+	{
+		CloseGroupEventVoteWidget();
+	}
+}
+
+void AMyPlayerController::Client_ApplyConfiscationToLocalInventory_Implementation()
+{
+	AMyCharacter* MyCharacter = Cast<AMyCharacter>(GetPawn());
+	if (!MyCharacter)
+	{
+		return;
+	}
+
+	if (UItemManagerComponent* ItemManager = MyCharacter->FindComponentByClass<UItemManagerComponent>())
+	{
+		ItemManager->RemoveAllItems();
+	}
+}
+
+void AMyPlayerController::Server_SubmitGroupVote_Implementation(FName EventID, int32 TargetPlayerId)
+{
+	if (!ActiveGroupEvent || ActiveGroupEvent->EventID != EventID)
+	{
+		return;
+	}
+
+	ActiveGroupEvent->SubmitVote(this, TargetPlayerId);
 }
 
 void AMyPlayerController::Client_ShowPersonalEvent_Implementation(FName EventID, const FText& EventTitle, const FText& EventDescription, bool bIsCancelable)

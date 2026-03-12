@@ -33,6 +33,7 @@ public:
 
 	bool AddItemToSlot(int32 SlotIndex, UItemDefinition* ItemDefinition, int32 StackCount);
 	bool RemoveItemFromSlot(int32 SlotIndex);
+	int32 RemoveAllItems();
 	bool RemoveFirstItemByItemId(const FName& ItemId, int32& OutRemovedSlotIndex);
 
 	UItemDefinition* GetItemDefinitionAtSlot(int32 SlotIndex) const;
