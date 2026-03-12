@@ -148,6 +148,24 @@ bool UItemManagerComponent::RemoveItemFromSlot(int32 SlotIndex)
 	return true;
 }
 
+int32 UItemManagerComponent::RemoveAllItems()
+{
+	int32 RemovedItemCount = 0;
+
+	for (int32 SlotIndex = 0; SlotIndex < ItemDefinitions.Num(); ++SlotIndex)
+	{
+		if (!ItemDefinitions[SlotIndex])
+		{
+			continue;
+		}
+
+		RemoveItemFromSlot(SlotIndex);
+		++RemovedItemCount;
+	}
+
+	return RemovedItemCount;
+}
+
 bool UItemManagerComponent::RemoveFirstItemByItemId(const FName& ItemId, int32& OutRemovedSlotIndex)
 {
 	OutRemovedSlotIndex = INDEX_NONE;

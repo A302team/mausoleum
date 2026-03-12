@@ -13,6 +13,7 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "GameData/Items/ItemDefinition.h"
+#include "GameData/Events/GroupEvents/GroupEventConfiscateDefinition.h"
 #include "GameData/Events/PersonalEvents/PersonalEventInspectMaliceDefinition.h"
 #include "GameData/Events/PersonalEvents/PersonalEventMaliceDefinition.h"
 #include "GameData/Events/PersonalEvents/PersonalEventPublicMaliceDefinition.h"
@@ -21,10 +22,12 @@
 #include "GameData/RewardTypes.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Controller.h"
+#include "GameFramework/GameModeBase.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "GamePlay/Actor/KnifeActor.h"
 #include "GamePlay/Events/GroupEvents/BaseGroupEvent.h"
+#include "GamePlay/Events/GroupEvents/GroupEventConfiscate.h"
 #include "GamePlay/Events/PersonalEvents/BasePersonalEvent.h"
 #include "GamePlay/Events/PersonalEvents/PersonalEventInspectMalice.h"
 #include "GamePlay/Events/PersonalEvents/PersonalEventMalice.h"
@@ -36,6 +39,7 @@
 #include "InputCoreTypes.h"
 #include "Net/UnrealNetwork.h"
 #include "Object/BaseInteractable.h"
+#include "GameMode/A302PlayerState.h"
 #include "Voice/PrivateVoiceChatComponent.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogMyInput, Log, All);
@@ -253,6 +257,14 @@ void AMyCharacter::HandleDead()
 	}
 
 	bIsDead = true;
+
+	if (HasAuthority())
+	{
+		if (AA302PlayerState* A302PlayerState = GetPlayerState<AA302PlayerState>())
+		{
+			A302PlayerState->bIsAlive = false;
+		}
+	}
 
 	if (GetCharacterMovement())
 	{
@@ -535,25 +547,52 @@ bool AMyCharacter::HandlePersonalEventPickup(AActor* InteractedActor, const URew
 
 bool AMyCharacter::HandleGroupEventPickup(AActor* InteractedActor, const URewardDefinition* RewardDefinition)
 {
+	if (!HasAuthority())
+	{
+		return false;
+	}
+
 	if (!RewardDefinition)
 	{
 		return false;
 	}
 
 	UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass();
-	if (!LogicClass || !LogicClass->IsChildOf(UBaseGroupEvent::StaticClass()))
+	UClass* GroupEventClass = nullptr;
+	if (LogicClass && LogicClass->IsChildOf(UBaseGroupEvent::StaticClass()))
+	{
+		GroupEventClass = LogicClass;
+	}
+
+	if (!GroupEventClass)
+	{
+		URewardDefinition* MutableRewardDefinition = const_cast<URewardDefinition*>(RewardDefinition);
+		if (Cast<UGroupEventConfiscateDefinition>(MutableRewardDefinition))
+		{
+			GroupEventClass = UGroupEventConfiscate::StaticClass();
+		}
+	}
+
+	if (!GroupEventClass || !GroupEventClass->IsChildOf(UBaseGroupEvent::StaticClass()))
 	{
 		UE_LOG(
 			LogTemp,
 			Warning,
-			TEXT("[Reward] Group event pickup failed: invalid logic class. item=%s logic=%s"),
+			TEXT("[Reward] Group event pickup failed: invalid logic class. item=%s logic=%s mapped=%s"),
 			*GetNameSafe(RewardDefinition),
-			*GetNameSafe(LogicClass)
+			*GetNameSafe(LogicClass),
+			*GetNameSafe(GroupEventClass)
 		);
 		return false;
 	}
 
-	UBaseGroupEvent* GroupEvent = NewObject<UBaseGroupEvent>(this, LogicClass);
+	UObject* GroupEventOuter = GetWorld() ? Cast<UObject>(GetWorld()->GetAuthGameMode()) : nullptr;
+	if (!GroupEventOuter)
+	{
+		GroupEventOuter = this;
+	}
+
+	UBaseGroupEvent* GroupEvent = NewObject<UBaseGroupEvent>(GroupEventOuter, GroupEventClass);
 	if (!GroupEvent)
 	{
 		return false;
@@ -563,6 +602,58 @@ bool AMyCharacter::HandleGroupEventPickup(AActor* InteractedActor, const UReward
 	GroupEvent->InitializeContext(RewardDefinition, InteractedActor);
 	GroupEvent->ExecuteEvent(this);
 	return true;
+}
+
+bool AMyCharacter::ResolveInteractableReward(ABaseInteractable* Interactable)
+{
+	if (!Interactable)
+	{
+		return false;
+	}
+
+	Interactable->OnInteractionSuccess(this);
+
+	if (!IsValid(Interactable) || Interactable->IsPendingKillPending())
+	{
+		return false;
+	}
+
+	const URewardDefinition* RewardDefinition = Interactable->GetRewardDefinition();
+	if (!RewardDefinition)
+	{
+		return false;
+	}
+
+	if (!HandleRewardPickup(Interactable, RewardDefinition))
+	{
+		return false;
+	}
+
+	Interactable->Destroy();
+	return true;
+}
+
+void AMyCharacter::Server_ResolveInteractableReward_Implementation(ABaseInteractable* Interactable)
+{
+	if (!HasAuthority() || !IsValid(Interactable))
+	{
+		return;
+	}
+
+	const float MaxAllowedDistance = FMath::Max(InteractionDistance, 0.f) + 200.f;
+	if (GetDistanceTo(Interactable) > MaxAllowedDistance)
+	{
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("[Interaction] Server rejected interactable reward: too far. player=%s actor=%s"),
+			*GetName(),
+			*GetNameSafe(Interactable)
+		);
+		return;
+	}
+
+	ResolveInteractableReward(Interactable);
 }
 
 void AMyCharacter::InteractionCompleteResult()
@@ -584,23 +675,13 @@ void AMyCharacter::InteractionCompleteResult()
 		return;
 	}
 
-	Interactable->OnInteractionSuccess(this);
-
-	if (!IsValid(Interactable) || Interactable->IsPendingKillPending())
+	if (!HasAuthority())
 	{
+		Server_ResolveInteractableReward(Interactable);
 		return;
 	}
 
-	const URewardDefinition* RewardDefinition = Interactable->GetRewardDefinition();
-	if (!RewardDefinition)
-	{
-		return;
-	}
-
-	if (HandleRewardPickup(InteractedActor, RewardDefinition))
-	{
-		InteractedActor->Destroy();
-	}
+	ResolveInteractableReward(Interactable);
 }
 
 void AMyCharacter::OnItemSelect(const FInputActionValue& Value)
