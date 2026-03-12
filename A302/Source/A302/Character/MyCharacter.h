@@ -26,6 +26,7 @@ class UBasePersonalEvent;
 class UBaseGroupEvent;
 class UPersonalEventTimeKnife;
 class AShieldActor;
+class ABaseInteractable;
 
 UCLASS()
 class A302_API AMyCharacter : public ACharacter
@@ -48,6 +49,10 @@ public:
 	void SetTimedKnifeAttackInProgress(bool bInProgress);
 	UFUNCTION(NetMulticast, Reliable)
 	void Multicast_ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount);
+	UFUNCTION(Server, Reliable)
+	void Server_RequestInteractionReward(ABaseInteractable* Interactable);
+	UFUNCTION(Client, Reliable)
+	void Client_GrantInteractionReward(URewardDefinition* RewardDefinition);
 
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
@@ -152,6 +157,8 @@ private:
 	void HandleMaliceChanged(int32 NewCount);
 
 	bool HandleRewardPickup(AActor* InteractedActor, const URewardDefinition* RewardDefinition);
+	bool ShouldGrantRewardLocally(const URewardDefinition* RewardDefinition) const;
+	void ResolveInteractionRewardOnServer(ABaseInteractable* Interactable);
 	bool HandleBasicItemPickup(AActor* InteractedActor, const UItemDefinition* RewardDefinition);
 	bool HandlePersonalEventPickup(AActor* InteractedActor, const URewardDefinition* RewardDefinition);
 	bool HandleGroupEventPickup(AActor* InteractedActor, const URewardDefinition* RewardDefinition);

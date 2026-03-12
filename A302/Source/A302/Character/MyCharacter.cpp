@@ -372,7 +372,7 @@ void AMyCharacter::OnJumpReleased(const FInputActionValue& Value)
 
 bool AMyCharacter::HandleRewardPickup(AActor* InteractedActor, const URewardDefinition* RewardDefinition)
 {
-	if (!InteractedActor || !RewardDefinition)
+	if (!RewardDefinition)
 	{
 		return false;
 	}
@@ -416,6 +416,69 @@ bool AMyCharacter::HandleRewardPickup(AActor* InteractedActor, const URewardDefi
 		UE_LOG(LogTemp, Warning, TEXT("[Reward] Unknown category. item=%s"), *GetNameSafe(RewardDefinition));
 		return false;
 	}
+}
+
+bool AMyCharacter::ShouldGrantRewardLocally(const URewardDefinition* RewardDefinition) const
+{
+	if (!RewardDefinition)
+	{
+		return false;
+	}
+
+	if (RewardDefinition->RewardCategory == ERewardCategory::BasicItem)
+	{
+		return true;
+	}
+
+	UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass();
+	if (LogicClass && LogicClass->IsChildOf(UItemTimeKnife::StaticClass()))
+	{
+		return true;
+	}
+
+	URewardDefinition* MutableRewardDefinition = const_cast<URewardDefinition*>(RewardDefinition);
+	return
+		Cast<UPersonalEventInspectMaliceDefinition>(MutableRewardDefinition) != nullptr ||
+		Cast<UPersonalEventTimeKnifeDefinition>(MutableRewardDefinition) != nullptr;
+}
+
+void AMyCharacter::ResolveInteractionRewardOnServer(ABaseInteractable* Interactable)
+{
+	if (!HasAuthority() || !IsValid(Interactable))
+	{
+		return;
+	}
+
+	if (!Interactable->TryConsumeInteraction())
+	{
+		return;
+	}
+
+	const URewardDefinition* RewardDefinition = Interactable->GetRewardDefinition();
+	if (RewardDefinition)
+	{
+		if (ShouldGrantRewardLocally(RewardDefinition))
+		{
+			Client_GrantInteractionReward(const_cast<URewardDefinition*>(RewardDefinition));
+		}
+		else
+		{
+			HandleRewardPickup(Interactable, RewardDefinition);
+		}
+	}
+
+	Interactable->ForceNetUpdate();
+	Interactable->Destroy();
+}
+
+void AMyCharacter::Server_RequestInteractionReward_Implementation(ABaseInteractable* Interactable)
+{
+	ResolveInteractionRewardOnServer(Interactable);
+}
+
+void AMyCharacter::Client_GrantInteractionReward_Implementation(URewardDefinition* RewardDefinition)
+{
+	HandleRewardPickup(nullptr, RewardDefinition);
 }
 
 bool AMyCharacter::HandleBasicItemPickup(AActor* InteractedActor, const UItemDefinition* RewardDefinition)
@@ -569,27 +632,20 @@ void AMyCharacter::InteractionCompleteResult()
 	}
 
 	ABaseInteractable* Interactable = Cast<ABaseInteractable>(InteractedActor);
-	if (!Interactable)
+	if (!IsValid(Interactable))
 	{
 		return;
 	}
 
 	Interactable->OnInteractionSuccess(this);
 
-	if (!IsValid(Interactable) || Interactable->IsPendingKillPending())
+	if (HasAuthority())
 	{
-		return;
+		ResolveInteractionRewardOnServer(Interactable);
 	}
-
-	const URewardDefinition* RewardDefinition = Interactable->GetRewardDefinition();
-	if (!RewardDefinition)
+	else
 	{
-		return;
-	}
-
-	if (HandleRewardPickup(InteractedActor, RewardDefinition))
-	{
-		InteractedActor->Destroy();
+		Server_RequestInteractionReward(Interactable);
 	}
 }
 

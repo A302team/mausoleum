@@ -24,6 +24,7 @@ class UComboBoxString;
 class UButton;
 class UBaseEvent;
 class UPersonalEventWidget;
+class APlayerState;
 
 UCLASS()
 class A302_API AMyPlayerController : public APlayerController
@@ -68,6 +69,9 @@ public:
 	UFUNCTION(Server, Reliable, BlueprintCallable, Category = "PersonalEvent")
 	void Server_ResolvePersonalEvent(FName EventID, bool bIsConfirmed);
 
+	UFUNCTION(Server, Reliable)
+	void Server_RegisterPlayerDisplayName(const FString& DesiredName);
+
 	void ShowInspectMaliceSelectionWidget();
 
 protected:
@@ -107,10 +111,13 @@ private:
 	void InitializeQuickSlotVisualState();
 	void InitializeInGameSettingWidget();
 	void InitializeInspectMaliceWidget();
+	void PopulateInspectMaliceSelectionWidget();
 	void ResetInspectMaliceSelectionWidget();
 	void SetInspectMaliceResultVisible(bool bVisible);
 	void HideInspectMaliceSelectionWidget();
-	int32 QueryDummy1MaliceCount() const;
+	void ApplyInspectMaliceSelection(int32 EntryIndex);
+	int32 QueryPlayerMaliceCount(const APlayerState* TargetPlayerState) const;
+	FString ResolvePlayerDisplayName(const APlayerState* TargetPlayerState) const;
 	void SetPublicMaliceAnnouncementVisible(bool bVisible);
 	void HidePublicMaliceAnnouncement();
 	void OpenInGameSettingMenu();
@@ -125,7 +132,19 @@ private:
 	void OnExitClicked();
 
 	UFUNCTION()
-	void OnInspectMaliceDummy1Clicked();
+	void OnInspectMalicePlayer1Clicked();
+
+	UFUNCTION()
+	void OnInspectMalicePlayer2Clicked();
+
+	UFUNCTION()
+	void OnInspectMalicePlayer3Clicked();
+
+	UFUNCTION()
+	void OnInspectMalicePlayer4Clicked();
+
+	UFUNCTION()
+	void OnInspectMalicePlayer5Clicked();
 
 	UPROPERTY()
 	TObjectPtr<UComboBoxString> ResolutionComboBox = nullptr;
@@ -138,6 +157,9 @@ private:
 
 	FTimerHandle InspectMaliceHideTimerHandle;
 	FTimerHandle PublicMaliceAnnouncementHideTimerHandle;
+
+	UPROPERTY()
+	TArray<TObjectPtr<APlayerState>> InspectMaliceSelectablePlayers;
 
 public:
 };

@@ -14,7 +14,9 @@ class A302_API UMaliceComponent : public UActorComponent
 public:
 	UMaliceComponent();
 
-	UPROPERTY(BlueprintReadOnly, Category="Malice")
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+	UPROPERTY(ReplicatedUsing=OnRep_MaliceCount, BlueprintReadOnly, Category="Malice")
 	int32 MaliceCount = 0;
 
 	UPROPERTY(BlueprintAssignable, Category="Malice")
@@ -25,4 +27,10 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="Malice")
 	void ConsumeMalice(int32 Count);
+
+	int32 GetMaliceCount() const { return FMath::Max(0, MaliceCount); }
+
+private:
+	UFUNCTION()
+	void OnRep_MaliceCount();
 };
