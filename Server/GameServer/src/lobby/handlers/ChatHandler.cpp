@@ -1,6 +1,6 @@
-#include "ChatHandler.h"
+#include "lobby/handlers/ChatHandler.h"
 #include "common/logging/Logger.h"
-#include "../LobbyConstants.h"
+#include "lobby/LobbyConstants.h"
 
 using namespace Lobby::Protocol;
 

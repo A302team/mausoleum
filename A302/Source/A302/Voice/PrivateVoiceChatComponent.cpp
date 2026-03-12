@@ -95,6 +95,7 @@ void UPrivateVoiceChatComponent::BeginPlay()
         {
             if (OwnerPawn->IsLocallyControlled())
             {
+                bIsInitializedAsLocal = true; // 로컬 플레이어임을 박제
                 if (UA302GameInstance* GI = Cast<UA302GameInstance>(UGameplayStatics::GetGameInstance(this)))
                 {
                     SetRoomCode(GI->CurrentRoomCode);
@@ -161,16 +162,25 @@ void UPrivateVoiceChatComponent::ConnectToVoiceServer()
 
 void UPrivateVoiceChatComponent::DisconnectFromVoiceServer()
 {
-    if (APawn* OwnerPawn = Cast<APawn>(GetOwner()))
+    // BeginPlay에서 로컬로 판정되었거나, 현재 로컬 컨트롤 중인 경우에만 종료 패킷 전송
+    bool bShouldDisconnect = bIsInitializedAsLocal;
+    
+    if (!bShouldDisconnect)
     {
-        if (!OwnerPawn->IsLocallyControlled())
+        if (APawn* OwnerPawn = Cast<APawn>(GetOwner()))
         {
-            return; // 로컬 컨트롤러가 아닌 타 유저 아바타 파괴 시에는 서버 연결을 끊지 않음
+            bShouldDisconnect = OwnerPawn->IsLocallyControlled();
         }
+    }
+
+    if (!bShouldDisconnect)
+    {
+        return; 
     }
 
     if (NetworkClient) 
     {
+        UE_LOG(LogVoiceChat, Log, TEXT("[Voice] DisconnectFromVoiceServer - Sending leave packet for Room: %s, User: %s"), *roomCode, *GetMyPlayerName());
         NetworkClient->Disconnect(roomCode, GetMyPlayerName());
     }
 }
