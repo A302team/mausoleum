@@ -1,16 +1,16 @@
-#include "GamePlay/Events/PersonalEvents/PersonalEventTimeKnife.h"
+#include "GamePlay/Events/PersonalEvents/PersonalEventCursedSword.h"
 
 #include "Character/Components/ItemManagerComponent.h"
 #include "Character/MyCharacter.h"
 #include "Character/MyPlayerController.h"
 #include "GameData/Items/ItemDefinition.h"
-#include "GameData/Events/PersonalEvents/PersonalEventTimeKnifeDefinition.h"
-#include "GameData/Events/PersonalEvents/PersonalEventDefinition.h" // 🚩 추가됨
+#include "GameData/Events/PersonalEvents/PersonalEventCursedSwordDefinition.h"
+#include "GameData/Events/PersonalEvents/PersonalEventDefinition.h" 
 #include "GameData/RewardDefinition.h"
 #include "GamePlay/Items/ItemTimeKnife.h"
 #include "Engine/World.h"
 
-void UPersonalEventTimeKnife::ExecuteEvent_Implementation(AMyCharacter* InstigatorCharacter)
+void UPersonalEventCursedSword::ExecuteEvent_Implementation(AMyCharacter* InstigatorCharacter)
 {
 	if (!InstigatorCharacter)
 	{
@@ -24,19 +24,33 @@ void UPersonalEventTimeKnife::ExecuteEvent_Implementation(AMyCharacter* Instigat
 	{
 		return;
 	}
-	
+    
 	PC->ActivePersonalEvent = this;
-	
+    
 	const URewardDefinition* SourceRewardDefinition = GetRewardDefinition();
 	const UPersonalEventDefinition* EventDef = Cast<UPersonalEventDefinition>(SourceRewardDefinition);
     
 	if (EventDef)
 	{
+		TArray<FText> Choices;
+		if (EventDef->bIsCancelable)
+		{
+			Choices.Add(FText::FromString(TEXT("거절")));
+			Choices.Add(FText::FromString(TEXT("수락")));
+		}
+		else
+		{
+			// 거절 불가능한 이벤트라도, 인덱스 1(수락)을 맞추기 위해 0번을 더미로 넣습니다.
+			// (블루프린트 위젯에서 텍스트가 비어있으면 숨기거나, 무시하도록 처리 가능)
+			Choices.Add(FText::FromString(TEXT(""))); 
+			Choices.Add(FText::FromString(TEXT("확인"))); 
+		}
+
 		PC->Client_ShowPersonalEvent(
-			EventDef->ItemId, 
-			EventDef->DisplayName, 
-			EventDef->Description, 
-			EventDef->bIsCancelable
+		   EventDef->ItemId, 
+		   EventDef->DisplayName, 
+		   EventDef->Description, 
+		   Choices
 		);
 	}
 	else
@@ -47,7 +61,7 @@ void UPersonalEventTimeKnife::ExecuteEvent_Implementation(AMyCharacter* Instigat
 	}
 }
 
-void UPersonalEventTimeKnife::OnEventResolved(AMyCharacter* InstigatorCharacter, bool bIsConfirmed)
+void UPersonalEventCursedSword::OnEventResolved(AMyCharacter* InstigatorCharacter, bool bIsConfirmed)
 {
 	// 취소가 가능한 이벤트에서 플레이어가 거절을 눌렀을 경우
 	if (!bIsConfirmed)
@@ -60,8 +74,8 @@ void UPersonalEventTimeKnife::OnEventResolved(AMyCharacter* InstigatorCharacter,
 	OwnerCharacter = InstigatorCharacter;
 
 	const URewardDefinition* SourceRewardDefinition = GetRewardDefinition();
-	const UPersonalEventTimeKnifeDefinition* EventDef =
-	   Cast<UPersonalEventTimeKnifeDefinition>(const_cast<URewardDefinition*>(SourceRewardDefinition));
+	const UPersonalEventCursedSwordDefinition* EventDef =
+	   Cast<UPersonalEventCursedSwordDefinition>(const_cast<URewardDefinition*>(SourceRewardDefinition));
 	RemainingSeconds = EventDef ? FMath::Max(1.0f, EventDef->Payload.TimedKillDuration) : 30.0f;
 
 	UItemDefinition* GrantedKnifeDefinition = ResolveGrantedKnifeDefinition(SourceRewardDefinition, EventDef);
@@ -93,7 +107,7 @@ void UPersonalEventTimeKnife::OnEventResolved(AMyCharacter* InstigatorCharacter,
 		World->GetTimerManager().SetTimer(
 		   CountdownTimerHandle,
 		   this,
-		   &UPersonalEventTimeKnife::HandleCountdownTick,
+		   &UPersonalEventCursedSword::HandleCountdownTick,
 		   1.0f,
 		   true
 		);
@@ -102,7 +116,7 @@ void UPersonalEventTimeKnife::OnEventResolved(AMyCharacter* InstigatorCharacter,
 	UE_LOG(LogTemp, Log, TEXT("[PersonalEventTimeKnife] Countdown started: %.0fs"), RemainingSeconds);
 }
 
-void UPersonalEventTimeKnife::NotifyKillConfirmed()
+void UPersonalEventCursedSword::NotifyKillConfirmed()
 {
 	if (!bIsActive)
 	{
@@ -113,7 +127,7 @@ void UPersonalEventTimeKnife::NotifyKillConfirmed()
 	StopCountdown(true);
 }
 
-void UPersonalEventTimeKnife::CancelCountdown()
+void UPersonalEventCursedSword::CancelCountdown()
 {
 	if (!bIsActive)
 	{
@@ -124,13 +138,13 @@ void UPersonalEventTimeKnife::CancelCountdown()
 	StopCountdown(true);
 }
 
-void UPersonalEventTimeKnife::BeginDestroy()
+void UPersonalEventCursedSword::BeginDestroy()
 {
 	StopCountdown(true);
 	Super::BeginDestroy();
 }
 
-void UPersonalEventTimeKnife::HandleCountdownTick()
+void UPersonalEventCursedSword::HandleCountdownTick()
 {
 	if (!bIsActive)
 	{
@@ -157,7 +171,7 @@ void UPersonalEventTimeKnife::HandleCountdownTick()
 	Character->ForceDeadByPersonalEvent();
 }
 
-void UPersonalEventTimeKnife::RefreshTimerUI() const
+void UPersonalEventCursedSword::RefreshTimerUI() const
 {
 	AMyCharacter* Character = OwnerCharacter.Get();
 	if (!Character)
@@ -172,7 +186,7 @@ void UPersonalEventTimeKnife::RefreshTimerUI() const
 	}
 }
 
-void UPersonalEventTimeKnife::StopCountdown(bool bHideTimer)
+void UPersonalEventCursedSword::StopCountdown(bool bHideTimer)
 {
 	if (UWorld* World = GetWorld())
 	{
@@ -208,7 +222,7 @@ void UPersonalEventTimeKnife::StopCountdown(bool bHideTimer)
 	bIsActive = false;
 }
 
-UItemDefinition* UPersonalEventTimeKnife::ResolveGrantedKnifeDefinition(const URewardDefinition* SourceRewardDefinition, const UPersonalEventTimeKnifeDefinition* EventDefinition) const
+UItemDefinition* UPersonalEventCursedSword::ResolveGrantedKnifeDefinition(const URewardDefinition* SourceRewardDefinition, const UPersonalEventCursedSwordDefinition* EventDefinition) const
 {
 	auto IsValidTimedKnifeItem = [](const UItemDefinition* Candidate)
 	{

@@ -15,6 +15,11 @@ class A302_API UBasePersonalEvent : public UBaseEvent
 public:
 	void InitializeContext(const URewardDefinition* InRewardDefinition, AActor* InSourceActor);
 	virtual void OnEventResolved(class AMyCharacter* InstigatorCharacter, bool bIsConfirmed) {}
+	virtual void OnEventResolvedMulti(class AMyCharacter* InstigatorCharacter, int32 ChoiceIndex)
+	{
+		// 복수 선택지 대응(0은 취소)
+		OnEventResolved(InstigatorCharacter, ChoiceIndex > 0);
+	}
 
 protected:
 	const URewardDefinition* GetRewardDefinition() const { return RewardDefinition; }
