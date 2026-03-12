@@ -8,42 +8,25 @@
 void UPersonalEventWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
-
-	// 확인 버튼 이벤트 바인딩
-	if (Btn_Confirm) Btn_Confirm->OnClicked.AddDynamic(this, &UPersonalEventWidget::OnConfirmClicked);
-	
-	// 취소 버튼 이벤트 바인딩
-	if (Btn_Cancel) Btn_Cancel->OnClicked.AddDynamic(this, &UPersonalEventWidget::OnCancelClicked);
 }
 
-void UPersonalEventWidget::SetupEventUI(FName InEventID, const FText& EventTitle, const FText& EventDescription, bool bIsCancelable)
+void UPersonalEventWidget::SetupEventUI(FName InEventID, const FText& EventTitle, const FText& EventDescription, const TArray<FText>& Choices)
 {
 	CurrentEventID = InEventID;
 	if (Text_Title) Text_Title->SetText(EventTitle);
 	if (Text_Description) Text_Description->SetText(EventDescription);
-	if (Btn_Cancel)	{Btn_Cancel->SetVisibility(bIsCancelable ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);}
+	if (Box_Choices) Box_Choices->ClearChildren();
+	for (int32 i = 0; i < Choices.Num(); ++i) AddChoiceButton(i, Choices[i]);
 }
 
-void UPersonalEventWidget::OnConfirmClicked()
+void UPersonalEventWidget::OnChoiceButtonClicked(int32 ChoiceIndex)
 {
-	if (AMyPlayerController* PC = Cast<AMyPlayerController>(GetOwningPlayer()))
-	{
-		PC->Server_ResolvePersonalEvent(CurrentEventID, true);
-		PC->bShowMouseCursor = false;
-		PC->SetInputMode(FInputModeGameOnly());
-	}
-
-	// 화면에서 위젯 제거
-	RemoveFromParent();
-}
-
-void UPersonalEventWidget::OnCancelClicked()
-{
-	if (AMyPlayerController* PC = Cast<AMyPlayerController>(GetOwningPlayer()))
-	{
-		PC->Server_ResolvePersonalEvent(CurrentEventID, false);
-		PC->bShowMouseCursor = false;
-		PC->SetInputMode(FInputModeGameOnly());
-	}
-	RemoveFromParent();
+    if (AMyPlayerController* PC = Cast<AMyPlayerController>(GetOwningPlayer()))
+    {
+        // 클릭한 버튼의 인덱스(0, 1, 2...)를 서버로 보냅니다.
+        PC->Server_ResolvePersonalEvent(CurrentEventID, ChoiceIndex);
+        PC->bShowMouseCursor = false;
+        PC->SetInputMode(FInputModeGameOnly());
+    }
+    RemoveFromParent();
 }

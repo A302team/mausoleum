@@ -5,6 +5,6 @@ void UHideWeapon::Notify(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* An
 {
     if (AMyCharacter* Character = Cast<AMyCharacter>(MeshComp->GetOwner()))
     {
-        Character->HideKnife();
+        Character->HideWeapon();
     }
 }

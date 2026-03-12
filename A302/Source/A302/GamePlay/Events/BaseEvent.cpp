@@ -17,14 +17,23 @@ void UBaseEvent::ExecuteEvent_Implementation(AMyCharacter* InstigatorCharacter)
 		UE_LOG(LogTemp, Warning, TEXT("[Event] 플레이어 컨트롤러 찾음! UI 출력 RPC 호출 시도!"));
 		PC->ActivePersonalEvent = this;
         
-		// 🚩 [핵심 수정] 여기서 실제로 PC의 함수를 호출해야 합니다!
-		// UBaseEvent 헤더(.h)에 만들어두신 변수들을 집어넣어 줍니다.
-		// (만약 변수 이름이 다르다면 본인의 변수 이름으로 맞춰주세요)
+		TArray<FText> Choices;
+		if (this->bIsCancelable)
+		{
+			Choices.Add(FText::FromString(TEXT("취소"))); 
+			Choices.Add(FText::FromString(TEXT("확인"))); 
+		}
+		else
+		{
+			Choices.Add(FText::FromString(TEXT(""))); 
+			Choices.Add(FText::FromString(TEXT("확인"))); 
+		}
+
 		PC->Client_ShowPersonalEvent(
-			this->EventID, 
-			this->EventTitle, 
-			this->EventDescription, 
-			this->bIsCancelable
+		   this->EventID, 
+		   this->EventTitle, 
+		   this->EventDescription, 
+		   Choices
 		);
 	}
 }
