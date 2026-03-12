@@ -440,7 +440,7 @@ bool AMyCharacter::ShouldGrantRewardLocally(const URewardDefinition* RewardDefin
 	URewardDefinition* MutableRewardDefinition = const_cast<URewardDefinition*>(RewardDefinition);
 	return
 		Cast<UPersonalEventInspectMaliceDefinition>(MutableRewardDefinition) != nullptr ||
-		Cast<UPersonalEventTimeKnifeDefinition>(MutableRewardDefinition) != nullptr;
+		Cast<UPersonalEventCursedSwordDefinition>(MutableRewardDefinition) != nullptr;
 }
 
 void AMyCharacter::ResolveInteractionRewardOnServer(ABaseInteractable* Interactable)
