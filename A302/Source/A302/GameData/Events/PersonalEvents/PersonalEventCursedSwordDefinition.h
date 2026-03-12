@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameData/Events/PersonalEvents/PersonalEventDefinition.h"
-#include "PersonalEventTimeKnifeDefinition.generated.h"
+#include "PersonalEventCursedSwordDefinition.generated.h"
 
 class UItemDefinition;
 
@@ -19,7 +19,7 @@ struct FPersonalEventTimeKnifePayload
 };
 
 UCLASS(BlueprintType)
-class A302_API UPersonalEventTimeKnifeDefinition : public UPersonalEventDefinition
+class A302_API UPersonalEventCursedSwordDefinition : public UPersonalEventDefinition
 {
     GENERATED_BODY()
 
