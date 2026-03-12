@@ -25,6 +25,7 @@ class UPrivateVoiceChatComponent;
 class UBasePersonalEvent;
 class UBaseGroupEvent;
 class UPersonalEventTimeKnife;
+class AShieldActor;
 
 UCLASS()
 class A302_API AMyCharacter : public ACharacter
@@ -65,8 +66,14 @@ public:
   UPROPERTY(EditAnywhere, Category="Weapon")
   TSubclassOf<AWeaponActor> TimeKnifeActorClass;
 
+	UPROPERTY(EditAnywhere, Category="Weapon")
+	TSubclassOf<AWeaponActor> ShieldActorClass;
+
 	UPROPERTY()
 	AWeaponActor* CurrentWeaponActor;
+
+	UPROPERTY()
+	AShieldActor* CurrentShield = nullptr;
 
 protected:
 	virtual void BeginPlay() override;
