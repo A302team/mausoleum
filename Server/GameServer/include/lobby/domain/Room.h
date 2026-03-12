@@ -1,5 +1,5 @@
 #pragma once
-#include "Player.h"
+#include "lobby/domain/Player.h"
 #include <unordered_map>
 #include <string>
 #include <iostream>

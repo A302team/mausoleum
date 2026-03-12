@@ -1,18 +1,22 @@
 #include "Character/MyPlayerController.h"
 
 #include "Blueprint/UserWidget.h"
-#include "Character/Dummy/DummyCharacter.h"
+#include "Character/Components/MaliceComponent.h"
 #include "Character/MyCharacter.h"
 #include "Components/Button.h"
 #include "Components/ComboBoxString.h"
 #include "Components/Image.h"
 #include "Components/PanelWidget.h"
 #include "Components/TextBlock.h"
+#include "EngineUtils.h"
 #include "EnhancedInputSubsystems.h"
 #include "GamePlay/Events/BaseEvent.h"
 #include "GamePlay/Events/PersonalEvents/BasePersonalEvent.h"
 #include "InputMappingContext.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "GameFramework/GameStateBase.h"
+#include "GameFramework/PlayerState.h"
+#include "GameMode/A302GameInstance.h"
 #include "GameMode/A302GameMode.h"
 #include "UI/ChatWidget.h"
 #include "UI/PersonalEventWidget.h"
@@ -24,6 +28,31 @@
 namespace
 {
 	constexpr int32 PlayerControllerQuickSlotCount = 5;
+	constexpr int32 MaxInspectMaliceTargets = 5;
+
+	AMyCharacter* FindCharacterForPlayerState(const UObject* WorldContextObject, const APlayerState* TargetPlayerState)
+	{
+		if (!WorldContextObject || !TargetPlayerState)
+		{
+			return nullptr;
+		}
+
+		UWorld* World = WorldContextObject->GetWorld();
+		if (!World)
+		{
+			return nullptr;
+		}
+
+		for (TActorIterator<AMyCharacter> It(World); It; ++It)
+		{
+			if (It->GetPlayerState() == TargetPlayerState)
+			{
+				return *It;
+			}
+		}
+
+		return nullptr;
+	}
 }
 
 // bool AMyPlayerController::ServerRequestGameStart_Validate()
@@ -423,6 +452,22 @@ void AMyPlayerController::OnExitClicked()
 	UKismetSystemLibrary::QuitGame(this, this, EQuitPreference::Quit, false);
 }
 
+void AMyPlayerController::Server_RegisterPlayerDisplayName_Implementation(const FString& DesiredName)
+{
+	if (!PlayerState)
+	{
+		return;
+	}
+
+	const FString TrimmedName = DesiredName.TrimStartAndEnd();
+	if (TrimmedName.IsEmpty())
+	{
+		return;
+	}
+
+	PlayerState->SetPlayerName(TrimmedName.Left(32));
+}
+
 AMyPlayerController::AMyPlayerController()
 {
 	static ConstructorHelpers::FClassFinder<UUserWidget> InspectMaliceWidgetBPClass(TEXT("/Game/WorkSpace/UI/WBP_SelectUser"));
@@ -439,6 +484,14 @@ void AMyPlayerController::BeginPlay()
 	// 로컬 컨트롤러에서만 실행
 	if (!IsLocalController())
 		return;
+
+	if (const UA302GameInstance* GameInstance = Cast<UA302GameInstance>(GetGameInstance()))
+	{
+		if (!GameInstance->MyPlayerName.IsEmpty())
+		{
+			Server_RegisterPlayerDisplayName(GameInstance->MyPlayerName);
+		}
+	}
 
 	if (ULocalPlayer *LP = GetLocalPlayer())
 	{
@@ -547,38 +600,58 @@ void AMyPlayerController::InitializeInspectMaliceWidget()
 
 	InspectMaliceWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
 
-	if (UButton *Dummy1Button = FindInspectMaliceButton(TEXT("UserBtn1")))
+	if (UButton *Player1Button = FindInspectMaliceButton(TEXT("UserBtn1")))
 	{
-		Dummy1Button->OnClicked.RemoveDynamic(this, &AMyPlayerController::OnInspectMaliceDummy1Clicked);
-		Dummy1Button->OnClicked.AddDynamic(this, &AMyPlayerController::OnInspectMaliceDummy1Clicked);
-		Dummy1Button->SetVisibility(ESlateVisibility::Visible);
+		Player1Button->OnClicked.RemoveDynamic(this, &AMyPlayerController::OnInspectMalicePlayer1Clicked);
+		Player1Button->OnClicked.AddDynamic(this, &AMyPlayerController::OnInspectMalicePlayer1Clicked);
 	}
 	else
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[InspectMalice] UserBtn1 widget not found."));
 	}
 
-	if (UTextBlock *Dummy1Text = FindInspectMaliceText(TEXT("UserText1")))
+	if (UButton *Player2Button = FindInspectMaliceButton(TEXT("UserBtn2")))
 	{
-		Dummy1Text->SetText(FText::FromString(TEXT("Dummy1")));
-		Dummy1Text->SetVisibility(ESlateVisibility::Visible);
+		Player2Button->OnClicked.RemoveDynamic(this, &AMyPlayerController::OnInspectMalicePlayer2Clicked);
+		Player2Button->OnClicked.AddDynamic(this, &AMyPlayerController::OnInspectMalicePlayer2Clicked);
 	}
 
-	for (int32 Index = 2; Index <= 6; ++Index)
+	if (UButton *Player3Button = FindInspectMaliceButton(TEXT("UserBtn3")))
+	{
+		Player3Button->OnClicked.RemoveDynamic(this, &AMyPlayerController::OnInspectMalicePlayer3Clicked);
+		Player3Button->OnClicked.AddDynamic(this, &AMyPlayerController::OnInspectMalicePlayer3Clicked);
+	}
+
+	if (UButton *Player4Button = FindInspectMaliceButton(TEXT("UserBtn4")))
+	{
+		Player4Button->OnClicked.RemoveDynamic(this, &AMyPlayerController::OnInspectMalicePlayer4Clicked);
+		Player4Button->OnClicked.AddDynamic(this, &AMyPlayerController::OnInspectMalicePlayer4Clicked);
+	}
+
+	if (UButton *Player5Button = FindInspectMaliceButton(TEXT("UserBtn5")))
+	{
+		Player5Button->OnClicked.RemoveDynamic(this, &AMyPlayerController::OnInspectMalicePlayer5Clicked);
+		Player5Button->OnClicked.AddDynamic(this, &AMyPlayerController::OnInspectMalicePlayer5Clicked);
+	}
+
+	for (int32 Index = 1; Index <= 6; ++Index)
 	{
 		const FName ButtonName(*FString::Printf(TEXT("UserBtn%d"), Index));
 		if (UButton *HiddenButton = FindInspectMaliceButton(ButtonName))
 		{
 			HiddenButton->SetVisibility(ESlateVisibility::Collapsed);
+			HiddenButton->SetIsEnabled(false);
 		}
 
 		const FName TextName(*FString::Printf(TEXT("UserText%d"), Index));
 		if (UTextBlock *HiddenText = FindInspectMaliceText(TextName))
 		{
 			HiddenText->SetVisibility(ESlateVisibility::Collapsed);
+			HiddenText->SetText(FText::GetEmpty());
 		}
 	}
 
+	InspectMaliceSelectablePlayers.Reset();
 	ResetInspectMaliceSelectionWidget();
 }
 
@@ -596,6 +669,7 @@ void AMyPlayerController::ShowInspectMaliceSelectionWidget()
 	}
 
 	ResetInspectMaliceSelectionWidget();
+	PopulateInspectMaliceSelectionWidget();
 	InspectMaliceWidgetInstance->SetVisibility(ESlateVisibility::Visible);
 
 	FInputModeGameAndUI InputMode;
@@ -608,6 +682,65 @@ void AMyPlayerController::ShowInspectMaliceSelectionWidget()
 	bEnableMouseOverEvents = true;
 
 	UE_LOG(LogTemp, Log, TEXT("[InspectMalice] Selection widget opened."));
+}
+
+void AMyPlayerController::PopulateInspectMaliceSelectionWidget()
+{
+	InspectMaliceSelectablePlayers.Reset();
+
+	AGameStateBase* GameState = GetWorld() ? GetWorld()->GetGameState() : nullptr;
+	if (!GameState)
+	{
+		return;
+	}
+
+	APlayerState* LocalPlayerState = PlayerState;
+	for (APlayerState* CandidatePlayerState : GameState->PlayerArray)
+	{
+		if (!CandidatePlayerState || CandidatePlayerState == LocalPlayerState)
+		{
+			continue;
+		}
+
+		if (InspectMaliceSelectablePlayers.Num() >= MaxInspectMaliceTargets)
+		{
+			break;
+		}
+
+		InspectMaliceSelectablePlayers.Add(CandidatePlayerState);
+
+		const int32 WidgetIndex = InspectMaliceSelectablePlayers.Num();
+		const FName ButtonName(*FString::Printf(TEXT("UserBtn%d"), WidgetIndex));
+		if (UButton* TargetButton = FindInspectMaliceButton(ButtonName))
+		{
+			TargetButton->SetVisibility(ESlateVisibility::Visible);
+			TargetButton->SetIsEnabled(true);
+		}
+
+		const FName TextName(*FString::Printf(TEXT("UserText%d"), WidgetIndex));
+		if (UTextBlock* TargetText = FindInspectMaliceText(TextName))
+		{
+			TargetText->SetText(FText::FromString(ResolvePlayerDisplayName(CandidatePlayerState)));
+			TargetText->SetVisibility(ESlateVisibility::Visible);
+		}
+	}
+
+	for (int32 WidgetIndex = InspectMaliceSelectablePlayers.Num() + 1; WidgetIndex <= 6; ++WidgetIndex)
+	{
+		const FName ButtonName(*FString::Printf(TEXT("UserBtn%d"), WidgetIndex));
+		if (UButton* HiddenButton = FindInspectMaliceButton(ButtonName))
+		{
+			HiddenButton->SetVisibility(ESlateVisibility::Collapsed);
+			HiddenButton->SetIsEnabled(false);
+		}
+
+		const FName TextName(*FString::Printf(TEXT("UserText%d"), WidgetIndex));
+		if (UTextBlock* HiddenText = FindInspectMaliceText(TextName))
+		{
+			HiddenText->SetVisibility(ESlateVisibility::Collapsed);
+			HiddenText->SetText(FText::GetEmpty());
+		}
+	}
 }
 
 void AMyPlayerController::ResetInspectMaliceSelectionWidget()
@@ -677,31 +810,51 @@ void AMyPlayerController::HidePublicMaliceAnnouncement()
 	SetPublicMaliceAnnouncementVisible(false);
 }
 
-int32 AMyPlayerController::QueryDummy1MaliceCount() const
+int32 AMyPlayerController::QueryPlayerMaliceCount(const APlayerState* TargetPlayerState) const
 {
-	const ADummyCharacter *DummyCharacter =
-		Cast<ADummyCharacter>(UGameplayStatics::GetActorOfClass(this, ADummyCharacter::StaticClass()));
-	if (!DummyCharacter)
+	const AMyCharacter* TargetCharacter = FindCharacterForPlayerState(this, TargetPlayerState);
+	if (!TargetCharacter)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[InspectMalice] Dummy1 lookup failed. Returning 0 malice."));
+		UE_LOG(LogTemp, Warning, TEXT("[InspectMalice] Character lookup failed. Returning 0 malice."));
 		return 0;
 	}
 
-	return DummyCharacter->GetCurrentMaliceCount();
+	const UMaliceComponent* MaliceComponent = TargetCharacter->FindComponentByClass<UMaliceComponent>();
+	return MaliceComponent ? MaliceComponent->GetMaliceCount() : 0;
 }
 
-void AMyPlayerController::OnInspectMaliceDummy1Clicked()
+FString AMyPlayerController::ResolvePlayerDisplayName(const APlayerState* TargetPlayerState) const
 {
-	UE_LOG(LogTemp, Log, TEXT("[InspectMalice] Stub server request sent for user=Dummy1."));
+	if (!TargetPlayerState)
+	{
+		return TEXT("Unknown");
+	}
+
+	const FString PlayerName = TargetPlayerState->GetPlayerName();
+	return PlayerName.IsEmpty() ? GetNameSafe(TargetPlayerState) : PlayerName;
+}
+
+void AMyPlayerController::ApplyInspectMaliceSelection(int32 EntryIndex)
+{
+	if (!InspectMaliceSelectablePlayers.IsValidIndex(EntryIndex))
+	{
+		return;
+	}
+
+	APlayerState* TargetPlayerState = InspectMaliceSelectablePlayers[EntryIndex];
+	if (!TargetPlayerState)
+	{
+		return;
+	}
 
 	if (UTextBlock *UserText = FindInspectMaliceText(TEXT("InspectMaliceUserText")))
 	{
-		UserText->SetText(FText::FromString(TEXT("Dummy1")));
+		UserText->SetText(FText::FromString(ResolvePlayerDisplayName(TargetPlayerState)));
 	}
 
 	if (UTextBlock *MaliceNumText = FindInspectMaliceText(TEXT("InspectMaliceUserMaliceNum")))
 	{
-		MaliceNumText->SetText(FText::AsNumber(QueryDummy1MaliceCount()));
+		MaliceNumText->SetText(FText::AsNumber(QueryPlayerMaliceCount(TargetPlayerState)));
 	}
 
 	SetInspectMaliceResultVisible(true);
@@ -716,6 +869,31 @@ void AMyPlayerController::OnInspectMaliceDummy1Clicked()
 			false
 		);
 	}
+}
+
+void AMyPlayerController::OnInspectMalicePlayer1Clicked()
+{
+	ApplyInspectMaliceSelection(0);
+}
+
+void AMyPlayerController::OnInspectMalicePlayer2Clicked()
+{
+	ApplyInspectMaliceSelection(1);
+}
+
+void AMyPlayerController::OnInspectMalicePlayer3Clicked()
+{
+	ApplyInspectMaliceSelection(2);
+}
+
+void AMyPlayerController::OnInspectMalicePlayer4Clicked()
+{
+	ApplyInspectMaliceSelection(3);
+}
+
+void AMyPlayerController::OnInspectMalicePlayer5Clicked()
+{
+	ApplyInspectMaliceSelection(4);
 }
 
 void AMyPlayerController::Client_ShowPersonalEvent_Implementation(FName EventID, const FText& EventTitle, const FText& EventDescription, bool bIsCancelable)

@@ -1,5 +1,5 @@
 #pragma once
-#include "Room.h"
+#include "lobby/domain/Room.h"
 #include <unordered_map>
 #include <string>
 

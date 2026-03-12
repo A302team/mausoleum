@@ -6,8 +6,9 @@
 #include <iostream>
 #include <memory>
 #include <uwebsockets/App.h>
-#include "domain/RoomManager.h"
-#include "LobbyClientManager.h"
+#include "lobby/domain/RoomManager.h"
+#include "lobby/LobbyClientManager.h"
+#include "lobby/LobbyConstants.h"
 #include "common/logging/Logger.h"
 
 using json = nlohmann::json;
@@ -28,7 +29,7 @@ public:
     LobbyPacketRouter(RoomManager& rm, LobbyClientManager& cm);
     ~LobbyPacketRouter();
 
-    void dispatch(WebSocketType* ws, std::string_view msg);
+    void dispatch(WebSocketType* ws, std::string_view type, const json& data);
 
 private:
     void registerHandlers();

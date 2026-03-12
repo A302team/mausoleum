@@ -1,6 +1,6 @@
-#include "GameHandler.h"
+#include "lobby/handlers/GameHandler.h"
 #include "common/logging/Logger.h"
-#include "../LobbyConstants.h"
+#include "lobby/LobbyConstants.h"
 
 using namespace Lobby::Protocol;
 using namespace Lobby::Errors;
