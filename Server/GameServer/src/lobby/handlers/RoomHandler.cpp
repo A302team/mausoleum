@@ -1,6 +1,6 @@
-#include "RoomHandler.h"
+#include "lobby/handlers/RoomHandler.h"
 #include "common/logging/Logger.h"
-#include "../LobbyConstants.h"
+#include "lobby/LobbyConstants.h"
 
 using namespace Lobby::Protocol;
 using namespace Lobby::Errors;
