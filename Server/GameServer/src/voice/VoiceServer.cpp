@@ -1,5 +1,5 @@
 #include "voice/VoiceServer.h"
-#include <cstring>
+#include <thread>
 
 namespace {
 std::string fixedString(const char* buffer, size_t maxLen) {
@@ -11,108 +11,98 @@ std::string fixedString(const char* buffer, size_t maxLen) {
 }
 } // namespace
 
+VoiceServer::VoiceServer() : lastCleanupTime(std::chrono::steady_clock::now()) {
+    // 패킷 핸들러 등록
+    packetRouter.registerHandler(VoicePacketType::Join, [this](ParsedPacket& packet){
+        handleJoin(packet);
+    });
+    packetRouter.registerHandler(VoicePacketType::VoiceData, [this](ParsedPacket& packet){
+        handleVoiceData(packet);
+    });
+    packetRouter.registerHandler(VoicePacketType::Leave, [this](ParsedPacket& packet){
+        handleLeave(packet);
+    });
 
-bool VoiceServer::initSocket(int port) {
-    sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if(sock == INVALID_SOCK){
-        LOG_ERROR(tag(), "소켓 생성 실패: " << GET_LAST_ERROR());
-        return false;
-    }
-
-#ifdef _WIN32
-    BOOL bFalse = FALSE;
-    DWORD dwBtyes = 0;
-    WSAIoctl(sock, SIO_UDP_CONNRESET, &bFalse, sizeof(bFalse), 
-             NULL, 0, &dwBtyes, NULL, NULL);
-#endif
-
-    sockaddr_in addr{};
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = INADDR_ANY;
-    addr.sin_port = htons(port);
-
-    if(bind(sock, (sockaddr*)&addr, sizeof(addr)) == SOCK_ERROR){
-        LOG_ERROR(tag(), "소켓 바인딩 실패: " << GET_LAST_ERROR());
-        CLOSE_SOCKET(sock);
-        return false;
-    }
-    return true;
+    // 네트워크 수신 핸들러 등록
+    network.registerHandler(NetProtocol::Udp, [this](const NetPacket& packet, NetworkService&){
+        onUdpPacket(packet);
+    });
 }
 
-// UDP 패킷 수신 및 처리 루프
-// Todo : 클린업 로직은 별도 스레드로 분리하는 것도 고려
-// Todo : 멀티플레이어 지원을 위해 멀티 스레드 또는 비동기 I/O 도입 고려
-void VoiceServer::runLoop() {
-    workers.reserve(workerCount);
-    for (size_t i = 0; i < workerCount; ++i) {
-        workers.emplace_back([this]() { workerLoop(); });
+void VoiceServer::run(int port) {
+    running = true;
+
+    if (!network.addUdpEndpoint(port, Voice::Config::UDP_MAX_PACKET_SIZE)) {
+        LOG_ERROR(tag(), "UDP 엔드포인트 등록 실패: " << port);
+        return;
+    }
+    if (!network.start()) {
+        LOG_ERROR(tag(), "NetworkService 시작 실패");
+        return;
     }
 
-    char buffer[MAX_PACKET_SIZE]; // 최대 1KB 패킷 처리 (헤더 + 음성 데이터)
-    sockaddr_in clinetAddr; // 수신한 패킷의 발신자 주소 저장
-    SockLenType addrLen = sizeof(clinetAddr); // recvfrom에서 주소 길이 정보로 사용
-    while(running){
-        int bytesRecv = recvfrom(sock, buffer, sizeof(buffer), 
-                                0, (sockaddr*)&clinetAddr, &addrLen); // recvfrom로 UDP 패킷 수신, 발신자 주소도 함께 얻음
-        if(bytesRecv == SOCK_ERROR){
-            int err = GET_LAST_ERROR();
-            if(err == ERR_CONNRESET || err == ERR_WOULDBLOCK) continue;
-            LOG_ERROR(tag(), "데이터 수신 실패: " << err);
-            continue;
-        }
+    while (running) {
         auto now = std::chrono::steady_clock::now();
         if (std::chrono::duration_cast<std::chrono::seconds>(
-                now - lastCleanupTime).count() > CLEANUP_INTERVAL_SECONDS) {
+                now - lastCleanupTime).count() > Voice::Config::CLEANUP_INTERVAL_SECONDS) {
             clientManager.cleanupStaleClients();
             lastCleanupTime = now;
         }
-
-        PacketJob job;
-        job.data.assign(buffer, buffer + bytesRecv);
-        job.size = bytesRecv;
-        job.senderAddr = clinetAddr;
-        job.senderKey = makeClientKey(clinetAddr);
-        jobQueue.push(std::move(job));
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
 
-    jobQueue.close();
-    for (auto& t : workers) {
-        if (t.joinable()) {
-            t.join();
-        }
-    }
+    network.stop();
 }
 
-void VoiceServer::workerLoop() {
-    PacketJob job;
-    while (jobQueue.pop(job)) {
-        ParsedPacket packet{};
-        if (!buildPacket(job, packet)) {
-            continue;
-        }
-        packetRouter.dispatch(packet);
-    }
+void VoiceServer::shutdown() {
+    running = false;
+    network.stop();
 }
 
-bool VoiceServer::buildPacket(const PacketJob& job, ParsedPacket& outPacket) {
-    if (job.size < static_cast<int>(sizeof(VoicePacketHeader))) {
-        LOG_WARN(tag(), "패킷 크기 부족: " << job.size);
+void VoiceServer::onUdpPacket(const NetPacket& packet) {
+    if (packet.protocol != NetProtocol::Udp) {
+        LOG_WARN(tag(), "UDP 핸들러에 TCP 패킷이 전달됨");
+        return;
+    }
+    ParsedPacket parsed{};
+    if (!buildPacket(packet, parsed)) {
+        return;
+    }
+    if (parsed.header->packetType != VoicePacketType::VoiceData) {
+        LOG_INFO(tag(), "수신 패킷 타입: " << static_cast<int>(parsed.header->packetType)
+                 << " / 방: " << parsed.roomCode
+                 << " / 화자: " << parsed.speakerName
+                 << " / " << parsed.rawSize << "B");
+    }
+    packetRouter.dispatch(parsed);
+}
+
+bool VoiceServer::buildPacket(const NetPacket& packet, ParsedPacket& outPacket) {
+    if (packet.data.size() < sizeof(VoicePacketHeader)) {
+        LOG_WARN(tag(), "패킷 크기 부족: " << packet.data.size());
         return false;
     }
 
-    auto* header = reinterpret_cast<VoicePacketHeader*>(const_cast<char*>(job.data.data()));
-    int payloadBytes = job.size - static_cast<int>(sizeof(VoicePacketHeader));
-    if (header->payloadSize > static_cast<uint32_t>(payloadBytes)) {
-        LOG_WARN(tag(), "payloadSize 불일치: " << header->payloadSize << " > " << payloadBytes);
+    auto* header = reinterpret_cast<const VoicePacketHeader*>(packet.data.data());
+    const auto typeValue = static_cast<uint8_t>(header->packetType);
+    if (typeValue > static_cast<uint8_t>(VoicePacketType::Leave)) {
+        LOG_WARN(tag(), "알 수 없는 패킷 타입: " << static_cast<int>(typeValue));
         return false;
+    }
+    size_t payloadBytes = packet.data.size() - sizeof(VoicePacketHeader);
+    if (header->packetType == VoicePacketType::VoiceData) {
+        if (header->payloadSize > payloadBytes) {
+            LOG_WARN(tag(), "payloadSize 불일치: " << header->payloadSize << " > " << payloadBytes);
+            return false;
+        }
     }
 
     outPacket = ParsedPacket{
         header,
-        const_cast<char*>(job.data.data()),
-        job.size,
-        job.senderAddr,
-        job.senderKey,
+        packet.data.data(),
+        static_cast<int>(packet.data.size()),
+        packet.addr,
+        makeClientKey(packet.addr),
         fixedString(header->roomCode, sizeof(header->roomCode)),
         fixedString(header->speakerName, sizeof(header->speakerName))
     };
@@ -143,12 +133,12 @@ void VoiceServer::handleVoiceData(ParsedPacket& packet){
     auto clientsSnapshot = clientManager.getClientsSnapshot();
     for(const auto& [otherKey, otherClient] : clientsSnapshot){
         if(otherKey != packet.senderKey){
-            int r = sendto(sock, packet.rawBuffer, packet.rawSize, 0, (sockaddr*)&otherClient.addr, sizeof(otherClient.addr));
-            if(r != SOCK_ERROR) cnt++;
+            network.sendUdp(otherClient.addr, packet.rawBuffer, packet.rawSize);
+            cnt++;
         }
     }
 
-    if (packet.header->payloadSize > 2) {
+    if (packet.header->payloadSize > Voice::Config::LOG_PAYLOAD_MIN_SIZE) {
         LOG_INFO(tag(), "음성: " << packet.roomCode << "/" << packet.speakerName
                  << " " << packet.rawSize << "B → " << cnt << "명");
     }

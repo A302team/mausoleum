@@ -2,21 +2,22 @@
 #include <unordered_map>
 #include "common/Platform.h"
 #include "common/logging/Logger.h"
+#include "voice/VoiceConstants.h"
 #include "voice/VoicePacketType.h"
 
 #pragma pack(push, 1)
 struct VoicePacketHeader {
     VoicePacketType packetType; // 0: Join, 1: Voice Data, 2: Leave
-    char roomCode[16];        // 룸 코드 (가변 가능하지만 고정 크기 16바이트로 제한)
-    char speakerName[32];     // 발화자 이름 고정 (최대 32바이트)
+    char roomCode[Voice::Protocol::ROOM_CODE_SIZE];        // 룸 코드 (가변 가능하지만 고정 크기 16바이트로 제한)
+    char speakerName[Voice::Protocol::SPEAKER_NAME_SIZE];  // 발화자 이름 고정 (최대 32바이트)
     uint32_t payloadSize;     // 뒤에 따라오는 음성 데이터 
 };
 
 #pragma pack(pop)
 
 struct ParsedPacket {
-    VoicePacketHeader* header;
-    char* rawBuffer;
+    const VoicePacketHeader* header;
+    const char* rawBuffer;
     int rawSize;
     sockaddr_in senderAddr;
     uint64_t senderKey;

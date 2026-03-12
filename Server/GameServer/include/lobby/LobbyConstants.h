@@ -42,4 +42,7 @@ namespace Lobby::Errors {
     constexpr std::string_view ROOM_NOT_FOUND = "존재하지 않는 코드입니다.";
     constexpr std::string_view HOST_ONLY_START = "방장만 시작 가능합니다.";
     constexpr std::string_view ALL_MUST_READY = "모든 플레이어가 레디해야 합니다.";
+    constexpr std::string_view INVALID_JSON = "잘못된 JSON 형식입니다.";
+    constexpr std::string_view INVALID_MESSAGE = "잘못된 메시지 형식입니다.";
+    constexpr std::string_view UNKNOWN_TYPE = "알 수 없는 메시지 타입입니다.";
 } // namespace Lobby::Errors

@@ -2,22 +2,16 @@
 #include <uwebsockets/App.h>
 #include <iostream>
 #include <string_view>
-#include "lobby/domain/RoomManager.h"
-#include "lobby/LobbyClientManager.h"
-#include "lobby/LobbyPacketRouter.h"
+#include "lobby/LobbyService.h"
 #include "common/IServer.h"
 #include "common/logging/Logger.h"
 
 using WebSocketType = uWS::WebSocket<false, true, int>;
 
-class LobbyServer : public IServer
-{
+class LobbyServer : public IServer {
 private:
-    RoomManager roomManager;
-    LobbyClientManager clientManager;
-    LobbyPacketRouter router;
-
     uWS::App* app = nullptr; // 포인터로 변경할 필요성에 대해서: uWS 종료 관리 시 유용
+    LobbyService service;
 public:
     LobbyServer();
 
