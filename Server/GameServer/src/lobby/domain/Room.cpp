@@ -1,4 +1,4 @@
-#include "Room.h"
+#include "lobby/domain/Room.h"
 
 void Room::addPlayer(const Player& player) {
     players[player.getName()] = player;

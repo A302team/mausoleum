@@ -1,4 +1,4 @@
-#include "LobbyServer.h"
+#include "lobby/LobbyServer.h"
 
 LobbyServer::LobbyServer() : router(roomManager, clientManager)
 {

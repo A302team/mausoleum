@@ -6,8 +6,8 @@
 #include <iostream>
 #include <memory>
 #include <uwebsockets/App.h>
-#include "domain/RoomManager.h"
-#include "LobbyClientManager.h"
+#include "lobby/domain/RoomManager.h"
+#include "lobby/LobbyClientManager.h"
 #include "common/logging/Logger.h"
 
 using json = nlohmann::json;

@@ -2,7 +2,7 @@
 #include <unordered_map>
 #include "common/Platform.h"
 #include "common/logging/Logger.h"
-#include "VoicePacketType.h"
+#include "voice/VoicePacketType.h"
 
 #pragma pack(push, 1)
 struct VoicePacketHeader {
@@ -28,18 +28,8 @@ class VoicePacketRouter {
 public:
     using Handler = std::function<void(ParsedPacket&)>;
 
-    void registerHandler(VoicePacketType packetType, Handler handler) {
-        handlers[packetType] = handler;
-    }
-
-    void dispatch(ParsedPacket& packet) {
-        auto it = handlers.find(packet.header->packetType);
-        if(it != handlers.end()) {
-            it->second(packet); // 해당 패킷 타입에 등록된 핸들러 호출
-        } else {
-            LOG_WARN("VoicePacketRouter", "No handler registered for packet type: " << static_cast<int>(packet.header->packetType));
-        }
-    }
+    void registerHandler(VoicePacketType packetType, Handler handler);
+    void dispatch(ParsedPacket& packet);
 private:
     std::unordered_map<VoicePacketType, Handler> handlers;
 };

@@ -1,6 +1,6 @@
 #pragma once
-#include "Platform.h"
-#include "logging/Logger.h"
+#include "common/Platform.h"
+#include "common/logging/Logger.h"
 
 /**
  * @brief 서버 인터페이스
