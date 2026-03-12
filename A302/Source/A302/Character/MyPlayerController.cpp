@@ -2,7 +2,7 @@
 
 #include "Blueprint/UserWidget.h"
 #include "Character/Components/ItemManagerComponent.h"
-#include "Character/Dummy/DummyCharacter.h"
+#include "Character/Components/MaliceComponent.h"
 #include "Character/MyCharacter.h"
 #include "Components/Button.h"
 #include "Components/ComboBoxString.h"
@@ -29,6 +29,8 @@
 namespace
 {
 	constexpr int32 PlayerControllerQuickSlotCount = 5;
+	constexpr int32 InspectMaliceSlotCount = 6;
+	constexpr int32 InspectMaliceMaxOtherPlayers = 5;
 	constexpr int32 GroupEventVoteSlotCount = 6;
 }
 
@@ -581,35 +583,51 @@ void AMyPlayerController::InitializeInspectMaliceWidget()
 
 	InspectMaliceWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
 
-	if (UButton *Dummy1Button = FindInspectMaliceButton(TEXT("UserBtn1")))
-	{
-		Dummy1Button->OnClicked.RemoveDynamic(this, &AMyPlayerController::OnInspectMaliceDummy1Clicked);
-		Dummy1Button->OnClicked.AddDynamic(this, &AMyPlayerController::OnInspectMaliceDummy1Clicked);
-		Dummy1Button->SetVisibility(ESlateVisibility::Visible);
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[InspectMalice] UserBtn1 widget not found."));
-	}
+	InspectMaliceCandidatePlayerIds.Init(INDEX_NONE, InspectMaliceSlotCount);
 
-	if (UTextBlock *Dummy1Text = FindInspectMaliceText(TEXT("UserText1")))
+	for (int32 Index = 0; Index < InspectMaliceSlotCount; ++Index)
 	{
-		Dummy1Text->SetText(FText::FromString(TEXT("Dummy1")));
-		Dummy1Text->SetVisibility(ESlateVisibility::Visible);
-	}
-
-	for (int32 Index = 2; Index <= 6; ++Index)
-	{
-		const FName ButtonName(*FString::Printf(TEXT("UserBtn%d"), Index));
-		if (UButton *HiddenButton = FindInspectMaliceButton(ButtonName))
+		const FName ButtonName(*FString::Printf(TEXT("UserBtn%d"), Index + 1));
+		if (UButton* CandidateButton = FindInspectMaliceButton(ButtonName))
 		{
-			HiddenButton->SetVisibility(ESlateVisibility::Collapsed);
+			CandidateButton->OnClicked.Clear();
+
+			switch (Index)
+			{
+			case 0:
+				CandidateButton->OnClicked.AddDynamic(this, &AMyPlayerController::OnInspectMaliceUser1Clicked);
+				break;
+			case 1:
+				CandidateButton->OnClicked.AddDynamic(this, &AMyPlayerController::OnInspectMaliceUser2Clicked);
+				break;
+			case 2:
+				CandidateButton->OnClicked.AddDynamic(this, &AMyPlayerController::OnInspectMaliceUser3Clicked);
+				break;
+			case 3:
+				CandidateButton->OnClicked.AddDynamic(this, &AMyPlayerController::OnInspectMaliceUser4Clicked);
+				break;
+			case 4:
+				CandidateButton->OnClicked.AddDynamic(this, &AMyPlayerController::OnInspectMaliceUser5Clicked);
+				break;
+			case 5:
+				CandidateButton->OnClicked.AddDynamic(this, &AMyPlayerController::OnInspectMaliceUser6Clicked);
+				break;
+			default:
+				break;
+			}
+
+			CandidateButton->SetVisibility(ESlateVisibility::Collapsed);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[InspectMalice] %s widget not found."), *ButtonName.ToString());
 		}
 
-		const FName TextName(*FString::Printf(TEXT("UserText%d"), Index));
-		if (UTextBlock *HiddenText = FindInspectMaliceText(TextName))
+		const FName TextName(*FString::Printf(TEXT("UserText%d"), Index + 1));
+		if (UTextBlock* CandidateText = FindInspectMaliceText(TextName))
 		{
-			HiddenText->SetVisibility(ESlateVisibility::Collapsed);
+			CandidateText->SetText(FText::GetEmpty());
+			CandidateText->SetVisibility(ESlateVisibility::Collapsed);
 		}
 	}
 
@@ -833,6 +851,7 @@ void AMyPlayerController::ShowInspectMaliceSelectionWidget()
 		World->GetTimerManager().ClearTimer(InspectMaliceHideTimerHandle);
 	}
 
+	PopulateInspectMaliceCandidates();
 	ResetInspectMaliceSelectionWidget();
 	InspectMaliceWidgetInstance->SetVisibility(ESlateVisibility::Visible);
 
@@ -851,6 +870,81 @@ void AMyPlayerController::ShowInspectMaliceSelectionWidget()
 void AMyPlayerController::Client_ShowInspectMaliceSelectionWidget_Implementation()
 {
 	ShowInspectMaliceSelectionWidget();
+}
+
+void AMyPlayerController::PopulateInspectMaliceCandidates()
+{
+	if (!InspectMaliceWidgetInstance)
+	{
+		return;
+	}
+
+	InspectMaliceCandidatePlayerIds.Init(INDEX_NONE, InspectMaliceSlotCount);
+
+	AGameStateBase* GameState = GetWorld() ? GetWorld()->GetGameState() : nullptr;
+	APlayerState* LocalPlayerState = GetPlayerState<APlayerState>();
+	int32 VisibleSlotIndex = 0;
+
+	if (GameState)
+	{
+		for (APlayerState* CandidatePlayerState : GameState->PlayerArray)
+		{
+			if (!CandidatePlayerState || CandidatePlayerState == LocalPlayerState)
+			{
+				continue;
+			}
+
+			if (const AA302PlayerState* ExtendedPlayerState = Cast<AA302PlayerState>(CandidatePlayerState))
+			{
+				if (!ExtendedPlayerState->bIsAlive || ExtendedPlayerState->bIsEscaped)
+				{
+					continue;
+				}
+			}
+
+			if (VisibleSlotIndex >= InspectMaliceMaxOtherPlayers || VisibleSlotIndex >= InspectMaliceSlotCount)
+			{
+				break;
+			}
+
+			const int32 DisplaySlotNumber = VisibleSlotIndex + 1;
+			const FName ButtonName(*FString::Printf(TEXT("UserBtn%d"), DisplaySlotNumber));
+			const FName TextName(*FString::Printf(TEXT("UserText%d"), DisplaySlotNumber));
+
+			if (UButton* CandidateButton = FindInspectMaliceButton(ButtonName))
+			{
+				CandidateButton->SetVisibility(ESlateVisibility::Visible);
+			}
+
+			if (UTextBlock* CandidateText = FindInspectMaliceText(TextName))
+			{
+				CandidateText->SetText(FText::FromString(ResolveDisplayedPlayerName(CandidatePlayerState)));
+				CandidateText->SetVisibility(ESlateVisibility::Visible);
+			}
+
+			InspectMaliceCandidatePlayerIds[VisibleSlotIndex] = CandidatePlayerState->GetPlayerId();
+			++VisibleSlotIndex;
+		}
+	}
+
+	for (int32 SlotIndex = VisibleSlotIndex; SlotIndex < InspectMaliceSlotCount; ++SlotIndex)
+	{
+		const FName ButtonName(*FString::Printf(TEXT("UserBtn%d"), SlotIndex + 1));
+		const FName TextName(*FString::Printf(TEXT("UserText%d"), SlotIndex + 1));
+
+		if (UButton* CandidateButton = FindInspectMaliceButton(ButtonName))
+		{
+			CandidateButton->SetVisibility(ESlateVisibility::Collapsed);
+		}
+
+		if (UTextBlock* CandidateText = FindInspectMaliceText(TextName))
+		{
+			CandidateText->SetText(FText::GetEmpty());
+			CandidateText->SetVisibility(ESlateVisibility::Collapsed);
+		}
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[InspectMalice] Populated candidate list with %d players."), VisibleSlotIndex);
 }
 
 void AMyPlayerController::ResetInspectMaliceSelectionWidget()
@@ -920,36 +1014,75 @@ void AMyPlayerController::HidePublicMaliceAnnouncement()
 	SetPublicMaliceAnnouncementVisible(false);
 }
 
-int32 AMyPlayerController::QueryDummy1MaliceCount() const
+int32 AMyPlayerController::ResolveInspectMaliceTargetPlayerId(int32 CandidateIndex) const
 {
-	const ADummyCharacter *DummyCharacter =
-		Cast<ADummyCharacter>(UGameplayStatics::GetActorOfClass(this, ADummyCharacter::StaticClass()));
-	if (!DummyCharacter)
+	return InspectMaliceCandidatePlayerIds.IsValidIndex(CandidateIndex)
+		? InspectMaliceCandidatePlayerIds[CandidateIndex]
+		: INDEX_NONE;
+}
+
+int32 AMyPlayerController::ResolveInspectMaliceCountByPlayerId(int32 PlayerId) const
+{
+	if (PlayerId == INDEX_NONE)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[InspectMalice] Dummy1 lookup failed. Returning 0 malice."));
 		return 0;
 	}
 
-	return DummyCharacter->GetCurrentMaliceCount();
-}
-
-void AMyPlayerController::OnInspectMaliceDummy1Clicked()
-{
-	UE_LOG(LogTemp, Log, TEXT("[InspectMalice] Stub server request sent for user=Dummy1."));
-
-	if (UTextBlock *UserText = FindInspectMaliceText(TEXT("InspectMaliceUserText")))
+	TArray<AActor*> FoundCharacters;
+	UGameplayStatics::GetAllActorsOfClass(this, AMyCharacter::StaticClass(), FoundCharacters);
+	for (AActor* FoundActor : FoundCharacters)
 	{
-		UserText->SetText(FText::FromString(TEXT("Dummy1")));
+		const AMyCharacter* CandidateCharacter = Cast<AMyCharacter>(FoundActor);
+		const APlayerState* CandidatePlayerState = CandidateCharacter ? CandidateCharacter->GetPlayerState<APlayerState>() : nullptr;
+		if (!CandidatePlayerState || CandidatePlayerState->GetPlayerId() != PlayerId)
+		{
+			continue;
+		}
+
+		const UMaliceComponent* MaliceComponent = CandidateCharacter->FindComponentByClass<UMaliceComponent>();
+		return MaliceComponent ? FMath::Max(0, MaliceComponent->MaliceCount) : 0;
 	}
 
-	if (UTextBlock *MaliceNumText = FindInspectMaliceText(TEXT("InspectMaliceUserMaliceNum")))
+	UE_LOG(LogTemp, Warning, TEXT("[InspectMalice] Failed to resolve malice target for PlayerId=%d"), PlayerId);
+	return 0;
+}
+
+void AMyPlayerController::HandleInspectMaliceSelection(int32 CandidateIndex)
+{
+	const int32 TargetPlayerId = ResolveInspectMaliceTargetPlayerId(CandidateIndex);
+	if (TargetPlayerId == INDEX_NONE)
 	{
-		MaliceNumText->SetText(FText::AsNumber(QueryDummy1MaliceCount()));
+		UE_LOG(LogTemp, Warning, TEXT("[InspectMalice] Invalid candidate index selected: %d"), CandidateIndex);
+		return;
+	}
+
+	FString TargetPlayerName = FString::Printf(TEXT("Player %d"), TargetPlayerId);
+	AGameStateBase* GameState = GetWorld() ? GetWorld()->GetGameState() : nullptr;
+	if (GameState)
+	{
+		for (APlayerState* CandidatePlayerState : GameState->PlayerArray)
+		{
+			if (CandidatePlayerState && CandidatePlayerState->GetPlayerId() == TargetPlayerId)
+			{
+				TargetPlayerName = ResolveDisplayedPlayerName(CandidatePlayerState);
+				break;
+			}
+		}
+	}
+
+	if (UTextBlock* UserText = FindInspectMaliceText(TEXT("InspectMaliceUserText")))
+	{
+		UserText->SetText(FText::FromString(TargetPlayerName));
+	}
+
+	if (UTextBlock* MaliceNumText = FindInspectMaliceText(TEXT("InspectMaliceUserMaliceNum")))
+	{
+		MaliceNumText->SetText(FText::AsNumber(ResolveInspectMaliceCountByPlayerId(TargetPlayerId)));
 	}
 
 	SetInspectMaliceResultVisible(true);
 
-	if (UWorld *World = GetWorld())
+	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().SetTimer(
 			InspectMaliceHideTimerHandle,
@@ -959,6 +1092,36 @@ void AMyPlayerController::OnInspectMaliceDummy1Clicked()
 			false
 		);
 	}
+}
+
+void AMyPlayerController::OnInspectMaliceUser1Clicked()
+{
+	HandleInspectMaliceSelection(0);
+}
+
+void AMyPlayerController::OnInspectMaliceUser2Clicked()
+{
+	HandleInspectMaliceSelection(1);
+}
+
+void AMyPlayerController::OnInspectMaliceUser3Clicked()
+{
+	HandleInspectMaliceSelection(2);
+}
+
+void AMyPlayerController::OnInspectMaliceUser4Clicked()
+{
+	HandleInspectMaliceSelection(3);
+}
+
+void AMyPlayerController::OnInspectMaliceUser5Clicked()
+{
+	HandleInspectMaliceSelection(4);
+}
+
+void AMyPlayerController::OnInspectMaliceUser6Clicked()
+{
+	HandleInspectMaliceSelection(5);
 }
 
 FString AMyPlayerController::ResolveDisplayedPlayerName(const APlayerState* InPlayerState) const

@@ -145,7 +145,10 @@ private:
 	void HandleLocalGroupVoteSelection(int32 TargetPlayerId);
 	void DisableGroupVoteInteractions();
 	void CloseGroupEventVoteWidget();
-	int32 QueryDummy1MaliceCount() const;
+	void PopulateInspectMaliceCandidates();
+	void HandleInspectMaliceSelection(int32 CandidateIndex);
+	int32 ResolveInspectMaliceTargetPlayerId(int32 CandidateIndex) const;
+	int32 ResolveInspectMaliceCountByPlayerId(int32 PlayerId) const;
 	FString ResolveDisplayedPlayerName(const class APlayerState* InPlayerState) const;
 	void SetPublicMaliceAnnouncementVisible(bool bVisible);
 	void HidePublicMaliceAnnouncement();
@@ -161,7 +164,22 @@ private:
 	void OnExitClicked();
 
 	UFUNCTION()
-	void OnInspectMaliceDummy1Clicked();
+	void OnInspectMaliceUser1Clicked();
+
+	UFUNCTION()
+	void OnInspectMaliceUser2Clicked();
+
+	UFUNCTION()
+	void OnInspectMaliceUser3Clicked();
+
+	UFUNCTION()
+	void OnInspectMaliceUser4Clicked();
+
+	UFUNCTION()
+	void OnInspectMaliceUser5Clicked();
+
+	UFUNCTION()
+	void OnInspectMaliceUser6Clicked();
 
 	UPROPERTY()
 	TObjectPtr<UComboBoxString> ResolutionComboBox = nullptr;
@@ -188,6 +206,8 @@ private:
 
 	UPROPERTY()
 	TArray<TObjectPtr<UVoteClickableUserWidget>> VoteUserSlotWidgets;
+
+	TArray<int32> InspectMaliceCandidatePlayerIds;
 
 	FName ActiveGroupVoteEventID = NAME_None;
 	int32 GroupEventVoteRemainingSeconds = 0;
