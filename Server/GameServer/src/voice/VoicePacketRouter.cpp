@@ -8,7 +8,6 @@ void VoicePacketRouter::registerHandler(VoicePacketType packetType, Handler hand
 void VoicePacketRouter::dispatch(ParsedPacket& packet) {
     auto it = handlers.find(packet.header->packetType);
     if (it != handlers.end()) {
-        LOG_INFO("VoicePacketRouter", "Dispatching packet type: " << static_cast<int>(packet.header->packetType));
         it->second(packet); // 해당 패킷 타입에 등록된 핸들러 호출
     } else {
         LOG_WARN("VoicePacketRouter",

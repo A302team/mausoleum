@@ -4,8 +4,8 @@
 
 LobbyService::LobbyService() : router(roomManager, clientManager) {}
 
-void LobbyService::onMessage(WebSocketType* ws, std::string_view msg) {
-    router.dispatch(ws, msg);
+void LobbyService::onDomainMessage(WebSocketType* ws, std::string_view type, const json& data) {
+    router.dispatch(ws, type, data);
 }
 
 void LobbyService::onDisconnect(WebSocketType* ws) {

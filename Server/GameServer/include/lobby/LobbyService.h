@@ -11,7 +11,7 @@ class LobbyService {
 public:
     LobbyService();
 
-    void onMessage(WebSocketType* ws, std::string_view msg);
+    void onDomainMessage(WebSocketType* ws, std::string_view type, const json& data);
     void onDisconnect(WebSocketType* ws);
 
 private:
