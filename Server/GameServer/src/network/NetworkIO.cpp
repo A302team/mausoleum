@@ -80,7 +80,7 @@ bool NetworkIO::addUdpEndpoint(int port, int maxPacketSize) {
     UdpEndpoint endpoint;
     endpoint.sock = sock;
     endpoint.port = port;
-    endpoint.maxPacketSize = max(maxPacketSize, 256);
+    endpoint.maxPacketSize = std::max(maxPacketSize, 256);
     udpEndpoints_.push_back(endpoint);
     LOG_INFO("NetworkIO", "UDP 엔드포인트 등록: " << port);
     return true;
