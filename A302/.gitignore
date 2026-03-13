@@ -118,3 +118,5 @@ DerivedDataCache/*
 
 Plugins/Developer/
 .idea/
+
+LinuxServer/

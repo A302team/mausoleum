@@ -3,14 +3,14 @@
 #include "CoreMinimal.h"
 #include "TimerManager.h"
 #include "GamePlay/Events/PersonalEvents/BasePersonalEvent.h"
-#include "PersonalEventTimeKnife.generated.h"
+#include "PersonalEventCursedSword.generated.h"
 
 class UItemDefinition;
-class UPersonalEventTimeKnifeDefinition;
+class UPersonalEventCursedSwordDefinition;
 class URewardDefinition;
 
 UCLASS(BlueprintType)
-class A302_API UPersonalEventTimeKnife : public UBasePersonalEvent
+class A302_API UPersonalEventCursedSword : public UBasePersonalEvent
 {
 	GENERATED_BODY()
 
@@ -25,7 +25,7 @@ private:
 	void HandleCountdownTick();
 	void RefreshTimerUI() const;
 	void StopCountdown(bool bHideTimer);
-	UItemDefinition* ResolveGrantedKnifeDefinition(const URewardDefinition* SourceRewardDefinition, const UPersonalEventTimeKnifeDefinition* EventDefinition) const;
+	UItemDefinition* ResolveGrantedKnifeDefinition(const URewardDefinition* SourceRewardDefinition, const UPersonalEventCursedSwordDefinition* EventDefinition) const;
 
 	UPROPERTY()
 	TObjectPtr<AMyCharacter> OwnerCharacter = nullptr;
