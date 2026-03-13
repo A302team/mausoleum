@@ -57,7 +57,6 @@ public:
 	UPROPERTY()
 	TObjectPtr<class UGameNetworkSubsystem> GameNetworkSubsystem;
 
-
 	UFUNCTION(BlueprintCallable)
 	void ConnectToServer(const FString &URL);
 
@@ -123,4 +122,7 @@ public:
 private:
 	UFUNCTION()
 	void OnMessageReceived(const FString &Message);
+
+	UFUNCTION()
+	void OnWorldAdded(UWorld *World);
 };

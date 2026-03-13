@@ -1,7 +1,9 @@
+/.vs
 /.vscode
 /Content
 /DerivedDataCache
 /Intermediate
+/LinuxServer
 /Proto
 /Saved
 /scripts
