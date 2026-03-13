@@ -11,5 +11,6 @@ public class A302ServerTarget : TargetRules
 		DefaultBuildSettings = BuildSettingsVersion.V6;
 		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_7;
 		ExtraModuleNames.Add("A302");
+		ExtraModuleNames.Add("A302Server");
 	}
 }

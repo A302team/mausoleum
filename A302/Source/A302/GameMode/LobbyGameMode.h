@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/GameModeBase.h"
+#include "GameFramework/GameMode.h"
 #include "GameMode/A302GameInstance.h" // For FRoomInfo
 #include "LobbyGameMode.generated.h"
 
@@ -11,7 +11,7 @@ class ULobbyWidget;
 class UWaitingRoomWidget;
 
 UCLASS()
-class A302_API ALobbyGameMode : public AGameModeBase
+class A302_API ALobbyGameMode : public AGameMode
 {
     GENERATED_BODY()
 

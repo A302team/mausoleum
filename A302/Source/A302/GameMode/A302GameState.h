@@ -9,9 +9,10 @@
 UENUM(BlueprintType)
 enum class EGamePhase : uint8
 {
-    Waiting,
-    InGame,
-    End
+    Phase0,
+    Phase1,
+    Phase2,
+    Ended
 };
 
 UCLASS()
@@ -22,12 +23,21 @@ class A302_API AA302GameState : public AGameState
 public:
     AA302GameState();
 
-    UPROPERTY(Replicated, BlueprintReadOnly)
-    EGamePhase GamePhase = EGamePhase::Waiting;
+    UPROPERTY(ReplicatedUsing = OnRep_GamePhase, BlueprintReadOnly)
+    EGamePhase GamePhase = EGamePhase::Phase0;
 
     UPROPERTY(Replicated, BlueprintReadOnly)
     int32 AlivePlayerCount = 0;
 
+    UPROPERTY(Replicated, BlueprintReadOnly)
+    float PhaseChangedServerTime = 0.0f;
+
+    void SetGamePhase(EGamePhase NewGamePhase, float ChangedServerTime);
+
     virtual void GetLifetimeReplicatedProps(
         TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+private:
+    UFUNCTION()
+    void OnRep_GamePhase();
 };

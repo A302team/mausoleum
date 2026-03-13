@@ -1,6 +1,6 @@
 {
 	"FileVersion": 3,
-	"EngineAssociation": "5.7",
+	"EngineAssociation": "{941BEA9F-4B73-B481-01CB-0FB2B796D01D}",
 	"Category": "",
 	"Description": "",
 	"Modules": [
@@ -12,6 +12,19 @@
 				"Engine",
 				"CoreUObject",
 				"UMG"
+			]
+		},
+		{
+			"Name": "A302Server",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"TargetAllowList": [
+				"Server"
+			],
+			"AdditionalDependencies": [
+				"A302",
+				"Engine",
+				"CoreUObject"
 			]
 		}
 	],
