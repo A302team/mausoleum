@@ -30,14 +30,14 @@ namespace
 	constexpr int32 PlayerControllerQuickSlotCount = 5;
 	constexpr int32 MaxInspectMaliceTargets = 5;
 
-	AMyCharacter* FindCharacterForPlayerState(const UObject* WorldContextObject, const APlayerState* TargetPlayerState)
+	AMyCharacter *FindCharacterForPlayerState(const UObject *WorldContextObject, const APlayerState *TargetPlayerState)
 	{
 		if (!WorldContextObject || !TargetPlayerState)
 		{
 			return nullptr;
 		}
 
-		UWorld* World = WorldContextObject->GetWorld();
+		UWorld *World = WorldContextObject->GetWorld();
 		if (!World)
 		{
 			return nullptr;
@@ -64,7 +64,7 @@ namespace
 // {
 //     UWorld* World = GetWorld();
 //     if (!World) return;
-    
+
 //     UE_LOG(LogTemp, Log, TEXT("[PC] ServerRequestGameStart - NetMode: %d"), (int32)World->GetNetMode());
 //     World->ServerTravel(TEXT("/Game/PersonalWorkSpace/sikk806/MyTestLevel?listen"));
 // }
@@ -115,7 +115,7 @@ UImage *AMyPlayerController::FindQuickSlotItemSelectedImage(int32 SlotIndex) con
 	return nullptr;
 }
 
-UButton *AMyPlayerController::FindInspectMaliceButton(const FName& WidgetName) const
+UButton *AMyPlayerController::FindInspectMaliceButton(const FName &WidgetName) const
 {
 	if (!InspectMaliceWidgetInstance)
 	{
@@ -125,7 +125,7 @@ UButton *AMyPlayerController::FindInspectMaliceButton(const FName& WidgetName) c
 	return Cast<UButton>(InspectMaliceWidgetInstance->GetWidgetFromName(WidgetName));
 }
 
-UTextBlock *AMyPlayerController::FindInspectMaliceText(const FName& WidgetName) const
+UTextBlock *AMyPlayerController::FindInspectMaliceText(const FName &WidgetName) const
 {
 	if (!InspectMaliceWidgetInstance)
 	{
@@ -145,7 +145,7 @@ UWidget *AMyPlayerController::FindPublicMaliceAnnouncementWidget() const
 	return QuickSlotBarWidget->GetWidgetFromName(TEXT("PublicMaliceBorder"));
 }
 
-UTextBlock *AMyPlayerController::FindPublicMaliceAnnouncementText(const FName& WidgetName) const
+UTextBlock *AMyPlayerController::FindPublicMaliceAnnouncementText(const FName &WidgetName) const
 {
 	if (!QuickSlotBarWidget)
 	{
@@ -300,7 +300,7 @@ bool AMyPlayerController::IsInGameSettingMenuOpen() const
 	return InGameSettingWidget && InGameSettingWidget->GetVisibility() == ESlateVisibility::Visible;
 }
 
-void AMyPlayerController::ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount)
+void AMyPlayerController::ShowPublicMaliceAnnouncement(const FString &PlayerName, int32 MaliceCount)
 {
 	if (UWorld *World = GetWorld())
 	{
@@ -334,8 +334,7 @@ void AMyPlayerController::ShowPublicMaliceAnnouncement(const FString& PlayerName
 			this,
 			&AMyPlayerController::HidePublicMaliceAnnouncement,
 			5.0f,
-			false
-		);
+			false);
 	}
 }
 
@@ -452,7 +451,7 @@ void AMyPlayerController::OnExitClicked()
 	UKismetSystemLibrary::QuitGame(this, this, EQuitPreference::Quit, false);
 }
 
-void AMyPlayerController::Server_RegisterPlayerDisplayName_Implementation(const FString& DesiredName)
+void AMyPlayerController::Server_RegisterPlayerDisplayName_Implementation(const FString &DesiredName)
 {
 	if (!PlayerState)
 	{
@@ -485,7 +484,9 @@ void AMyPlayerController::BeginPlay()
 	if (!IsLocalController())
 		return;
 
-	if (const UA302GameInstance* GameInstance = Cast<UA302GameInstance>(GetGameInstance()))
+	SetInputMode(FInputModeGameOnly());
+
+	if (const UA302GameInstance *GameInstance = Cast<UA302GameInstance>(GetGameInstance()))
 	{
 		if (!GameInstance->MyPlayerName.IsEmpty())
 		{
@@ -688,14 +689,14 @@ void AMyPlayerController::PopulateInspectMaliceSelectionWidget()
 {
 	InspectMaliceSelectablePlayers.Reset();
 
-	AGameStateBase* GameState = GetWorld() ? GetWorld()->GetGameState() : nullptr;
+	AGameStateBase *GameState = GetWorld() ? GetWorld()->GetGameState() : nullptr;
 	if (!GameState)
 	{
 		return;
 	}
 
-	APlayerState* LocalPlayerState = PlayerState;
-	for (APlayerState* CandidatePlayerState : GameState->PlayerArray)
+	APlayerState *LocalPlayerState = PlayerState;
+	for (APlayerState *CandidatePlayerState : GameState->PlayerArray)
 	{
 		if (!CandidatePlayerState || CandidatePlayerState == LocalPlayerState)
 		{
@@ -711,14 +712,14 @@ void AMyPlayerController::PopulateInspectMaliceSelectionWidget()
 
 		const int32 WidgetIndex = InspectMaliceSelectablePlayers.Num();
 		const FName ButtonName(*FString::Printf(TEXT("UserBtn%d"), WidgetIndex));
-		if (UButton* TargetButton = FindInspectMaliceButton(ButtonName))
+		if (UButton *TargetButton = FindInspectMaliceButton(ButtonName))
 		{
 			TargetButton->SetVisibility(ESlateVisibility::Visible);
 			TargetButton->SetIsEnabled(true);
 		}
 
 		const FName TextName(*FString::Printf(TEXT("UserText%d"), WidgetIndex));
-		if (UTextBlock* TargetText = FindInspectMaliceText(TextName))
+		if (UTextBlock *TargetText = FindInspectMaliceText(TextName))
 		{
 			TargetText->SetText(FText::FromString(ResolvePlayerDisplayName(CandidatePlayerState)));
 			TargetText->SetVisibility(ESlateVisibility::Visible);
@@ -728,14 +729,14 @@ void AMyPlayerController::PopulateInspectMaliceSelectionWidget()
 	for (int32 WidgetIndex = InspectMaliceSelectablePlayers.Num() + 1; WidgetIndex <= 6; ++WidgetIndex)
 	{
 		const FName ButtonName(*FString::Printf(TEXT("UserBtn%d"), WidgetIndex));
-		if (UButton* HiddenButton = FindInspectMaliceButton(ButtonName))
+		if (UButton *HiddenButton = FindInspectMaliceButton(ButtonName))
 		{
 			HiddenButton->SetVisibility(ESlateVisibility::Collapsed);
 			HiddenButton->SetIsEnabled(false);
 		}
 
 		const FName TextName(*FString::Printf(TEXT("UserText%d"), WidgetIndex));
-		if (UTextBlock* HiddenText = FindInspectMaliceText(TextName))
+		if (UTextBlock *HiddenText = FindInspectMaliceText(TextName))
 		{
 			HiddenText->SetVisibility(ESlateVisibility::Collapsed);
 			HiddenText->SetText(FText::GetEmpty());
@@ -810,20 +811,20 @@ void AMyPlayerController::HidePublicMaliceAnnouncement()
 	SetPublicMaliceAnnouncementVisible(false);
 }
 
-int32 AMyPlayerController::QueryPlayerMaliceCount(const APlayerState* TargetPlayerState) const
+int32 AMyPlayerController::QueryPlayerMaliceCount(const APlayerState *TargetPlayerState) const
 {
-	const AMyCharacter* TargetCharacter = FindCharacterForPlayerState(this, TargetPlayerState);
+	const AMyCharacter *TargetCharacter = FindCharacterForPlayerState(this, TargetPlayerState);
 	if (!TargetCharacter)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[InspectMalice] Character lookup failed. Returning 0 malice."));
 		return 0;
 	}
 
-	const UMaliceComponent* MaliceComponent = TargetCharacter->FindComponentByClass<UMaliceComponent>();
+	const UMaliceComponent *MaliceComponent = TargetCharacter->FindComponentByClass<UMaliceComponent>();
 	return MaliceComponent ? MaliceComponent->GetMaliceCount() : 0;
 }
 
-FString AMyPlayerController::ResolvePlayerDisplayName(const APlayerState* TargetPlayerState) const
+FString AMyPlayerController::ResolvePlayerDisplayName(const APlayerState *TargetPlayerState) const
 {
 	if (!TargetPlayerState)
 	{
@@ -841,7 +842,7 @@ void AMyPlayerController::ApplyInspectMaliceSelection(int32 EntryIndex)
 		return;
 	}
 
-	APlayerState* TargetPlayerState = InspectMaliceSelectablePlayers[EntryIndex];
+	APlayerState *TargetPlayerState = InspectMaliceSelectablePlayers[EntryIndex];
 	if (!TargetPlayerState)
 	{
 		return;
@@ -866,8 +867,7 @@ void AMyPlayerController::ApplyInspectMaliceSelection(int32 EntryIndex)
 			this,
 			&AMyPlayerController::HideInspectMaliceSelectionWidget,
 			3.0f,
-			false
-		);
+			false);
 	}
 }
 
@@ -896,11 +896,12 @@ void AMyPlayerController::OnInspectMalicePlayer5Clicked()
 	ApplyInspectMaliceSelection(4);
 }
 
-void AMyPlayerController::Client_ShowPersonalEvent_Implementation(FName EventID, const FText& EventTitle, const FText& EventDescription, const TArray<FText>& Choices)
+void AMyPlayerController::Client_ShowPersonalEvent_Implementation(FName EventID, const FText &EventTitle, const FText &EventDescription, const TArray<FText> &Choices)
 {
 	this->FlushPressedKeys();
 
-	if (!PersonalEventWidgetClass) return;
+	if (!PersonalEventWidgetClass)
+		return;
 
 	if (!PersonalEventWidgetInstance)
 	{
@@ -910,7 +911,7 @@ void AMyPlayerController::Client_ShowPersonalEvent_Implementation(FName EventID,
 	if (PersonalEventWidgetInstance)
 	{
 		PersonalEventWidgetInstance->SetupEventUI(EventID, EventTitle, EventDescription, Choices);
-        
+
 		if (!PersonalEventWidgetInstance->IsInViewport())
 		{
 			PersonalEventWidgetInstance->AddToViewport(120);
@@ -921,29 +922,30 @@ void AMyPlayerController::Client_ShowPersonalEvent_Implementation(FName EventID,
 		// 마우스 커서 표시 및 UI 조작 전용 모드로 변경
 		bShowMouseCursor = true;
 		FInputModeUIOnly InputMode;
-		InputMode.SetWidgetToFocus(PersonalEventWidgetInstance->TakeWidget()); 
+		InputMode.SetWidgetToFocus(PersonalEventWidgetInstance->TakeWidget());
 		SetInputMode(InputMode);
 	}
 }
 
 void AMyPlayerController::Server_ResolvePersonalEvent_Implementation(FName EventID, int32 ChoiceIndex)
 {
-	AMyCharacter* MyChar = Cast<AMyCharacter>(GetPawn());
-	if (!MyChar) return;
+	AMyCharacter *MyChar = Cast<AMyCharacter>(GetPawn());
+	if (!MyChar)
+		return;
 
 	// 만약 플레이어가 취소를 눌렀다면 여기서 조기 종료
 	if (ChoiceIndex == 0)
-    {
-       UE_LOG(LogTemp, Warning, TEXT("[Event] %s 거절됨."), *EventID.ToString());
-    }
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Event] %s 거절됨."), *EventID.ToString());
+	}
 
-	if (UBasePersonalEvent* TargetEvent = Cast<UBasePersonalEvent>(ActivePersonalEvent))
-    {
-       if (TargetEvent->EventID == EventID)
-       {
-           TargetEvent->OnEventResolvedMulti(MyChar, ChoiceIndex);
-       }
-    }
+	if (UBasePersonalEvent *TargetEvent = Cast<UBasePersonalEvent>(ActivePersonalEvent))
+	{
+		if (TargetEvent->EventID == EventID)
+		{
+			TargetEvent->OnEventResolvedMulti(MyChar, ChoiceIndex);
+		}
+	}
 	// 이벤트 캐시 초기화
 	ActivePersonalEvent = nullptr;
 }
