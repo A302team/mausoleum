@@ -50,6 +50,9 @@ protected:
 
 private:
     UPROPERTY()
+    bool bServerTravelRequested = false;
+
+    UPROPERTY()
     TObjectPtr<class ASpawnManager> SpawnManager;
 
     UFUNCTION()

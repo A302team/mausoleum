@@ -22,15 +22,25 @@ void UA302GameInstance::Init()
         GameNetworkSubsystem->OnPacketReceived.AddDynamic(this, &UA302GameInstance::OnMessageReceived);
     }
     FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(this, &UA302GameInstance::OnMapLoaded);
+
+    if (GetWorld())
+    {
+        OnMapLoaded(GetWorld());
+    }
+}
+
+void UA302GameInstance::OnWorldAdded(UWorld *World)
+{
+    OnMapLoaded(World);
 }
 
 void UA302GameInstance::OnMapLoaded(UWorld *LoadedWorld)
 {
     if (!LoadedWorld)
         return;
-    if (LoadedWorld->GetNetMode() == NM_DedicatedServer)
-        return;
     if (LoadedWorld != GetWorld())
+        return;
+    if (LoadedWorld->GetNetMode() == NM_DedicatedServer)
         return;
 
     FString MapName = LoadedWorld->GetMapName();
