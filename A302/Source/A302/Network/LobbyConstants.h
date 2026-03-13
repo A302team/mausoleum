@@ -15,6 +15,7 @@ namespace LobbyProtocol
     const FString KeyRoomCode = TEXT("roomCode");
     const FString KeyPlayerName = TEXT("playerName");
     const FString KeyIsHost = TEXT("isHost");
+    const FString KeyGameServerAddress = TEXT("gameServerAddress");
     const FString KeyRooms = TEXT("rooms");
     const FString KeyPlayerCount = TEXT("playerCount");
 
