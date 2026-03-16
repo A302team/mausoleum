@@ -14,7 +14,7 @@ void UPersonalEventBizarreForge::ExecuteEvent_Implementation(AMyCharacter* Insti
     if (!PC) return;
 
     PC->ActivePersonalEvent = this;
-
+    
     UMaliceComponent* MaliceComp = InstigatorCharacter->FindComponentByClass<UMaliceComponent>();
     int32 CurrentRawMalice = MaliceComp ? MaliceComp->GetRawMalice() : 0;
 
@@ -35,9 +35,9 @@ void UPersonalEventBizarreForge::ExecuteEvent_Implementation(AMyCharacter* Insti
     else
     {
         // 분기 B(악의 1 이상)
-        Choices.Add(FText::FromString(TEXT("무시하기")));
         Choices.Add(FText::FromString(TEXT("악의 서린 검 제련")));
         Choices.Add(FText::FromString(TEXT("악의 서린 방패 제련")));
+        Choices.Add(FText::FromString(TEXT("무시하기")));
         
         PC->Client_ShowPersonalEvent(EventID, 
             FText::FromString(TEXT("기괴한 용광로")), 
@@ -46,11 +46,11 @@ void UPersonalEventBizarreForge::ExecuteEvent_Implementation(AMyCharacter* Insti
     }
 }
 
-void UPersonalEventBizarreForge::OnEventResolvedMulti(AMyCharacter* InstigatorCharacter, int32 ChoiceIndex)
+void UPersonalEventBizarreForge::OnEventResolved_Implementation(AMyCharacter* InstigatorCharacter, int32 ChoiceIndex)
 {
     if (!InstigatorCharacter) return;
     UMaliceComponent* MaliceComp = InstigatorCharacter->FindComponentByClass<UMaliceComponent>();
-
+    
     // 악의 0 분기
     if (bIsMaliceZeroBranch)
     {
@@ -59,20 +59,19 @@ void UPersonalEventBizarreForge::OnEventResolvedMulti(AMyCharacter* InstigatorCh
     }
 
     // 악의 1 이상 분기
-    if (ChoiceIndex == 0) return; // 0번은 무시(취소)
+    if (ChoiceIndex == 2) return;
 
     if (MaliceComp && MaliceComp->GetRawMalice() >= 1)
     {
         const UPersonalEventBizarreForgeDefinition* EventDef = Cast<UPersonalEventBizarreForgeDefinition>(GetRewardDefinition());
         if (!EventDef) return;
-
-        // 어떤 아이템을 줄지 결정
+        
         UItemDefinition* ItemToGrant = nullptr;
-        if (ChoiceIndex == 1)
+        if (ChoiceIndex == 0) 
         {
             ItemToGrant = EventDef->MaliciousSwordDefinition;
         }
-        else if (ChoiceIndex == 2)
+        else if (ChoiceIndex == 1)
         {
             ItemToGrant = EventDef->MaliciousShieldDefinition;
         }
