@@ -13,7 +13,7 @@ first_line="$(head -n 1 "$MSG_FILE" | tr -d '\r')"
 if [[ -z "$first_line" ]]; then exit 0; fi
 
 # 이미 "이모지 태그:" 형태면 패스(중복 방지)
-if [[ "$first_line" =~ ^[[:space:]]*[✨🐛💄📝♻️🎨✅🔨][[:space:]]+[A-Za-z]+:\  ]]; then
+if [[ "$first_line" =~ ^[[:space:]]*[✨🐛💄📝♻️🎨✅🔨⚠️🔁][[:space:]]+[A-Za-z]+:\  ]]; then
   exit 0
 fi
 
@@ -55,7 +55,8 @@ case "$type" in
   style)    emoji="🎨"; tag="Style" ;;
   test)     emoji="✅"; tag="Test" ;;
   chore)    emoji="🔨"; tag="Chore" ;;
-  hotfix)   emoji="🐛"; tag="Fix" ;;
+  hotfix)   emoji="⚠️"; tag="HotFix" ;;
+  merge)    emoji="🔁"; tag="Merge" ;;
   *)
     echo "❌ 허용되지 않은 타입: '$type' (feat/fix/design/docs/refactor/style/test/chore/hotfix)" >&2
     exit 1

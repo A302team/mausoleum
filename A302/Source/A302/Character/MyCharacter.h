@@ -1,11 +1,10 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "Components/StaticMeshComponent.h"
+#include "GamePlay/Actor/WeaponActor.h"
 #include "InputActionValue.h"
-#include "TimerManager.h"
 #include "Interface/InteractableInterface.h"
 #include "MyCharacter.generated.h"
 
@@ -13,16 +12,21 @@ class UInputAction;
 class UInputMappingContext;
 class UCombatStatusComponent;
 class UItemDefinition;
+class URewardDefinition;
+class UItemManagerComponent;
 class UUserWidget;
-class UItemActionFactory;
-class UItemInstance;
-class UBaseItem;
 class ADummyCharacter;
 class UKnifeAutoTestComponent;
 class UInteractComponent;
+class UItemTargetingComponent;
 class UMaliceComponent;
 class UQuickSlotComponent;
 class UPrivateVoiceChatComponent;
+class UBasePersonalEvent;
+class UBaseGroupEvent;
+class UPersonalEventCursedSword;
+class AShieldActor;
+class ABaseInteractable;
 
 UCLASS()
 class A302_API AMyCharacter : public ACharacter
@@ -38,20 +42,47 @@ public:
 		AActor* DamageCauser
 	) override;
 	void NotifyKilledCharacter();
+	void NotifyTimedKnifeAttackSucceeded();
+	void RegisterActiveTimedKnifeEvent(UPersonalEventCursedSword* EventInstance);
+	void ClearActiveTimedKnifeEvent(UPersonalEventCursedSword* EventInstance);
+	void ForceDeadByPersonalEvent();
+	void SetTimedKnifeAttackInProgress(bool bInProgress);
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount);
+	UFUNCTION(Server, Reliable)
+	void Server_RequestInteractionReward(ABaseInteractable* Interactable);
+	UFUNCTION(Client, Reliable)
+	void Client_GrantInteractionReward(URewardDefinition* RewardDefinition);
 
-    // Called every frame
-    virtual void Tick(float DeltaTime) override;
+	virtual void Tick(float DeltaTime) override;
+	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
-    // Called to bind functionality to input
-    virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
-    
-    void SetQTEInputMode(bool bIsQTE);
+	void SetQTEInputMode(bool bIsQTE);
+
+	// 애니메이션 무기 표시/비표시 
+	void ShowWeapon();
+  void HideWeapon();
+	void EquipWeapon(TSubclassOf<AWeaponActor> WeaponClass);
+
+	// 무기 액터 참조 (애니메이션 재생 시 위치 참조용)
+	UPROPERTY(EditAnywhere, Category="Weapon")
+  TSubclassOf<AWeaponActor> KnifeActorClass;
+
+  UPROPERTY(EditAnywhere, Category="Weapon")
+  TSubclassOf<AWeaponActor> TimeKnifeActorClass;
+
+	UPROPERTY(EditAnywhere, Category="Weapon")
+	TSubclassOf<AWeaponActor> ShieldActorClass;
+
+	UPROPERTY()
+	AWeaponActor* CurrentWeaponActor;
+
+	UPROPERTY()
+	AShieldActor* CurrentShield = nullptr;
 
 protected:
-    // Called when the game starts or when spawned
-    virtual void BeginPlay() override;
+	virtual void BeginPlay() override;
 
-    // Input Actions
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputMappingContext> IMC_Default = nullptr;
 
@@ -66,48 +97,46 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> IA_Jump = nullptr;
-    
+
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> IA_Interact = nullptr;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> IA_ESC = nullptr;
 
-    // 상호작용 가능 거리를 설정합니다.
-    UPROPERTY(EditAnywhere, Category = "Interaction")
-    float InteractionDistance = 300.f;
+	UPROPERTY(EditAnywhere, Category = "Interaction")
+	float InteractionDistance = 300.f;
 
-    // 매 프레임 상호작용 대상을 체크하는 함수
-    void CheckForInteractables();
+	void CheckForInteractables();
+
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> IA_VoiceChat = nullptr;
-    
+
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> IA_ItemSelect = nullptr;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> IA_Attack = nullptr;
-    
+
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> IA_QTE_Input = nullptr;
-	
-	// Item
+
 	UPROPERTY(EditDefaultsOnly, Category = "Item|Definition")
 	TObjectPtr<UItemDefinition> KnifeDef;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Item|Definition")
 	TObjectPtr<UItemDefinition> ShieldDef;
 
-	UPROPERTY(EditAnywhere, Category = "Item|Test", meta=(ClampMin="0"))
+	UPROPERTY(EditAnywhere, Category = "Item|Test", meta = (ClampMin = "0"))
 	int32 InitialKnifeStack = 2;
 
-	UPROPERTY(EditAnywhere, Category = "Item|Test", meta=(ClampMin="0.0"))
+	UPROPERTY(EditAnywhere, Category = "Item|Test", meta = (ClampMin = "0.0"))
 	float FirstAutoAttackDelay = 0.5f;
 
-	UPROPERTY(EditAnywhere, Category = "Item|Test", meta=(ClampMin="0.0"))
+	UPROPERTY(EditAnywhere, Category = "Item|Test", meta = (ClampMin = "0.0"))
 	float SecondAutoAttackDelay = 1.5f;
 
-	UPROPERTY(EditAnywhere, Category = "Item|Test", meta=(ClampMin="0.0"))
+	UPROPERTY(EditAnywhere, Category = "Item|Test", meta = (ClampMin = "0.0"))
 	float AutoWarpDistanceToDummy = 120.f;
 
 	void SetupKnifeForTest();
@@ -117,8 +146,8 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Item|Action")
 	void BP_OnPrimaryItemUsed(UItemDefinition* UsedItemDefinition, int32 UsedSlotNumberOneBased);
 
-    virtual void GetLifetimeReplicatedProps(
-    TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
 
 private:
 	UFUNCTION()
@@ -126,11 +155,13 @@ private:
 
 	UFUNCTION()
 	void HandleMaliceChanged(int32 NewCount);
-	
-	void CompleteTimedKnifeObjective();
-	void StartTimedKnifeCountdown(const UItemDefinition* TimedKnifeDefinition);
-	void TickTimedKnifeCountdown();
-	void ClearTimedKnifeState(bool bHideTimer);
+
+	bool HandleRewardPickup(AActor* InteractedActor, const URewardDefinition* RewardDefinition);
+	bool ShouldGrantRewardLocally(const URewardDefinition* RewardDefinition) const;
+	void ResolveInteractionRewardOnServer(ABaseInteractable* Interactable);
+	bool HandleBasicItemPickup(AActor* InteractedActor, const UItemDefinition* RewardDefinition);
+	bool HandlePersonalEventPickup(AActor* InteractedActor, const URewardDefinition* RewardDefinition);
+	bool HandleGroupEventPickup(AActor* InteractedActor, const URewardDefinition* RewardDefinition);
 	void HandleDead();
 
 	void OnMove(const FInputActionValue& Value);
@@ -138,14 +169,13 @@ private:
 	void OnJump(const FInputActionValue& Value);
 	void OnJumpReleased(const FInputActionValue& Value);
 
-    // Interact
 	void InteractionCompleteResult();
 	void OnItemSelect(const FInputActionValue& Value);
 	void OnAttack(const FInputActionValue& Value);
-    
+
 	void OnInteractHoldProgress(const FInputActionValue& Value);
 	void OnInteractHoldCanceled(const FInputActionValue& Value);
-    
+
 	void OnQTEInteractStarted(const FInputActionValue& Value);
 	void OnInteractProgress(const FInputActionValue& Value);
 	void OnInteractCanceled(const FInputActionValue& Value);
@@ -157,22 +187,19 @@ private:
 	AActor* LastInteractableActor = nullptr;
 
 	UPROPERTY()
-	TObjectPtr<UItemActionFactory> ItemActionFactory;
-
-	UPROPERTY()
-	TObjectPtr<UItemInstance> KnifeInstance;
-
-	UPROPERTY()
-	TObjectPtr<UBaseItem> KnifeLogic;
-
-	UPROPERTY()
 	TObjectPtr<ADummyCharacter> CachedDummyCharacter;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|Manager", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UItemManagerComponent> ItemManagerComponent = nullptr;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UInteractComponent> InteractionComponent = nullptr;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|QuickSlot", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UQuickSlotComponent> QuickSlotComponent = nullptr;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|Targeting", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UItemTargetingComponent> ItemTargetingComponent = nullptr;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UCombatStatusComponent> CombatStatusComponent = nullptr;
@@ -182,7 +209,7 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|Test", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UKnifeAutoTestComponent> KnifeAutoTestComponent = nullptr;
-    
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Voice", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UPrivateVoiceChatComponent> PrivateVoiceChatComponent = nullptr;
 
@@ -191,21 +218,18 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Ending", meta = (AllowPrivateAccess = "true"))
 	bool bNiceEnding = true;
-	
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat", meta = (AllowPrivateAccess = "true"))
 	bool bIsDead = false;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|Timed", meta = (AllowPrivateAccess = "true"))
-	bool bHasActiveTimedKnife = false;
+	UPROPERTY()
+	TObjectPtr<UPersonalEventCursedSword> ActiveTimedKnifeEvent = nullptr;
+
+	bool bTimedKnifeAttackInProgress = false;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|Timed", meta = (AllowPrivateAccess = "true"))
 	float TimedKnifeRemainingSeconds = 0.0f;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|Timed", meta = (AllowPrivateAccess = "true"))
 	FName ActiveTimedKnifeItemId = NAME_None;
-
-	FTimerHandle TimedKnifeTimerHandle;
-
-	UPROPERTY(VisibleAnywhere, Category = "Item|Test")
-	int32 AutoAttackCount = 0;
 };

@@ -14,23 +14,33 @@
 void UA302GameInstance::Init()
 {
     Super::Init();
-    
-    GameNetworkSubsystem = GetSubsystem<UGameNetworkSubsystem>();
+
+    GameNetworkSubsystem = Cast<UGameNetworkSubsystem>(GetSubsystemBase(UGameNetworkSubsystem::StaticClass()));
     if (GameNetworkSubsystem)
     {
         GameNetworkSubsystem->Connect(EProtocolType::WebSocket, GameNetworkSubsystem->GetLobbyURL());
         GameNetworkSubsystem->OnPacketReceived.AddDynamic(this, &UA302GameInstance::OnMessageReceived);
     }
     FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(this, &UA302GameInstance::OnMapLoaded);
+
+    if (GetWorld())
+    {
+        OnMapLoaded(GetWorld());
+    }
+}
+
+void UA302GameInstance::OnWorldAdded(UWorld *World)
+{
+    OnMapLoaded(World);
 }
 
 void UA302GameInstance::OnMapLoaded(UWorld *LoadedWorld)
 {
     if (!LoadedWorld)
         return;
-    if (LoadedWorld->GetNetMode() == NM_DedicatedServer)
-        return;
     if (LoadedWorld != GetWorld())
+        return;
+    if (LoadedWorld->GetNetMode() == NM_DedicatedServer)
         return;
 
     FString MapName = LoadedWorld->GetMapName();
@@ -91,7 +101,9 @@ void UA302GameInstance::ConnectToServer(const FString &URL)
 {
     if (GameNetworkSubsystem)
     {
-        GameNetworkSubsystem->Connect(EProtocolType::WebSocket, URL);
+        FString TargetURL = GameNetworkSubsystem->GetLobbyURL();
+        UE_LOG(LogTemp, Warning, TEXT("[GameMode/A302GameInstance] Blueprint requested connect to %s, but overriding with Config URL: %s"), *URL, *TargetURL);
+        GameNetworkSubsystem->Connect(EProtocolType::WebSocket, TargetURL);
     }
 }
 
@@ -132,6 +144,27 @@ void UA302GameInstance::OnMessageReceived(const FString &Message)
         UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] 방 입장: %s"), *CurrentRoomCode);
         OnRoomJoined.Broadcast();
         ShowWaitingRoom(CurrentRoomCode);
+
+        const TArray<TSharedPtr<FJsonValue>> *ExistingPlayers;
+        if (Data->TryGetArrayField(TEXT("existingPlayers"), ExistingPlayers))
+        {
+            for (auto &PlayerValue : *ExistingPlayers)
+            {
+                TSharedPtr<FJsonObject> PlayerObj = PlayerValue->AsObject();
+                FString ExistingName = PlayerObj->GetStringField(LobbyProtocol::KeyPlayerName);
+
+                if (ExistingName != MyPlayerName)
+                {
+                    OnPlayerEntered.Broadcast(ExistingName);
+
+                    // 레디 상태 연동
+                    if (PlayerObj->HasField(TEXT("isReady")) && PlayerObj->GetBoolField(TEXT("isReady")))
+                    {
+                        OnPlayerReady.Broadcast(ExistingName);
+                    }
+                }
+            }
+        }
     }
     else if (Type == LobbyProtocol::ResPlayerEntered)
     {
@@ -176,24 +209,27 @@ void UA302GameInstance::OnMessageReceived(const FString &Message)
         if (!MyWorld)
             return;
 
-        ENetMode NetMode = MyWorld->GetNetMode();
-        UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] 내 NetMode: %d"), (int32)NetMode);
+        // 데디케이트 서버이면 무시
+        if (MyWorld->GetNetMode() == NM_DedicatedServer)
+            return;
+
+        // 서버 주소 파싱 (WebSocket 서버가 보내준 주소)
+        FString ServerIP = TEXT("j14a302.p.ssafy.io");
+        int32 ServerPort = 47777;
+
+        if (Data->HasField(TEXT("serverIP")))
+            ServerIP = Data->GetStringField(TEXT("serverIP"));
+        if (Data->HasField(TEXT("serverPort")))
+            ServerPort = (int32)Data->GetNumberField(TEXT("serverPort"));
+
+        FString TravelURL = FString::Printf(TEXT("%s:%d"), *ServerIP, ServerPort);
+        UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] 데디케이트 서버로 이동: %s"), *TravelURL);
 
         APlayerController *PC = MyWorld->GetFirstPlayerController();
-        UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] PC: %s"), *GetNameSafe(PC));
+        if (!PC)
+            return;
 
-        AMyPlayerController *MyPC = Cast<AMyPlayerController>(PC);
-        UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] MyPC: %s"), *GetNameSafe(MyPC));
-
-        // if (MyPC)
-        // {
-        //     UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] IsLocalController: %d"), (int32)MyPC->IsLocalController());
-        //     if (MyPC->IsLocalController())
-        //     {
-        //         UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] ServerRequestGameStart 호출!"));
-        //         MyPC->ServerRequestGameStart();
-        //     }
-        // }
+        PC->ClientTravel(TravelURL, TRAVEL_Absolute);
     }
     else if (Type == LobbyProtocol::ResNicknameAvailable)
     {
@@ -218,6 +254,27 @@ void UA302GameInstance::OnMessageReceived(const FString &Message)
     {
         FString ErrorMsg = Data->GetStringField(LobbyProtocol::KeyMessage);
         UE_LOG(LogTemp, Warning, TEXT("[GameMode/A302GameInstance] 에러: %s"), *ErrorMsg);
+    }
+    else if (Type == LobbyProtocol::ResError)
+    {
+        FString ErrorMsg = Data->GetStringField(LobbyProtocol::KeyMessage);
+        UE_LOG(LogTemp, Warning, TEXT("[GameMode/A302GameInstance] 에러: %s"), *ErrorMsg);
+    }
+    // 시작!!!!!!
+    else if (Type == TEXT("host_changed"))
+    {
+        FString NewHostName = Data->GetStringField(TEXT("hostName"));
+        UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] 방장 권한 위임: %s"), *NewHostName);
+
+        if (MyPlayerName == NewHostName)
+        {
+            bIsHost = true;
+            if (WaitingRoomWidget)
+            {
+                // UI 갱신 헬퍼 호출
+                WaitingRoomWidget->OnHostChanged();
+            }
+        }
     }
     else
     {

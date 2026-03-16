@@ -74,10 +74,22 @@ void AA302GameMode::PostLogin(APlayerController *NewPlayer)
     UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] 플레이어 접속 - NetMode: %d"),
            (int32)GetNetMode());
 
-    // DedicatedServer 또는 ListenServer에서만 스폰
     if (GetNetMode() != NM_DedicatedServer && GetNetMode() != NM_ListenServer)
     {
         UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] 서버가 아니므로 스폰 안함"));
+        return;
+    }
+
+    // 인게임 레벨로 이동 (첫 플레이어 접속 시)
+    if (GetWorld()->GetMapName().Contains(TEXT("Entry")))
+    {
+        if (!bServerTravelRequested)
+        {
+            bServerTravelRequested = true;
+
+            UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] 인게임 레벨로 이동"));
+            GetWorld()->ServerTravel(TEXT("/Game/PersonalWorkSpace/sikk806/MyTestLevel"));
+        }
         return;
     }
 

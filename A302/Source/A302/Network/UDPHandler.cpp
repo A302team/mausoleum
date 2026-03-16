@@ -3,30 +3,39 @@
 #include "SocketSubsystem.h"
 #include "Common/UdpSocketBuilder.h"
 #include "Common/UdpSocketReceiver.h"
-#include "Interfaces/IPv4/IPv4Address.h"
 #include "Interfaces/IPv4/IPv4Endpoint.h"
+#include "IPAddressAsyncResolve.h"
 #include "Serialization/ArrayReader.h"
 #include "Async/Async.h"
 
-void UUDPHandler::Connect(const FString& URL)
+bool UUDPHandler::ParseUrl(const FString& URL, FString& OutHostName, int32& OutPort) const
 {
-	// 기본 구현 로직 (차후 실제 스펙에 맞게 확장 필요)
+	FString PortString;
+	if (!URL.Split(TEXT(":"), &OutHostName, &PortString))
+	{
+		UE_LOG(LogTemp, Error, TEXT("[Network/UDPHandler] Invalid UDP URL formatting (missing port): %s"), *URL);
+		return false;
+	}
+
+	if (!PortString.IsNumeric() || !LexTryParseString(OutPort, *PortString))
+	{
+		UE_LOG(LogTemp, Error, TEXT("[Network/UDPHandler] Invalid port: %s"), *PortString);
+		return false;
+	}
+
+	return true;
+}
+
+void UUDPHandler::StartSocket(const FString& URL, int32 Port, const TSharedRef<FInternetAddr>& ResolvedAddr)
+{
 	if (IsConnected())
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[Network/UDPHandler] Already Connected."));
 		return;
 	}
 
-	FIPv4Endpoint Endpoint;
-	if (!FIPv4Endpoint::Parse(URL, Endpoint))
-	{
-		UE_LOG(LogTemp, Error, TEXT("[Network/UDPHandler] Invalid UDP URL formatting: %s"), *URL);
-		return;
-	}
-
-	TargetAddr = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
-	TargetAddr->SetIp(Endpoint.Address.Value);
-	TargetAddr->SetPort(Endpoint.Port);
+	TargetAddr = ResolvedAddr;
+	TargetAddr->SetPort(Port);
 
 	// 송수신 겸용 소켓 생성 (포트 0 = OS가 임시 포트 자동 할당)
 	UDPSocket = FUdpSocketBuilder(TEXT("UDP_VoiceSocket"))
@@ -47,12 +56,47 @@ void UUDPHandler::Connect(const FString& URL)
 		SocketReceiver->OnDataReceived().BindUObject(this, &UUDPHandler::OnDataReceived);
 		SocketReceiver->Start();
 
-		UE_LOG(LogTemp, Log, TEXT("[Network/UDPHandler] UDP Socket Created + Receiver Started. Targeting: %s"), *URL);
+		UE_LOG(LogTemp, Log, TEXT("[Network/UDPHandler] UDP Socket Created + Receiver Started. Targeting URL=%s, Resolved=%s"), *URL, *TargetAddr->ToString(true));
 	}
 	else
 	{
 		UE_LOG(LogTemp, Error, TEXT("[Network/UDPHandler] Failed to create UDP Socket."));
 	}
+}
+
+void UUDPHandler::Connect(const FString& URL)
+{
+	// 기본 구현 로직 (차후 실제 스펙에 맞게 확장 필요)
+	if (IsConnected())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Network/UDPHandler] Already Connected."));
+		return;
+	}
+
+	FString HostName;
+	int32 Port = 0;
+	if (!ParseUrl(URL, HostName, Port))
+	{
+		return;
+	}
+
+	ISocketSubsystem* SocketSubsystem = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM);
+	if (!SocketSubsystem)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[Network/UDPHandler] Socket subsystem not available."));
+		return;
+	}
+
+	TSharedRef<FInternetAddr> DirectAddr = SocketSubsystem->CreateInternetAddr();
+	bool bIsValid = false;
+	DirectAddr->SetIp(*HostName, bIsValid);
+	if (!bIsValid)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[Network/UDPHandler] DNS resolution disabled. Use numeric IP instead of hostname: %s"), *HostName);
+		return;
+	}
+
+	StartSocket(URL, Port, DirectAddr);
 }
 
 void UUDPHandler::Disconnect()

@@ -1,4 +1,4 @@
-#include "RoomManager.h"
+#include "lobby/domain/RoomManager.h"
 
 Room& RoomManager::createRoom() {
     std::string roomCode;
