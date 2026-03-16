@@ -22,6 +22,8 @@ public:
 	virtual void BeginDestroy() override;
 
 private:
+	bool BeginCursedSwordFlow(AMyCharacter* InstigatorCharacter);
+	bool TryGrantKnifeToPreferredSlot(AMyCharacter* InstigatorCharacter, UItemDefinition* GrantedKnifeDefinition, int32& OutAddedSlotIndex) const;
 	void HandleCountdownTick();
 	void RefreshTimerUI() const;
 	void StopCountdown(bool bHideTimer);
@@ -31,6 +33,7 @@ private:
 	TObjectPtr<AMyCharacter> OwnerCharacter = nullptr;
 
 	FName GrantedItemId = NAME_None;
+	int32 GrantedSlotIndex = INDEX_NONE;
 	float RemainingSeconds = 0.0f;
 	bool bIsActive = false;
 	FTimerHandle CountdownTimerHandle;
