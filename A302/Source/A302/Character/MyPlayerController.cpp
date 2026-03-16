@@ -515,6 +515,15 @@ void AMyPlayerController::BeginPlay()
 	// 로컬 컨트롤러에서만 실행
 	if (!IsLocalController())
 		return;
+	
+	if (NotificationLogClass)
+	{
+		NotificationLogInstance = CreateWidget<UUserWidget>(this, NotificationLogClass);
+		if (NotificationLogInstance)
+		{
+			NotificationLogInstance->AddToViewport(500);
+		}
+	}
 
 	SetInputMode(FInputModeGameOnly());
 
@@ -610,6 +619,38 @@ void AMyPlayerController::InitializeQuickSlotVisualState()
 	}
 
 	SetPublicMaliceAnnouncementVisible(false);
+}
+
+void AMyPlayerController::Client_ReceiveSystemMessage_Implementation(const FString& Message)
+{
+	// 🚩 디버깅 로그 추가
+	if (!NotificationLogInstance) 
+	{
+		UE_LOG(LogTemp, Error, TEXT("[SYSTEM ERROR] NotificationLogInstance is NULL!"));
+		return;
+	}
+    
+	UFunction* Func = NotificationLogInstance->FindFunction(FName("AddNotificationMessage"));
+	if (!Func)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[SYSTEM ERROR] Cannot find function 'AddNotificationMessage' in widget!"));
+		return;
+	}
+	
+	if (Func)
+	{
+		struct FNotificationParams
+		{
+			FText NewMessage;
+		};
+
+		FNotificationParams Params;
+		Params.NewMessage = FText::FromString(Message);
+
+		NotificationLogInstance->ProcessEvent(Func, &Params);
+	}
+	
+	UE_LOG(LogTemp, Warning, TEXT("[SYSTEM] %s"), *Message);
 }
 
 void AMyPlayerController::InitializeInspectMaliceWidget()
@@ -1321,18 +1362,14 @@ void AMyPlayerController::Server_ResolvePersonalEvent_Implementation(FName Event
 	{
 		return;
 	}
-
-	// 만약 플레이어가 취소를 눌렀다면 여기서 조기 종료
-	if (ChoiceIndex == 0)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[Event] %s 거절됨."), *EventID.ToString());
-	}
+	
+	UE_LOG(LogTemp, Log, TEXT("[Event] %s Resolved with ChoiceIndex: %d"), *EventID.ToString(), ChoiceIndex);
 
 	if (UBasePersonalEvent *TargetEvent = Cast<UBasePersonalEvent>(ActivePersonalEvent))
 	{
 		if (TargetEvent->EventID == EventID)
 		{
-			TargetEvent->OnEventResolvedMulti(MyChar, ChoiceIndex);
+			TargetEvent->OnEventResolved(MyChar, ChoiceIndex);
 		}
 	}
 	// 이벤트 캐시 초기화
