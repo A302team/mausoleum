@@ -37,9 +37,11 @@ void UPersonalEventMaliceOverload::ExecuteEvent_Implementation(AMyCharacter* Ins
 
 void UPersonalEventMaliceOverload::OnEventResolved_Implementation(AMyCharacter* InstigatorCharacter, int32 ChoiceIndex)
 {
-    
     // ChoiceIndex 0: '확인'을 눌렀을 때만 동작
     if (ChoiceIndex != 0 || !InstigatorCharacter) return;
+    
+    // 서버 체크
+    if (!InstigatorCharacter->HasAuthority()) return;
 
     UMaliceComponent* MaliceComp = InstigatorCharacter->FindComponentByClass<UMaliceComponent>();
     if (!MaliceComp) return;
@@ -57,7 +59,7 @@ void UPersonalEventMaliceOverload::OnEventResolved_Implementation(AMyCharacter* 
         for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
         {
             AMyPlayerController* TargetPC = Cast<AMyPlayerController>(It->Get());
-            if (!TargetPC || TargetPC == InstigatorCharacter->GetController()) continue;
+            if (!TargetPC || TargetPC->GetPawn() == InstigatorCharacter) continue;
 
             AMyCharacter* TargetChar = Cast<AMyCharacter>(TargetPC->GetPawn());
             if (TargetChar)
@@ -66,6 +68,8 @@ void UPersonalEventMaliceOverload::OnEventResolved_Implementation(AMyCharacter* 
                 if (Distance <= DetectionRadius)
                 {
                     TargetPC->Client_ReceiveSystemMessage(TEXT("악인의 짙은 악의가 느껴집니다"));
+                    
+                    UE_LOG(LogTemp, Log, TEXT("Sent message to: %s"), *TargetPC->GetName());
                 }
             }
         }
