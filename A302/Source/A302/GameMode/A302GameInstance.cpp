@@ -22,15 +22,25 @@ void UA302GameInstance::Init()
         GameNetworkSubsystem->OnPacketReceived.AddDynamic(this, &UA302GameInstance::OnMessageReceived);
     }
     FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(this, &UA302GameInstance::OnMapLoaded);
+
+    if (GetWorld())
+    {
+        OnMapLoaded(GetWorld());
+    }
+}
+
+void UA302GameInstance::OnWorldAdded(UWorld *World)
+{
+    OnMapLoaded(World);
 }
 
 void UA302GameInstance::OnMapLoaded(UWorld *LoadedWorld)
 {
     if (!LoadedWorld)
         return;
-    if (LoadedWorld->GetNetMode() == NM_DedicatedServer)
-        return;
     if (LoadedWorld != GetWorld())
+        return;
+    if (LoadedWorld->GetNetMode() == NM_DedicatedServer)
         return;
 
     FString MapName = LoadedWorld->GetMapName();
@@ -134,6 +144,27 @@ void UA302GameInstance::OnMessageReceived(const FString &Message)
         UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] 방 입장: %s"), *CurrentRoomCode);
         OnRoomJoined.Broadcast();
         ShowWaitingRoom(CurrentRoomCode);
+
+        const TArray<TSharedPtr<FJsonValue>> *ExistingPlayers;
+        if (Data->TryGetArrayField(TEXT("existingPlayers"), ExistingPlayers))
+        {
+            for (auto &PlayerValue : *ExistingPlayers)
+            {
+                TSharedPtr<FJsonObject> PlayerObj = PlayerValue->AsObject();
+                FString ExistingName = PlayerObj->GetStringField(LobbyProtocol::KeyPlayerName);
+
+                if (ExistingName != MyPlayerName)
+                {
+                    OnPlayerEntered.Broadcast(ExistingName);
+
+                    // 레디 상태 연동
+                    if (PlayerObj->HasField(TEXT("isReady")) && PlayerObj->GetBoolField(TEXT("isReady")))
+                    {
+                        OnPlayerReady.Broadcast(ExistingName);
+                    }
+                }
+            }
+        }
     }
     else if (Type == LobbyProtocol::ResPlayerEntered)
     {
@@ -223,6 +254,27 @@ void UA302GameInstance::OnMessageReceived(const FString &Message)
     {
         FString ErrorMsg = Data->GetStringField(LobbyProtocol::KeyMessage);
         UE_LOG(LogTemp, Warning, TEXT("[GameMode/A302GameInstance] 에러: %s"), *ErrorMsg);
+    }
+    else if (Type == LobbyProtocol::ResError)
+    {
+        FString ErrorMsg = Data->GetStringField(LobbyProtocol::KeyMessage);
+        UE_LOG(LogTemp, Warning, TEXT("[GameMode/A302GameInstance] 에러: %s"), *ErrorMsg);
+    }
+    // 시작!!!!!!
+    else if (Type == TEXT("host_changed"))
+    {
+        FString NewHostName = Data->GetStringField(TEXT("hostName"));
+        UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] 방장 권한 위임: %s"), *NewHostName);
+
+        if (MyPlayerName == NewHostName)
+        {
+            bIsHost = true;
+            if (WaitingRoomWidget)
+            {
+                // UI 갱신 헬퍼 호출
+                WaitingRoomWidget->OnHostChanged();
+            }
+        }
     }
     else
     {
