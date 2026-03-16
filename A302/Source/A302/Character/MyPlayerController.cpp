@@ -623,9 +623,20 @@ void AMyPlayerController::InitializeQuickSlotVisualState()
 
 void AMyPlayerController::Client_ReceiveSystemMessage_Implementation(const FString& Message)
 {
-	if (!NotificationLogInstance) return;
-	
+	// 🚩 디버깅 로그 추가
+	if (!NotificationLogInstance) 
+	{
+		UE_LOG(LogTemp, Error, TEXT("[SYSTEM ERROR] NotificationLogInstance is NULL!"));
+		return;
+	}
+    
 	UFunction* Func = NotificationLogInstance->FindFunction(FName("AddNotificationMessage"));
+	if (!Func)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[SYSTEM ERROR] Cannot find function 'AddNotificationMessage' in widget!"));
+		return;
+	}
+	
 	if (Func)
 	{
 		struct FNotificationParams
@@ -1351,12 +1362,8 @@ void AMyPlayerController::Server_ResolvePersonalEvent_Implementation(FName Event
 	{
 		return;
 	}
-
-	// 만약 플레이어가 취소를 눌렀다면 여기서 조기 종료
-	if (ChoiceIndex == 0)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[Event] %s 거절됨."), *EventID.ToString());
-	}
+	
+	UE_LOG(LogTemp, Log, TEXT("[Event] %s Resolved with ChoiceIndex: %d"), *EventID.ToString(), ChoiceIndex);
 
 	if (UBasePersonalEvent *TargetEvent = Cast<UBasePersonalEvent>(ActivePersonalEvent))
 	{
