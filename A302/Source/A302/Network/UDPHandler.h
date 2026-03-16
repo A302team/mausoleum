@@ -36,6 +36,9 @@ public:
 	FOnUDPBinaryMessageReceived OnBinaryMessageReceived;
 
 private:
+	bool ParseUrl(const FString& URL, FString& OutHostName, int32& OutPort) const;
+	void StartSocket(const FString& URL, int32 Port, const TSharedRef<FInternetAddr>& ResolvedAddr);
+
 	void OnDataReceived(const FArrayReaderPtr& Data, const FIPv4Endpoint& Sender);
 
 	FSocket* UDPSocket = nullptr;

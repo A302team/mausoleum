@@ -1,0 +1,11 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameData/Events/PersonalEvents/PersonalEventDefinition.h"
+#include "PersonalEventPublicMaliceDefinition.generated.h"
+
+UCLASS(BlueprintType)
+class A302_API UPersonalEventPublicMaliceDefinition : public UPersonalEventDefinition
+{
+	GENERATED_BODY()
+};
