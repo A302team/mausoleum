@@ -42,6 +42,10 @@ public:
 	bool UpdateQuickSlotItemName(int32 SlotIndex, const FText& ItemName);
 	bool UpdateQuickSlotItemVisual(int32 SlotIndex, const FText& ItemName, UTexture2D* ItemIcon);
 	void UpdateQuickSlotSelectionVisual(int32 SelectedSlotIndex);
+
+	UFUNCTION(Client, Reliable)
+	void Client_SetQuickSlotItemVisual(int32 SlotIndex, const FText& ItemName, UTexture2D* ItemIcon, bool bVisible);
+
 	bool UpdateShieldCountText(int32 ShieldCount);
 	bool UpdateMaliceCountText(int32 MaliceCount);
 	bool UpdateItemTimerText(float RemainingSeconds);

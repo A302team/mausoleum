@@ -309,6 +309,17 @@ bool AMyPlayerController::UpdateQuickSlotItemName(int32 SlotIndex, const FText &
 	return UpdateQuickSlotItemVisual(SlotIndex, ItemName, nullptr);
 }
 
+void AMyPlayerController::Client_SetQuickSlotItemVisual_Implementation(int32 SlotIndex, const FText& ItemName, UTexture2D* ItemIcon, bool bVisible)
+{
+	if (!bVisible)
+	{
+		UpdateQuickSlotItemVisual(SlotIndex, FText::GetEmpty(), nullptr);
+		return;
+	}
+
+	UpdateQuickSlotItemVisual(SlotIndex, ItemName, ItemIcon);
+}
+
 void AMyPlayerController::UpdateQuickSlotSelectionVisual(int32 SelectedSlotIndex)
 {
 	for (int32 SlotIndex = 0; SlotIndex < PlayerControllerQuickSlotCount; ++SlotIndex)
