@@ -69,6 +69,9 @@ public:
 
 	UPROPERTY()
 	TObjectPtr<UBaseGroupEvent> ActiveGroupEvent;
+	
+	UFUNCTION(Client, Reliable)
+	void Client_ReceiveSystemMessage(const FString& Message);
 
 	UFUNCTION(Client, Reliable)
 	void Client_ShowPersonalEvent(FName EventID, const FText& Title, const FText& Description, const TArray<FText>& Choices);
@@ -98,6 +101,12 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI|Notification")
+	TSubclassOf<UUserWidget> NotificationLogClass;
+	
+	UPROPERTY()
+	UUserWidget* NotificationLogInstance;
 
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<UUserWidget> QuickSlotBarClass;

@@ -70,5 +70,5 @@ void UPersonalEventPublicMalice::ExecuteEvent_Implementation(AMyCharacter* Insti
 		PlayerController->ShowPublicMaliceAnnouncement(PlayerName, CurrentMaliceCount);
 	}
 
-	OnEventResolved(InstigatorCharacter, true);
+	OnEventResolved(InstigatorCharacter, 0);
 }

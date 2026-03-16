@@ -515,6 +515,15 @@ void AMyPlayerController::BeginPlay()
 	// 로컬 컨트롤러에서만 실행
 	if (!IsLocalController())
 		return;
+	
+	if (NotificationLogClass)
+	{
+		NotificationLogInstance = CreateWidget<UUserWidget>(this, NotificationLogClass);
+		if (NotificationLogInstance)
+		{
+			NotificationLogInstance->AddToViewport(500);
+		}
+	}
 
 	SetInputMode(FInputModeGameOnly());
 
@@ -610,6 +619,27 @@ void AMyPlayerController::InitializeQuickSlotVisualState()
 	}
 
 	SetPublicMaliceAnnouncementVisible(false);
+}
+
+void AMyPlayerController::Client_ReceiveSystemMessage_Implementation(const FString& Message)
+{
+	if (!NotificationLogInstance) return;
+	
+	UFunction* Func = NotificationLogInstance->FindFunction(FName("AddNotificationMessage"));
+	if (Func)
+	{
+		struct FNotificationParams
+		{
+			FText NewMessage;
+		};
+
+		FNotificationParams Params;
+		Params.NewMessage = FText::FromString(Message);
+
+		NotificationLogInstance->ProcessEvent(Func, &Params);
+	}
+	
+	UE_LOG(LogTemp, Warning, TEXT("[SYSTEM] %s"), *Message);
 }
 
 void AMyPlayerController::InitializeInspectMaliceWidget()
@@ -1332,7 +1362,7 @@ void AMyPlayerController::Server_ResolvePersonalEvent_Implementation(FName Event
 	{
 		if (TargetEvent->EventID == EventID)
 		{
-			TargetEvent->OnEventResolvedMulti(MyChar, ChoiceIndex);
+			TargetEvent->OnEventResolved(MyChar, ChoiceIndex);
 		}
 	}
 	// 이벤트 캐시 초기화
