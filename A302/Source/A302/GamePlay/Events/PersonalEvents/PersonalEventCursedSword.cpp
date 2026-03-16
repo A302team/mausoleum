@@ -12,63 +12,28 @@
 
 void UPersonalEventCursedSword::ExecuteEvent_Implementation(AMyCharacter* InstigatorCharacter)
 {
-	if (!InstigatorCharacter)
-	{
-		return;
-	}
-
+	if (!InstigatorCharacter) return;
 	OwnerCharacter = InstigatorCharacter;
 
 	AMyPlayerController* PC = Cast<AMyPlayerController>(InstigatorCharacter->GetController());
-	if (!PC)
-	{
-		return;
-	}
+	if (!PC) return;
     
 	PC->ActivePersonalEvent = this;
     
-	const URewardDefinition* SourceRewardDefinition = GetRewardDefinition();
-	const UPersonalEventDefinition* EventDef = Cast<UPersonalEventDefinition>(SourceRewardDefinition);
-    
-	if (EventDef)
-	{
-		TArray<FText> Choices;
-		if (EventDef->bIsCancelable)
-		{
-			Choices.Add(FText::FromString(TEXT("거절")));
-			Choices.Add(FText::FromString(TEXT("수락")));
-		}
-		else
-		{
-			// 거절 불가능한 이벤트라도, 인덱스 1(수락)을 맞추기 위해 0번을 더미로 넣습니다.
-			// (블루프린트 위젯에서 텍스트가 비어있으면 숨기거나, 무시하도록 처리 가능)
-			Choices.Add(FText::FromString(TEXT(""))); 
-			Choices.Add(FText::FromString(TEXT("확인"))); 
-		}
-
-		PC->Client_ShowPersonalEvent(
-		   EventDef->ItemId, 
-		   EventDef->DisplayName, 
-		   EventDef->Description, 
-		   Choices
-		);
-	}
-	else
-	{
-		// 예외 처리: 만약 캐스팅에 실패했다면(이벤트 UI 데이터가 없다면) 즉시 로직 실행
-		UE_LOG(LogTemp, Warning, TEXT("[PersonalEventTimeKnife] EventDef is missing, executing immediately."));
-		OnEventResolved(InstigatorCharacter, true);
-	}
+	TArray<FText> Choices;
+	Choices.Add(FText::FromString(TEXT("확인")));
+	
+	PC->Client_ShowPersonalEvent(
+	   FName("CursedSword"), 
+	   FText::FromString(TEXT("저주받은 검")), 
+	   FText::FromString(TEXT("피를 갈망하는 저주받은 검을 습득했습니다.\n제한 시간 내에 누군가를 공격하지 않으면 검 끝이 당신을 향할 것입니다.")), 
+	   Choices
+	);
 }
 
-void UPersonalEventCursedSword::OnEventResolved(AMyCharacter* InstigatorCharacter, bool bIsConfirmed)
+void UPersonalEventCursedSword::OnEventResolved_Implementation(AMyCharacter* InstigatorCharacter, int32 ChoiceIndex)
 {
-	// 취소가 가능한 이벤트에서 플레이어가 거절을 눌렀을 경우
-	if (!bIsConfirmed)
-	{
-		OwnerCharacter = nullptr;
-		return;
-	}
+	if (ChoiceIndex != 0) return;
 	
 	StopCountdown(false);
 	OwnerCharacter = InstigatorCharacter;
