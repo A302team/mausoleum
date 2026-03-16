@@ -90,26 +90,20 @@ void RoomHandler::handleJoinRoom(WebSocketType *ws, const json &data)
                                             {"isReady", p.isReady()}});
         }
         // 2. 현재 방 정보 전송
-        ws->send(json({
-            {std::string(KEY_TYPE), RES_ROOM_JOINED},
-            {
-                std::string(KEY_DATA),
-                {
-                    {std::string(KEY_ROOM_CODE), roomCode},
-                        {std::string(KEY_PLAYER_NAME), playerName},
-                        {std::string(KEY_IS_HOST), room->getHostId() == playerName},
-                    {
-                        "existingPlayers", existingPlayersArray
-                    } // 배열 탑재
-                }
-            }}
-    })
+        ws->send(json({{std::string(KEY_TYPE), RES_ROOM_JOINED},
+                       {std::string(KEY_DATA),
+                        {
+                            {std::string(KEY_ROOM_CODE), roomCode},
+                            {std::string(KEY_PLAYER_NAME), playerName},
+                            {std::string(KEY_IS_HOST), room->getHostId() == playerName},
+                            {"existingPlayers", existingPlayersArray} // 배열 탑재
+                        }}})
                      .dump(),
                  uWS::OpCode::TEXT);
-    // 3. 브로드캐스트 (나에게는 안 보냄 -> 중복 방지)
-    room->broadcastExcept(playerName, {{std::string(KEY_TYPE), RES_PLAYER_ENTERED},
-                                       {std::string(KEY_DATA), {{std::string(KEY_PLAYER_NAME), playerName}}}});
-}
+        // 3. 브로드캐스트 (나에게는 안 보냄 -> 중복 방지)
+        room->broadcastExcept(playerName, {{std::string(KEY_TYPE), RES_PLAYER_ENTERED},
+                                           {std::string(KEY_DATA), {{std::string(KEY_PLAYER_NAME), playerName}}}});
+    }
 }
 
 void RoomHandler::handleGetRoomList(WebSocketType *ws, const json &data)
