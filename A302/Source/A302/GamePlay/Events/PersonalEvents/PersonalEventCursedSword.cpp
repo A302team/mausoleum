@@ -10,6 +10,30 @@
 #include "GamePlay/Items/ItemTimeKnife.h"
 #include "Engine/World.h"
 
+namespace
+{
+	FText BuildCursedSwordCountdownContext(float RemainingSeconds)
+	{
+		const int32 SafeSeconds = FMath::Max(0, FMath::CeilToInt(RemainingSeconds));
+		return FText::FromString(FString::Printf(TEXT("%d초 안에 사용하지 않을 시 죽습니다."), SafeSeconds));
+	}
+
+	FText ResolveCursedSwordTitle(const UItemDefinition* GrantedKnifeDefinition, const UPersonalEventCursedSwordDefinition* EventDef)
+	{
+		if (GrantedKnifeDefinition && !GrantedKnifeDefinition->DisplayName.IsEmpty())
+		{
+			return GrantedKnifeDefinition->DisplayName;
+		}
+
+		if (EventDef && !EventDef->DisplayName.IsEmpty())
+		{
+			return EventDef->DisplayName;
+		}
+
+		return FText::FromString(TEXT("저주받은 검 획득"));
+	}
+}
+
 void UPersonalEventCursedSword::ExecuteEvent_Implementation(AMyCharacter* InstigatorCharacter)
 {
 	if (!InstigatorCharacter)
@@ -98,6 +122,14 @@ void UPersonalEventCursedSword::OnEventResolved(AMyCharacter* InstigatorCharacte
 	GrantedItemId = GrantedKnifeDefinition->ItemId;
 	bIsActive = true;
 
+	if (AMyPlayerController* PC = Cast<AMyPlayerController>(InstigatorCharacter->GetController()))
+	{
+		PC->Client_ShowTitleCard(
+			ResolveCursedSwordTitle(GrantedKnifeDefinition, EventDef),
+			BuildCursedSwordCountdownContext(RemainingSeconds),
+			0.0f);
+	}
+
 	InstigatorCharacter->RegisterActiveTimedKnifeEvent(this);
 	RefreshTimerUI();
 
@@ -181,8 +213,14 @@ void UPersonalEventCursedSword::RefreshTimerUI() const
 
 	if (AMyPlayerController* PlayerController = Cast<AMyPlayerController>(Character->GetController()))
 	{
-		PlayerController->UpdateItemTimerText(RemainingSeconds);
-		PlayerController->SetItemTimerVisible(true);
+		const URewardDefinition* SourceRewardDefinition = GetRewardDefinition();
+		const UPersonalEventCursedSwordDefinition* EventDefinition = Cast<UPersonalEventCursedSwordDefinition>(const_cast<URewardDefinition*>(SourceRewardDefinition));
+		const UItemDefinition* GrantedKnifeDefinition = ResolveGrantedKnifeDefinition(SourceRewardDefinition, EventDefinition);
+
+		PlayerController->Client_ShowTitleCard(
+			ResolveCursedSwordTitle(GrantedKnifeDefinition, EventDefinition),
+			BuildCursedSwordCountdownContext(RemainingSeconds),
+			0.0f);
 	}
 }
 
@@ -211,7 +249,7 @@ void UPersonalEventCursedSword::StopCountdown(bool bHideTimer)
 		{
 			if (AMyPlayerController* PlayerController = Cast<AMyPlayerController>(Character->GetController()))
 			{
-				PlayerController->SetItemTimerVisible(false);
+				PlayerController->Client_HideTitleCard();
 			}
 		}
 	}
