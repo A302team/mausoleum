@@ -23,9 +23,6 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Event Info", meta = (MultiLine = true))
 	FText EventDescription;
-	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Event Info")
-	bool bIsCancelable = false;
 
 	// 2. 이벤트 로직(블루프린트에서 오버라이드해서 사용)
 	// 이벤트를 시작할 때 서버에서 호출할 함수
@@ -35,8 +32,8 @@ public:
 
 	// 이벤트가 끝났음을 알리는 함수 (UI 닫기, 보상 지급 완료 등)
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Event Execution")
-	void OnEventResolved(AMyCharacter* TargetCharacter, bool bIsConfirmed);
-	virtual void OnEventResolved_Implementation(AMyCharacter* TargetCharacter, bool bIsConfirmed);
+	void OnEventResolved(AMyCharacter* TargetCharacter, int32 ChoiceIndex);
+	virtual void OnEventResolved_Implementation(AMyCharacter* TargetCharacter, int32 ChoiceIndex);
 
 	// 3. 시스템 필수 함수
 	// UObject 기반 블루프린트에서 Delay, SpawnActor 등의 노드를 사용하기 위해 필수적인 함수
