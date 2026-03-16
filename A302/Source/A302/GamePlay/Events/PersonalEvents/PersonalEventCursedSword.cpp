@@ -7,34 +7,58 @@
 #include "GameData/Events/PersonalEvents/PersonalEventCursedSwordDefinition.h"
 #include "GameData/Events/PersonalEvents/PersonalEventDefinition.h" 
 #include "GameData/RewardDefinition.h"
+#include "GamePlay/Items/BaseItem.h"
 #include "GamePlay/Items/ItemTimeKnife.h"
 #include "Engine/World.h"
 
+namespace
+{
+	constexpr int32 VisibleQuickSlotCount = 5;
+
+	FText BuildCursedSwordCountdownContext(float RemainingSeconds)
+	{
+		const int32 SafeSeconds = FMath::Max(0, FMath::CeilToInt(RemainingSeconds));
+		return FText::FromString(FString::Printf(TEXT("%d초 안에 사용하지 않을 시 죽습니다."), SafeSeconds));
+	}
+
+	FText ResolveCursedSwordTitle(const UItemDefinition* GrantedKnifeDefinition, const UPersonalEventCursedSwordDefinition* EventDef)
+	{
+		if (GrantedKnifeDefinition && !GrantedKnifeDefinition->DisplayName.IsEmpty())
+		{
+			return GrantedKnifeDefinition->DisplayName;
+		}
+
+		if (EventDef && !EventDef->DisplayName.IsEmpty())
+		{
+			return EventDef->DisplayName;
+		}
+
+		return FText::FromString(TEXT("저주받은 검 획득"));
+	}
+}
+
 void UPersonalEventCursedSword::ExecuteEvent_Implementation(AMyCharacter* InstigatorCharacter)
 {
-	if (!InstigatorCharacter) return;
-	OwnerCharacter = InstigatorCharacter;
-
-	AMyPlayerController* PC = Cast<AMyPlayerController>(InstigatorCharacter->GetController());
-	if (!PC) return;
-    
-	PC->ActivePersonalEvent = this;
-    
-	TArray<FText> Choices;
-	Choices.Add(FText::FromString(TEXT("확인")));
-	
-	PC->Client_ShowPersonalEvent(
-	   FName("CursedSword"), 
-	   FText::FromString(TEXT("저주받은 검")), 
-	   FText::FromString(TEXT("피를 갈망하는 저주받은 검을 습득했습니다.\n제한 시간 내에 누군가를 공격하지 않으면 검 끝이 당신을 향할 것입니다.")), 
-	   Choices
-	);
+	BeginCursedSwordFlow(InstigatorCharacter);
 }
 
 void UPersonalEventCursedSword::OnEventResolved_Implementation(AMyCharacter* InstigatorCharacter, int32 ChoiceIndex)
 {
-	if (ChoiceIndex != 0) return;
-	
+	if (ChoiceIndex != 0)
+	{
+		return;
+	}
+
+	BeginCursedSwordFlow(InstigatorCharacter);
+}
+
+bool UPersonalEventCursedSword::BeginCursedSwordFlow(AMyCharacter* InstigatorCharacter)
+{
+	if (!InstigatorCharacter || !InstigatorCharacter->HasAuthority() || bIsActive)
+	{
+		return false;
+	}
+
 	StopCountdown(false);
 	OwnerCharacter = InstigatorCharacter;
 
@@ -48,20 +72,43 @@ void UPersonalEventCursedSword::OnEventResolved_Implementation(AMyCharacter* Ins
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[PersonalEventTimeKnife] Granted knife definition is missing."));
 		OwnerCharacter = nullptr;
-		return;
+		return false;
 	}
 
-	UItemManagerComponent* ItemManagerComponent = InstigatorCharacter->FindComponentByClass<UItemManagerComponent>();
 	int32 AddedSlotIndex = INDEX_NONE;
-	if (!ItemManagerComponent || !ItemManagerComponent->TryAddItemToFirstEmptySlot(GrantedKnifeDefinition, 1, AddedSlotIndex))
+	if (!TryGrantKnifeToPreferredSlot(InstigatorCharacter, GrantedKnifeDefinition, AddedSlotIndex))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[PersonalEventTimeKnife] Failed to grant timed knife: add failed or slot full."));
 		OwnerCharacter = nullptr;
-		return;
+		return false;
+	}
+
+	UClass* LogicClass = GrantedKnifeDefinition->ResolveRewardLogicClass();
+	if (LogicClass && LogicClass->IsChildOf(UBaseItem::StaticClass()))
+	{
+		if (const UBaseItem* BaseItemLogic = Cast<UBaseItem>(LogicClass->GetDefaultObject()))
+		{
+			BaseItemLogic->OnItemAcquired(InstigatorCharacter);
+		}
 	}
 
 	GrantedItemId = GrantedKnifeDefinition->ItemId;
+	GrantedSlotIndex = AddedSlotIndex;
 	bIsActive = true;
+
+	if (AMyPlayerController* PC = Cast<AMyPlayerController>(InstigatorCharacter->GetController()))
+	{
+		PC->Client_SetQuickSlotItemVisual(
+			AddedSlotIndex,
+			ResolveCursedSwordTitle(GrantedKnifeDefinition, EventDef),
+			GrantedKnifeDefinition->Icon,
+			true);
+
+		PC->Client_ShowTitleCard(
+			ResolveCursedSwordTitle(GrantedKnifeDefinition, EventDef),
+			BuildCursedSwordCountdownContext(RemainingSeconds),
+			0.0f);
+	}
 
 	InstigatorCharacter->RegisterActiveTimedKnifeEvent(this);
 	RefreshTimerUI();
@@ -79,6 +126,7 @@ void UPersonalEventCursedSword::OnEventResolved_Implementation(AMyCharacter* Ins
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("[PersonalEventTimeKnife] Countdown started: %.0fs"), RemainingSeconds);
+	return true;
 }
 
 void UPersonalEventCursedSword::NotifyKillConfirmed()
@@ -146,8 +194,14 @@ void UPersonalEventCursedSword::RefreshTimerUI() const
 
 	if (AMyPlayerController* PlayerController = Cast<AMyPlayerController>(Character->GetController()))
 	{
-		PlayerController->UpdateItemTimerText(RemainingSeconds);
-		PlayerController->SetItemTimerVisible(true);
+		const URewardDefinition* SourceRewardDefinition = GetRewardDefinition();
+		const UPersonalEventCursedSwordDefinition* EventDefinition = Cast<UPersonalEventCursedSwordDefinition>(const_cast<URewardDefinition*>(SourceRewardDefinition));
+		const UItemDefinition* GrantedKnifeDefinition = ResolveGrantedKnifeDefinition(SourceRewardDefinition, EventDefinition);
+
+		PlayerController->Client_ShowTitleCard(
+			ResolveCursedSwordTitle(GrantedKnifeDefinition, EventDefinition),
+			BuildCursedSwordCountdownContext(RemainingSeconds),
+			0.0f);
 	}
 }
 
@@ -172,19 +226,60 @@ void UPersonalEventCursedSword::StopCountdown(bool bHideTimer)
 			}
 		}
 
+		if (GrantedSlotIndex != INDEX_NONE)
+		{
+			if (AMyPlayerController* PlayerController = Cast<AMyPlayerController>(Character->GetController()))
+			{
+				PlayerController->Client_SetQuickSlotItemVisual(GrantedSlotIndex, FText::GetEmpty(), nullptr, false);
+			}
+		}
+
 		if (bHideTimer)
 		{
 			if (AMyPlayerController* PlayerController = Cast<AMyPlayerController>(Character->GetController()))
 			{
-				PlayerController->SetItemTimerVisible(false);
+				PlayerController->Client_HideTitleCard();
 			}
 		}
 	}
 
 	OwnerCharacter = nullptr;
 	GrantedItemId = NAME_None;
+	GrantedSlotIndex = INDEX_NONE;
 	RemainingSeconds = 0.0f;
 	bIsActive = false;
+}
+
+bool UPersonalEventCursedSword::TryGrantKnifeToPreferredSlot(AMyCharacter* InstigatorCharacter, UItemDefinition* GrantedKnifeDefinition, int32& OutAddedSlotIndex) const
+{
+	OutAddedSlotIndex = INDEX_NONE;
+	if (!InstigatorCharacter || !GrantedKnifeDefinition)
+	{
+		return false;
+	}
+
+	UItemManagerComponent* ItemManagerComponent = InstigatorCharacter->FindComponentByClass<UItemManagerComponent>();
+	if (!ItemManagerComponent)
+	{
+		return false;
+	}
+
+	const int32 VisibleSlotLimit = FMath::Min(VisibleQuickSlotCount, ItemManagerComponent->GetSlotCount());
+	for (int32 SlotIndex = 0; SlotIndex < VisibleSlotLimit; ++SlotIndex)
+	{
+		if (!ItemManagerComponent->IsSlotEmpty(SlotIndex))
+		{
+			continue;
+		}
+
+		if (ItemManagerComponent->AddItemToSlot(SlotIndex, GrantedKnifeDefinition, 1))
+		{
+			OutAddedSlotIndex = SlotIndex;
+			return true;
+		}
+	}
+
+	return ItemManagerComponent->TryAddItemToFirstEmptySlot(GrantedKnifeDefinition, 1, OutAddedSlotIndex);
 }
 
 UItemDefinition* UPersonalEventCursedSword::ResolveGrantedKnifeDefinition(const URewardDefinition* SourceRewardDefinition, const UPersonalEventCursedSwordDefinition* EventDefinition) const

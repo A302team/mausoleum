@@ -18,10 +18,14 @@ class APlayerState;
 class UBaseEvent;
 class UBaseGroupEvent;
 class UButton;
+class UCheckBox;
 class UComboBoxString;
 class UImage;
 class UInputMappingContext;
 class UPersonalEventWidget;
+class USlider;
+class USoundClass;
+class USoundMix;
 class UTextBlock;
 class UTexture2D;
 class UUserWidget;
@@ -38,6 +42,10 @@ public:
 	bool UpdateQuickSlotItemName(int32 SlotIndex, const FText& ItemName);
 	bool UpdateQuickSlotItemVisual(int32 SlotIndex, const FText& ItemName, UTexture2D* ItemIcon);
 	void UpdateQuickSlotSelectionVisual(int32 SelectedSlotIndex);
+
+	UFUNCTION(Client, Reliable)
+	void Client_SetQuickSlotItemVisual(int32 SlotIndex, const FText& ItemName, UTexture2D* ItemIcon, bool bVisible);
+
 	bool UpdateShieldCountText(int32 ShieldCount);
 	bool UpdateMaliceCountText(int32 MaliceCount);
 	bool UpdateItemTimerText(float RemainingSeconds);
@@ -45,6 +53,13 @@ public:
 	void ToggleInGameSettingMenu();
 	bool IsInGameSettingMenuOpen() const;
 	void ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount);
+	float GetMouseSensitivityMultiplier() const;
+
+	UFUNCTION(Client, Reliable)
+	void Client_ShowTitleCard(const FText& Title, const FText& Context, float DisplaySeconds);
+
+	UFUNCTION(Client, Reliable)
+	void Client_HideTitleCard();
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI|Event")
 	TSubclassOf<UPersonalEventWidget> PersonalEventWidgetClass;
@@ -108,6 +123,15 @@ protected:
 	UPROPERTY()
 	UUserWidget* NotificationLogInstance;
 
+	UPROPERTY()
+	TObjectPtr<UUserWidget> HUDWidget;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI|Event")
+	TSubclassOf<UUserWidget> TitleCardWidgetClass;
+
+	UPROPERTY()
+	TObjectPtr<UUserWidget> TitleCardWidgetInstance;
+
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<UUserWidget> QuickSlotBarClass;
 
@@ -136,6 +160,7 @@ private:
 	UTextBlock* FindGroupEventVoteText(const FName& WidgetName) const;
 	UVoteClickableUserWidget* FindVoteUserSlot(int32 SlotIndex) const;
 	UWidget* FindPublicMaliceAnnouncementWidget() const;
+	UTextBlock* FindTitleCardText(const FName& WidgetName) const;
 	UTextBlock* FindPublicMaliceAnnouncementText(const FName& WidgetName) const;
 	UTextBlock* FindShieldCountText() const;
 	UTextBlock* FindMaliceCountText() const;
@@ -159,13 +184,31 @@ private:
 	FString ResolvePlayerDisplayName(const APlayerState* TargetPlayerState) const;
 	void SetPublicMaliceAnnouncementVisible(bool bVisible);
 	void HidePublicMaliceAnnouncement();
+	void HideTitleCard();
 	void OpenInGameSettingMenu();
 	void CloseInGameSettingMenu();
+	void SyncVideoSettingsToCurrent();
 	void SyncResolutionComboToCurrent();
+	void SyncFullscreenModeComboToCurrent();
+	void SyncFrameLimitComboToCurrent();
+	void SyncVSyncCheckBoxToCurrent();
+	void SyncMouseSensitivitySliderToCurrent();
+	void SyncAudioSlidersToCurrent();
+	void EnsureVideoSettingOptions();
+	void LoadMouseSensitivitySetting();
+	void SaveMouseSensitivitySetting(float NewValue);
+	void LoadAudioSettings();
+	void SaveAudioSettings();
+	void ApplyAudioSettings();
 	bool TryParseResolutionString(const FString& InOption, FIntPoint& OutResolution) const;
+	bool TryParseFullscreenModeString(const FString& InOption, EWindowMode::Type& OutWindowMode) const;
+	bool TryParseFrameLimitString(const FString& InOption, float& OutFrameLimit) const;
 
 	UFUNCTION()
 	void OnResolutionApplyClicked();
+
+	UFUNCTION()
+	void OnMouseSensitivitySliderChanged(float NewValue);
 
 	UFUNCTION()
 	void OnExitClicked();
@@ -194,8 +237,63 @@ private:
 	UPROPERTY()
 	TObjectPtr<UButton> ExitBtn = nullptr;
 
+	UPROPERTY()
+	TObjectPtr<UComboBoxString> FullscreenModeComboBox = nullptr;
+
+	UPROPERTY()
+	TObjectPtr<UComboBoxString> FrameLimitComboBox = nullptr;
+
+	UPROPERTY()
+	TObjectPtr<UCheckBox> VSyncCheckBox = nullptr;
+
+	UPROPERTY()
+	TObjectPtr<USlider> MouseSensitivitySlider = nullptr;
+
+	UPROPERTY()
+	float MouseSensitivityMultiplier = 1.0f;
+
+	UPROPERTY()
+	TObjectPtr<USlider> MasterVolumeSlider = nullptr;
+
+	UPROPERTY()
+	TObjectPtr<USlider> BGMVolumeSlider = nullptr;
+
+	UPROPERTY()
+	TObjectPtr<USlider> SFXVolumeSlider = nullptr;
+
+	UPROPERTY()
+	TObjectPtr<USlider> InterfaceVolumeSlider = nullptr;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Settings|Audio")
+	TObjectPtr<USoundClass> MasterSoundClass = nullptr;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Settings|Audio")
+	TObjectPtr<USoundClass> BGMSoundClass = nullptr;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Settings|Audio")
+	TObjectPtr<USoundClass> SFXSoundClass = nullptr;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Settings|Audio")
+	TObjectPtr<USoundClass> InterfaceSoundClass = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<USoundMix> RuntimeAudioSettingsMix = nullptr;
+
+	UPROPERTY()
+	float MasterVolumeValue = 1.0f;
+
+	UPROPERTY()
+	float BGMVolumeValue = 1.0f;
+
+	UPROPERTY()
+	float SFXVolumeValue = 1.0f;
+
+	UPROPERTY()
+	float InterfaceVolumeValue = 1.0f;
+
 	FTimerHandle InspectMaliceHideTimerHandle;
 	FTimerHandle PublicMaliceAnnouncementHideTimerHandle;
+	FTimerHandle TitleCardHideTimerHandle;
 	FTimerHandle GroupEventVoteCountdownHandle;
 	FTimerHandle GroupEventVoteCloseHandle;
 

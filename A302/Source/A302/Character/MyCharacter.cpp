@@ -368,9 +368,14 @@ void AMyCharacter::OnMove(const FInputActionValue& Value)
 void AMyCharacter::OnLook(const FInputActionValue& Value)
 {
 	const FVector2D Axis = Value.Get<FVector2D>();
+	float LookSensitivityMultiplier = 1.0f;
+	if (const AMyPlayerController* MyPlayerController = Cast<AMyPlayerController>(GetController()))
+	{
+		LookSensitivityMultiplier = MyPlayerController->GetMouseSensitivityMultiplier();
+	}
 
-	AddControllerYawInput(Axis.X);
-	AddControllerPitchInput(Axis.Y);
+	AddControllerYawInput(Axis.X * LookSensitivityMultiplier);
+	AddControllerPitchInput(Axis.Y * LookSensitivityMultiplier);
 }
 
 void AMyCharacter::OnJump(const FInputActionValue& Value)
@@ -558,14 +563,31 @@ bool AMyCharacter::HandlePersonalEventPickup(AActor* InteractedActor, const URew
 	if (!RewardDefinition) return false;
 	
 	UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass();
+	UClass* PersonalEventClass = nullptr;
+
+	if (LogicClass && LogicClass->IsChildOf(UBasePersonalEvent::StaticClass()))
+	{
+		PersonalEventClass = LogicClass;
+	}
+	else
+	{
+		URewardDefinition* MutableRewardDefinition = const_cast<URewardDefinition*>(RewardDefinition);
+		const bool bIsLegacyTimedKnifeLogic = LogicClass && LogicClass->IsChildOf(UItemTimeKnife::StaticClass());
+		const bool bIsCursedSwordDefinition = Cast<UPersonalEventCursedSwordDefinition>(MutableRewardDefinition) != nullptr;
+
+		if (bIsLegacyTimedKnifeLogic || bIsCursedSwordDefinition)
+		{
+			PersonalEventClass = UPersonalEventCursedSword::StaticClass();
+		}
+	}
 	
-	if (!LogicClass || !LogicClass->IsChildOf(UBasePersonalEvent::StaticClass()))
+	if (!PersonalEventClass || !PersonalEventClass->IsChildOf(UBasePersonalEvent::StaticClass()))
 	{
 		UE_LOG(LogTemp, Error, TEXT("[Event] %s의 RewardLogicClass가 비어있거나 올바른 이벤트 클래스가 아닙니다! 에디터를 확인하세요."), *RewardDefinition->GetName());
 		return false;
 	}
 	
-	UBasePersonalEvent* PersonalEvent = NewObject<UBasePersonalEvent>(this, LogicClass);
+	UBasePersonalEvent* PersonalEvent = NewObject<UBasePersonalEvent>(this, PersonalEventClass);
 	if (PersonalEvent)
 	{
 		PersonalEvent->EventID = RewardDefinition->ItemId;

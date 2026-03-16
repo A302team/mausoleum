@@ -18,6 +18,9 @@ class A302_API AA302GameMode : public AGameMode
 public:
     AA302GameMode();
 
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
+    TSubclassOf<class UUserWidget> HUDWidgetClass;
+
     UPROPERTY(EditDefaultsOnly)
     TSubclassOf<class UChatWidget> ChatWidgetClass;
 
