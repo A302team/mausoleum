@@ -67,7 +67,7 @@ public:
 
 	UFUNCTION()
 	void OnHostChanged();
-	;
+	
 
 private:
 	TObjectPtr<class UA302GameInstance> GI;
