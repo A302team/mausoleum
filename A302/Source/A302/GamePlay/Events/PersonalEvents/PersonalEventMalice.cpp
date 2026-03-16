@@ -26,7 +26,7 @@ void UPersonalEventMalice::ExecuteEvent_Implementation(AMyCharacter* InstigatorC
 		UE_LOG(LogTemp, Warning, TEXT("[PersonalEventMalice] MaliceComponent missing."));
 	}
 
-	OnEventResolved(InstigatorCharacter, true);
+	OnEventResolved(InstigatorCharacter, 0);
 }
 
 

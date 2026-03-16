@@ -18,15 +18,12 @@ void UBaseEvent::ExecuteEvent_Implementation(AMyCharacter* InstigatorCharacter)
 		PC->ActivePersonalEvent = this;
         
 		TArray<FText> Choices;
-		if (this->bIsCancelable)
+		
+		if (Choices.IsEmpty())
 		{
-			Choices.Add(FText::FromString(TEXT("취소"))); 
-			Choices.Add(FText::FromString(TEXT("확인"))); 
-		}
-		else
-		{
-			Choices.Add(FText::FromString(TEXT(""))); 
-			Choices.Add(FText::FromString(TEXT("확인"))); 
+			UE_LOG(LogTemp, Error, TEXT("[Event] 오류: %s 이벤트에 선택지가 세팅되지 않았습니다!"), *this->EventID.ToString());
+			PC->ActivePersonalEvent = nullptr; 
+			return; 
 		}
 
 		PC->Client_ShowPersonalEvent(
@@ -38,7 +35,7 @@ void UBaseEvent::ExecuteEvent_Implementation(AMyCharacter* InstigatorCharacter)
 	}
 }
 
-void UBaseEvent::OnEventResolved_Implementation(AMyCharacter* TargetCharacter, bool bIsConfirmed)
+void UBaseEvent::OnEventResolved_Implementation(AMyCharacter* TargetCharacter, int32 ChoiceIndex)
 {
 	// C++ 기본 구현부 (보통은 비워두고 블루프린트에서 노드로 구현합니다)
 	UE_LOG(LogTemp, Warning, TEXT("[Event] %s 이벤트가 확인되었습니다! (보상 지급 로직 실행)"), *EventID.ToString());
