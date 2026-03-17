@@ -12,6 +12,19 @@ void VoiceClientManager::addClient(const CLIENT_KEY& key, const ClientInfo& data
 
 void VoiceClientManager::removeClient(const CLIENT_KEY& key) {
     std::lock_guard<std::mutex> lock(mutex_);
+
+    auto roomCodeIt = clientRooms.find(key);
+    if (roomCodeIt != clientRooms.end()) {
+        auto roomIt = rooms.find(roomCodeIt->second);
+        if (roomIt != rooms.end()) {
+            roomIt->second.erase(key);
+            if (roomIt->second.empty()) {
+                rooms.erase(roomIt);
+            }
+        }
+        clientRooms.erase(roomCodeIt);
+    }
+
     clients.erase(key);
 }
 
@@ -26,26 +39,46 @@ size_t VoiceClientManager::clientCount() const {
 }
 
 void VoiceClientManager::joinRoom(const std::string& roomCode,
-                                  const std::string& speaker,
+                                  const CLIENT_KEY& key,
                                   const ClientInfo& clientInfo)
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    CLIENT_KEY key = makeClientKey(clientInfo.addr);
-
     clients[key] = clientInfo;
-    rooms[roomCode][speaker] = key;
+
+    auto previousRoomIt = clientRooms.find(key);
+    if (previousRoomIt != clientRooms.end() && previousRoomIt->second != roomCode) {
+        auto oldRoomIt = rooms.find(previousRoomIt->second);
+        if (oldRoomIt != rooms.end()) {
+            oldRoomIt->second.erase(key);
+            if (oldRoomIt->second.empty()) {
+                rooms.erase(oldRoomIt);
+            }
+        }
+    }
+
+    rooms[roomCode].insert(key);
+    clientRooms[key] = roomCode;
 }
 
-void VoiceClientManager::leaveRoom(const std::string& roomCode,
-                                   const std::string& speaker)
+void VoiceClientManager::leaveRoom(const CLIENT_KEY& key)
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (rooms.count(roomCode)) {
-        rooms[roomCode].erase(speaker);
 
-        if (rooms[roomCode].empty())
-            rooms.erase(roomCode);
+    auto roomCodeIt = clientRooms.find(key);
+    if (roomCodeIt == clientRooms.end()) {
+        return;
     }
+
+    auto roomIt = rooms.find(roomCodeIt->second);
+    if (roomIt != rooms.end()) {
+        roomIt->second.erase(key);
+
+        if (roomIt->second.empty()) {
+            rooms.erase(roomIt);
+        }
+    }
+
+    clientRooms.erase(roomCodeIt);
 }
 
 std::vector<std::pair<CLIENT_KEY, ClientInfo>> VoiceClientManager::getClientsSnapshot() const {
@@ -55,6 +88,26 @@ std::vector<std::pair<CLIENT_KEY, ClientInfo>> VoiceClientManager::getClientsSna
     for (const auto& kv : clients) {
         snapshot.push_back(kv);
     }
+    return snapshot;
+}
+
+std::vector<std::pair<CLIENT_KEY, ClientInfo>> VoiceClientManager::getRoomClientsSnapshot(const std::string& roomCode) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<std::pair<CLIENT_KEY, ClientInfo>> snapshot;
+
+    auto roomIt = rooms.find(roomCode);
+    if (roomIt == rooms.end()) {
+        return snapshot;
+    }
+
+    snapshot.reserve(roomIt->second.size());
+    for (const CLIENT_KEY clientKey : roomIt->second) {
+        auto clientIt = clients.find(clientKey);
+        if (clientIt != clients.end()) {
+            snapshot.emplace_back(clientIt->first, clientIt->second);
+        }
+    }
+
     return snapshot;
 }
 
@@ -68,19 +121,21 @@ void VoiceClientManager::cleanupStaleClients() {
     // room cleanup
     for (auto itRoom = rooms.begin(); itRoom != rooms.end();) {
 
-        auto& speakers = itRoom->second;
+        auto& members = itRoom->second;
 
-        for (auto itSpeaker = speakers.begin();
-             itSpeaker != speakers.end();) {
+        for (auto itMember = members.begin();
+             itMember != members.end();) {
 
-            CLIENT_KEY key = itSpeaker->second;
+            CLIENT_KEY key = *itMember;
 
-            if (!clients.count(key)) {
-                itSpeaker = speakers.erase(itSpeaker);
+            auto clientIt = clients.find(key);
+            if (clientIt == clients.end()) {
+                clientRooms.erase(key);
+                itMember = members.erase(itMember);
                 continue;
             }
 
-            auto& client = clients[key];
+            auto& client = clientIt->second;
 
             auto duration =
                 std::chrono::duration_cast<std::chrono::seconds>(
@@ -90,16 +145,17 @@ void VoiceClientManager::cleanupStaleClients() {
 
                 LOG_INFO("VoiceClientManager",
                     "방 타임아웃: " << itRoom->first
-                    << " / 화자: " << itSpeaker->first);
+                    << " / clientKey: " << key);
 
-                itSpeaker = speakers.erase(itSpeaker);
+                clientRooms.erase(key);
+                itMember = members.erase(itMember);
             }
             else {
-                ++itSpeaker;
+                ++itMember;
             }
         }
 
-        if (speakers.empty()) {
+        if (members.empty()) {
 
             LOG_INFO("VoiceClientManager",
                 "방 제거: " << itRoom->first);
@@ -131,6 +187,18 @@ void VoiceClientManager::cleanupStaleClients() {
                 "클라이언트 타임아웃: "
                 << ip << ":"
                 << ntohs(it->second.addr.sin_port));
+
+            auto roomCodeIt = clientRooms.find(it->first);
+            if (roomCodeIt != clientRooms.end()) {
+                auto roomIt = rooms.find(roomCodeIt->second);
+                if (roomIt != rooms.end()) {
+                    roomIt->second.erase(it->first);
+                    if (roomIt->second.empty()) {
+                        rooms.erase(roomIt);
+                    }
+                }
+                clientRooms.erase(roomCodeIt);
+            }
 
             it = clients.erase(it);
         }
