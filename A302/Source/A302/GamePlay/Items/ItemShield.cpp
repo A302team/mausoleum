@@ -56,7 +56,8 @@ bool UItemShield::Use_Implementation(ACharacter* Instigator, const FItemTargetDa
 
     if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(Instigator))
     {
-        // 방패 Actor 장착 (애니메이션에서 위치 참조용)
+        OnItemUsed(MyCharacter);
+
         MyCharacter->EquipWeapon(MyCharacter->ShieldActorClass);
 
         if (UMyAnimInstance* Anim = Cast<UMyAnimInstance>(MyCharacter->GetMesh()->GetAnimInstance()))
@@ -67,4 +68,3 @@ bool UItemShield::Use_Implementation(ACharacter* Instigator, const FItemTargetDa
 
     return true;
 }
-
