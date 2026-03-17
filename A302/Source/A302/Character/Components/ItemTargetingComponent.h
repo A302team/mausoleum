@@ -24,7 +24,10 @@ public:
 		FActorComponentTickFunction* ThisTickFunction
 	) override;
 
-	AActor* FindTargetActorForUse(FVector& OutTargetLocation) const;
+	AActor* FindTargetActorForUse(
+		const UItemDefinition* ItemDefinition,
+		FVector& OutTargetLocation
+	) const;
 	bool TryBuildTargetDataForUse(
 		const UItemDefinition* ItemDefinition,
 		FItemTargetData& OutTargetData,
@@ -43,6 +46,8 @@ private:
 		float Duration = 1.2f
 	) const;
 
+	float ResolveTargetTraceDistance(const UItemDefinition* ItemDefinition) const;
+
 	UPROPERTY()
 	TObjectPtr<UItemManagerComponent> ItemManagerComponent = nullptr;
 
@@ -50,10 +55,10 @@ private:
 	TObjectPtr<UQuickSlotComponent> QuickSlotComponent = nullptr;
 
 	UPROPERTY(EditAnywhere, Category = "Item|Targeting", meta = (ClampMin = "1.0"))
-	float AttackTraceDistance = 300.0f;
+	float DefaultTraceDistance = 300.0f;
 
 	UPROPERTY(EditAnywhere, Category = "Item|Targeting")
-	bool bEnableAttackRangeDebug = true;
+	bool bEnableTargetRangeDebug = true;
 
-	bool bWasAttackTargetInRange = false;
+	bool bWasTargetInRange = false;
 };
