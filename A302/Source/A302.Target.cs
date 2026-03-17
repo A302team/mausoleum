@@ -10,6 +10,8 @@ public class A302Target : TargetRules
 		Type = TargetType.Game;
 		DefaultBuildSettings = BuildSettingsVersion.V6;
 		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_7;
+		ExtraModuleNames.Add("A302Shared");
 		ExtraModuleNames.Add("A302");
+		ExtraModuleNames.Add("A302Client");
 	}
 }

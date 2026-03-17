@@ -45,4 +45,5 @@ namespace Lobby::Errors {
     constexpr std::string_view ROOM_NOT_FOUND = "존재하지 않는 코드입니다.";
     constexpr std::string_view HOST_ONLY_START = "방장만 시작 가능합니다.";
     constexpr std::string_view ALL_MUST_READY = "모든 플레이어가 레디해야 합니다.";
+    constexpr std::string_view DEDICATED_NOT_READY = "게임 서버가 준비되지 않았습니다. 잠시 후 다시 시도해주세요.";
 } // namespace Lobby::Errors

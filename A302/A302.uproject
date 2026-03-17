@@ -5,6 +5,15 @@
 	"Description": "",
 	"Modules": [
 		{
+			"Name": "A302Shared",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"AdditionalDependencies": [
+				"Engine",
+				"CoreUObject"
+			]
+		},
+		{
 			"Name": "A302",
 			"Type": "Runtime",
 			"LoadingPhase": "Default",
@@ -15,13 +24,30 @@
 			]
 		},
 		{
+			"Name": "A302Client",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"TargetAllowList": [
+				"Game",
+				"Editor"
+			],
+			"AdditionalDependencies": [
+				"A302Shared",
+				"Engine",
+				"CoreUObject",
+				"UMG"
+			]
+		},
+		{
 			"Name": "A302Server",
 			"Type": "Runtime",
 			"LoadingPhase": "Default",
 			"TargetAllowList": [
-				"Server"
+				"Server",
+				"Editor"
 			],
 			"AdditionalDependencies": [
+				"A302Shared",
 				"A302",
 				"Engine",
 				"CoreUObject"

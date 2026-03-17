@@ -26,7 +26,11 @@ private:
     std::unique_ptr<Impl> pImpl;
 
 public:
-    LobbyPacketRouter(RoomManager& rm, LobbyClientManager& cm);
+    LobbyPacketRouter(
+        RoomManager& rm,
+        LobbyClientManager& cm,
+        std::function<bool(const std::string&, const std::string&)> onRequestStartGame
+    );
     ~LobbyPacketRouter();
 
     void dispatch(WebSocketType* ws, std::string_view type, const json& data);
