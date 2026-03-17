@@ -1569,7 +1569,7 @@ void AMyPlayerController::Client_ShowTitleCard_Implementation(const FText& Title
 		TitleCardWidgetInstance->AddToViewport(140);
 	}
 
-	TitleCardWidgetInstance->SetVisibility(ESlateVisibility::Visible);
+	TitleCardWidgetInstance->SetVisibility(ESlateVisibility::HitTestInvisible);
 
 	if (UWorld* World = GetWorld())
 	{
