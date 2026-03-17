@@ -5,13 +5,19 @@
 #include "Components/TextBlock.h"
 #include "Input/Reply.h"
 
+namespace
+{
+	constexpr int32 MaxNicknameUiLen = 7;
+}
+
 void UVoteClickableUserWidget::SetupCandidate(int32 InTargetPlayerId, const FString& InPlayerName)
 {
 	TargetPlayerId = InTargetPlayerId;
 
 	if (VoteUserName)
 	{
-		VoteUserName->SetText(FText::FromString(InPlayerName));
+		const FString ClampedPlayerName = InPlayerName.Len() > MaxNicknameUiLen ? InPlayerName.Left(MaxNicknameUiLen) : InPlayerName;
+		VoteUserName->SetText(FText::FromString(ClampedPlayerName));
 	}
 
 	SetSelected(false);

@@ -4,6 +4,11 @@
 #include "UI/PlayerListItem.h"
 #include "Components/TextBlock.h"
 
+namespace
+{
+    constexpr int32 MaxNicknameUiLen = 7;
+}
+
 void UPlayerListItem::NativeConstruct()
 {
     Super::NativeConstruct();
@@ -12,7 +17,8 @@ void UPlayerListItem::NativeConstruct()
 void UPlayerListItem::SetPlayerName(const FString& PlayerName)
 {
     if (Text_PlayerName) {
-        Text_PlayerName->SetText(FText::FromString(PlayerName));
+        const FString ClampedPlayerName = PlayerName.Len() > MaxNicknameUiLen ? PlayerName.Left(MaxNicknameUiLen) : PlayerName;
+        Text_PlayerName->SetText(FText::FromString(ClampedPlayerName));
     }
 }
 
