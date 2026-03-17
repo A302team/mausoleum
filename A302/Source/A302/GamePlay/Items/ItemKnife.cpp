@@ -1,12 +1,13 @@
 #include "GamePlay/Items/ItemKnife.h"
 
+#include "Animation/MyAnimInstance.h"
+#include "Character/MyCharacter.h"
 #include "Engine/World.h"
 #include "GameData/Items/ItemDefinition.h"
 #include "GameData/Items/ItemInstance.h"
 #include "GameFramework/Character.h"
-#include "Kismet/GameplayStatics.h"
-#include "Character/MyCharacter.h"
 #include "GamePlay/Actor/WeaponActor.h"
+#include "Kismet/GameplayStatics.h"
 
 bool UItemKnife::CanUse_Implementation(ACharacter* Instigator, const FItemTargetData& TargetData) const
 {
@@ -69,14 +70,7 @@ bool UItemKnife::Use_Implementation(ACharacter* Instigator, const FItemTargetDat
         return false;
     }
 
-    // KnifeActor 장착 (애니메이션에서 위치 참조용)
-    if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(Instigator))
-    {
-        if (MyCharacter->KnifeActorClass)
-        {
-            MyCharacter->EquipWeapon(MyCharacter->KnifeActorClass);
-        }
-    }
+    PlayUsePresentation(Instigator);
 
     AActor* Target = TargetData.TargetActor;
     AController* InstigatorController = Instigator ? Instigator->GetController() : nullptr;
@@ -95,7 +89,31 @@ bool UItemKnife::Use_Implementation(ACharacter* Instigator, const FItemTargetDat
         Inst->Consume(1);
     }
 
+    if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(Instigator))
+    {
+        OnItemUsed(MyCharacter);
+    }
+
     return true;
+}
+
+void UItemKnife::PlayUsePresentation(ACharacter* Instigator)
+{
+    AMyCharacter* MyCharacter = Cast<AMyCharacter>(Instigator);
+    if (!MyCharacter)
+    {
+        return;
+    }
+
+    if (MyCharacter->KnifeActorClass)
+    {
+        MyCharacter->EquipWeapon(MyCharacter->KnifeActorClass);
+    }
+
+    if (UMyAnimInstance* Anim = Cast<UMyAnimInstance>(MyCharacter->GetMesh()->GetAnimInstance()))
+    {
+        Anim->PlayAttackMontage();
+    }
 }
 
 bool UItemKnife::HasLineOfSight(ACharacter* Instigator, AActor* Target) const
@@ -125,4 +143,3 @@ bool UItemKnife::HasLineOfSight(ACharacter* Instigator, AActor* Target) const
 
     return Hit.GetActor() == Target;
 }
-
