@@ -36,6 +36,12 @@ namespace
 	constexpr int32 PlayerControllerQuickSlotCount = 5;
 	constexpr int32 MaxInspectMaliceTargets = 5;
 	constexpr int32 GroupEventVoteSlotCount = 6;
+	constexpr int32 MaxNicknameUiLen = 7;
+
+	FString ClampNicknameForUi(const FString& Name)
+	{
+		return Name.Len() > MaxNicknameUiLen ? Name.Left(MaxNicknameUiLen) : Name;
+	}
 
 	void GatherWidgetTree(UWidget* RootWidget, TArray<UWidget*>& OutWidgets)
 	{
@@ -414,7 +420,7 @@ void AMyPlayerController::ShowPublicMaliceAnnouncement(const FString &PlayerName
 
 	if (UTextBlock *UserText = FindPublicMaliceAnnouncementText(TEXT("PublicMaliceBorderUser")))
 	{
-		UserText->SetText(FText::FromString(PlayerName));
+		UserText->SetText(FText::FromString(ClampNicknameForUi(PlayerName)));
 	}
 	else
 	{
@@ -651,7 +657,7 @@ AMyPlayerController::AMyPlayerController()
 		TitleCardWidgetClass = TitleCardWidgetBPClass.Class;
 	}
 
-	static ConstructorHelpers::FClassFinder<UUserWidget> InspectMaliceWidgetBPClass(TEXT("/Game/WorkSpace/UI/WBP_SelectUser"));
+	static ConstructorHelpers::FClassFinder<UUserWidget> InspectMaliceWidgetBPClass(TEXT("/Game/WorkSpace/UI/PersonalEvent/WBP_SelectUser"));
 	if (InspectMaliceWidgetBPClass.Succeeded())
 	{
 		InspectMaliceWidgetClass = InspectMaliceWidgetBPClass.Class;
@@ -1305,7 +1311,7 @@ FString AMyPlayerController::ResolvePlayerDisplayName(const APlayerState *Target
 	}
 
 	const FString PlayerName = TargetPlayerState->GetPlayerName();
-	return PlayerName.IsEmpty() ? GetNameSafe(TargetPlayerState) : PlayerName;
+	return ClampNicknameForUi(PlayerName.IsEmpty() ? GetNameSafe(TargetPlayerState) : PlayerName);
 }
 
 void AMyPlayerController::ApplyInspectMaliceSelection(int32 EntryIndex)
