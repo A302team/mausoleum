@@ -226,3 +226,16 @@ void UWaitingRoomWidget::OnGameStarted()
     RemoveFromParent();
     UE_LOG(LogTemp, Log, TEXT("[UI/WaitingRoom] Game started. Waiting room UI closed."));
 }
+
+void UWaitingRoomWidget::OnHostChanged()
+{
+    // 방장으로 승격되었다면 레디 버튼을 감추고 게임 시작 버튼을 켭니다.
+    if (Btn_Ready)
+    {
+        Btn_Ready->SetVisibility(ESlateVisibility::Hidden);
+    }
+    if (Btn_StartGame)
+    {
+        Btn_StartGame->SetVisibility(ESlateVisibility::Visible);
+    }
+}

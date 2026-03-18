@@ -7,6 +7,7 @@
 #include "Character/Components/KnifeAutoTestComponent.h"
 #include "Character/Components/MaliceComponent.h"
 #include "Character/Components/QuickSlotComponent.h"
+#include "Character/MyPlayerController.h"
 #include "Engine/Engine.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
@@ -284,6 +285,8 @@ void AMyCharacter::SetQTEInputMode(bool bIsQTE)
 {
 	if (APlayerController* PC = Cast<APlayerController>(GetController()))
 	{
+		PC->SetIgnoreMoveInput(bIsQTE);
+
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()))
 		{
 			if (bIsQTE)
@@ -300,7 +303,6 @@ void AMyCharacter::SetQTEInputMode(bool bIsQTE)
 				if (GetCharacterMovement())
 				{
 					GetCharacterMovement()->StopMovementImmediately();
-					GetCharacterMovement()->SetMovementMode(MOVE_None);
 				}
 			}
 			else
@@ -314,10 +316,7 @@ void AMyCharacter::SetQTEInputMode(bool bIsQTE)
 					Subsystem->AddMappingContext(IMC_Default, 0);
 				}
 
-				if (GetCharacterMovement())
-				{
-					GetCharacterMovement()->SetMovementMode(MOVE_Walking);
-				}
+				// MOVE_None/MOVE_Walking 강제 전환은 서버-클라 이동 예측 불일치를 키울 수 있어 생략.
 			}
 		}
 	}
@@ -343,6 +342,11 @@ void AMyCharacter::HandleDead()
 	if (GetCharacterMovement())
 	{
 		GetCharacterMovement()->DisableMovement();
+	}
+
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		PC->SetIgnoreMoveInput(true);
 	}
 
 	if (IA302AnimationBridge* Anim = Cast<IA302AnimationBridge>(GetMesh()->GetAnimInstance()))
@@ -439,6 +443,19 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 
 void AMyCharacter::OnMove(const FInputActionValue& Value)
 {
+	if (bIsDead)
+	{
+		return;
+	}
+
+	if (const APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		if (PC->IsMoveInputIgnored())
+		{
+			return;
+		}
+	}
+
 	const FVector2D Axis = Value.Get<FVector2D>();
 
 	const FRotator YawRot(0.f, GetControlRotation().Yaw, 0.f);
@@ -452,18 +469,41 @@ void AMyCharacter::OnMove(const FInputActionValue& Value)
 void AMyCharacter::OnLook(const FInputActionValue& Value)
 {
 	const FVector2D Axis = Value.Get<FVector2D>();
+	float LookSensitivityMultiplier = 1.0f;
+	if (const AMyPlayerController* MyPlayerController = Cast<AMyPlayerController>(GetController()))
+	{
+		LookSensitivityMultiplier = MyPlayerController->GetMouseSensitivityMultiplier();
+	}
 
-	AddControllerYawInput(Axis.X);
-	AddControllerPitchInput(Axis.Y);
+	AddControllerYawInput(Axis.X * LookSensitivityMultiplier);
+	AddControllerPitchInput(Axis.Y * LookSensitivityMultiplier);
 }
 
 void AMyCharacter::OnJump(const FInputActionValue& Value)
 {
+	if (bIsDead)
+	{
+		return;
+	}
+
+	if (const APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		if (PC->IsMoveInputIgnored())
+		{
+			return;
+		}
+	}
+
 	Jump();
 }
 
 void AMyCharacter::OnJumpReleased(const FInputActionValue& Value)
 {
+	if (bIsDead)
+	{
+		return;
+	}
+
 	StopJumping();
 }
 
@@ -650,6 +690,29 @@ bool AMyCharacter::HandleBasicItemPickup(AActor* InteractedActor, const UItemDef
 
 bool AMyCharacter::HandlePersonalEventPickup(AActor* InteractedActor, const URewardDefinition* RewardDefinition)
 {
+	if (!RewardDefinition)
+	{
+		return false;
+	}
+
+	UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass();
+	const bool bIsPersonalEventClass = LogicClass && LogicClass->IsChildOf(UBasePersonalEvent::StaticClass());
+	const bool bIsLegacyTimedKnifeLogic = LogicClass && LogicClass->IsChildOf(UItemTimeKnife::StaticClass());
+	const bool bIsCursedSwordDefinition =
+		Cast<UPersonalEventCursedSwordDefinition>(const_cast<URewardDefinition*>(RewardDefinition)) != nullptr;
+
+	if (!bIsPersonalEventClass && !bIsLegacyTimedKnifeLogic && !bIsCursedSwordDefinition)
+	{
+		UE_LOG(
+			LogTemp,
+			Error,
+			TEXT("[Event] Invalid personal event reward logic. item=%s class=%s"),
+			*GetNameSafe(RewardDefinition),
+			*GetNameSafe(LogicClass)
+		);
+		return false;
+	}
+
 	if (IA302ServerRewardBridge* RewardBridge = Cast<IA302ServerRewardBridge>(GetWorld() ? GetWorld()->GetAuthGameMode() : nullptr))
 	{
 		return RewardBridge->TryHandlePersonalEventReward(this, InteractedActor, RewardDefinition);

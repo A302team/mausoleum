@@ -66,6 +66,9 @@ public:
 	void OnLeaveClicked();
 
 	UFUNCTION()
+	void OnHostChanged();
+
+	UFUNCTION()
 	void OnGameStarted();
 
 private:

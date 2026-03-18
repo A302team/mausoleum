@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
 #include "Interface/A302ClientEventBridge.h"
+#include "TimerManager.h"
 #include "MyPlayerController.generated.h"
 
 /**
@@ -20,6 +21,7 @@ class UInputMappingContext;
 class UPersonalEventWidget;
 class UPlayerEventComponent;
 class UPlayerHUDComponent;
+class UTextBlock;
 class UUserWidget;
 
 UCLASS()
@@ -31,6 +33,7 @@ public:
 	AMyPlayerController();
 	virtual void ToggleInGameSettingMenu() override;
 	bool IsInGameSettingMenuOpen() const;
+	float GetMouseSensitivityMultiplier() const;
 	virtual void ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount) override;
 	virtual void SetActivePersonalEvent(UBaseEvent* Event) override;
 	virtual void SetActiveGroupEvent(UBaseGroupEvent* Event) override;
@@ -56,6 +59,12 @@ public:
 
 	UFUNCTION(Client, Reliable)
 	void Client_ShowInspectMaliceSelectionWidget();
+
+	UFUNCTION(Client, Reliable)
+	void Client_ShowTitleCard(const FText& Title, const FText& Context, float DisplaySeconds);
+
+	UFUNCTION(Client, Reliable)
+	void Client_HideTitleCard();
 
 	UFUNCTION(Server, Reliable)
 	void Server_RegisterPlayerDisplayName(const FString& DesiredName);
@@ -88,6 +97,12 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<UUserWidget> InGameSettingClass;
 
+	UPROPERTY(EditDefaultsOnly, Category = "UI|Event")
+	TSubclassOf<UUserWidget> TitleCardWidgetClass;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UUserWidget> TitleCardWidgetInstance;
+
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	UInputMappingContext* DefaultMappingContext;
 
@@ -97,6 +112,9 @@ protected:
 private:
 	void InitializeChatWidget();
 	void InitializeClientInGameWidgets();
+	void HideTitleCard();
 	bool IsInGameMap() const;
     void EnsureLocalVoiceComponent();
+
+	FTimerHandle TitleCardHideTimerHandle;
 };

@@ -59,7 +59,7 @@ private:
 
 private:
     UPROPERTY(Config, EditAnywhere, Category="Room Runtime")
-    FString TemplateLevelPath = TEXT("/Game/PersonalWorkSpace/siris/sirisMap");
+    FString TemplateLevelPath = TEXT("/Game/PersonalWorkSpace/wjtmd28/MyMap");
 
     UPROPERTY(Config, EditAnywhere, Category="Room Runtime")
     float RuntimePollInterval = 0.5f;

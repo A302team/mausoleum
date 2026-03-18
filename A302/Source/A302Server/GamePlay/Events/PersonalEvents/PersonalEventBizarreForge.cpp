@@ -14,7 +14,7 @@ void UPersonalEventBizarreForge::ExecuteEvent_Implementation(ACharacter* Instiga
     if (!ClientEventBridge) return;
 
     ClientEventBridge->SetActivePersonalEvent(this);
-
+    
     UMaliceComponent* MaliceComp = InstigatorCharacter->FindComponentByClass<UMaliceComponent>();
     int32 CurrentRawMalice = MaliceComp ? MaliceComp->GetRawMalice() : 0;
 
@@ -35,9 +35,9 @@ void UPersonalEventBizarreForge::ExecuteEvent_Implementation(ACharacter* Instiga
     else
     {
         // 분기 B(악의 1 이상)
-        Choices.Add(FText::FromString(TEXT("무시하기")));
         Choices.Add(FText::FromString(TEXT("악의 서린 검 제련")));
         Choices.Add(FText::FromString(TEXT("악의 서린 방패 제련")));
+        Choices.Add(FText::FromString(TEXT("무시하기")));
         
         ClientEventBridge->ShowPersonalEvent(EventID, 
             FText::FromString(TEXT("기괴한 용광로")), 
@@ -50,7 +50,7 @@ void UPersonalEventBizarreForge::OnEventResolvedMulti(ACharacter* InstigatorChar
 {
     if (!InstigatorCharacter) return;
     UMaliceComponent* MaliceComp = InstigatorCharacter->FindComponentByClass<UMaliceComponent>();
-
+    
     // 악의 0 분기
     if (bIsMaliceZeroBranch)
     {
@@ -59,20 +59,19 @@ void UPersonalEventBizarreForge::OnEventResolvedMulti(ACharacter* InstigatorChar
     }
 
     // 악의 1 이상 분기
-    if (ChoiceIndex == 0) return; // 0번은 무시(취소)
+    if (ChoiceIndex == 2) return;
 
     if (MaliceComp && MaliceComp->GetRawMalice() >= 1)
     {
         const UPersonalEventBizarreForgeDefinition* EventDef = Cast<UPersonalEventBizarreForgeDefinition>(GetRewardDefinition());
         if (!EventDef) return;
-
-        // 어떤 아이템을 줄지 결정
+        
         UItemDefinition* ItemToGrant = nullptr;
-        if (ChoiceIndex == 1)
+        if (ChoiceIndex == 0) 
         {
             ItemToGrant = EventDef->MaliciousSwordDefinition;
         }
-        else if (ChoiceIndex == 2)
+        else if (ChoiceIndex == 1)
         {
             ItemToGrant = EventDef->MaliciousShieldDefinition;
         }

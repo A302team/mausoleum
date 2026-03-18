@@ -2,14 +2,19 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "GameFramework/GameUserSettings.h"
 #include "PlayerHUDComponent.generated.h"
 
 class AMyPlayerController;
 class APlayerState;
 class UButton;
+class UCheckBox;
 class UComboBoxString;
 class UPersonalEventWidget;
 class UQuickSlotComponent;
+class USlider;
+class USoundClass;
+class USoundMix;
 class UTextBlock;
 class UTexture2D;
 class UUserWidget;
@@ -33,6 +38,7 @@ public:
 	void RefreshQuickSlotBinding();
 	void ToggleInGameSettingMenu();
 	bool IsInGameSettingMenuOpen() const;
+	float GetMouseSensitivityMultiplier() const;
 	void ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount);
 	void ShowInspectMaliceSelectionWidget();
 	bool UpdateShieldCountText(int32 ShieldCount);
@@ -71,8 +77,22 @@ private:
 	void InitializeInGameSettingWidget();
 	void OpenInGameSettingMenu();
 	void CloseInGameSettingMenu();
+	void EnsureVideoSettingOptions();
+	void SyncVideoSettingsToCurrent();
 	void SyncResolutionComboToCurrent();
+	void SyncFullscreenModeComboToCurrent();
+	void SyncFrameLimitComboToCurrent();
+	void SyncVSyncCheckBoxToCurrent();
 	bool TryParseResolutionString(const FString& InOption, FIntPoint& OutResolution) const;
+	bool TryParseFullscreenModeString(const FString& InOption, EWindowMode::Type& OutWindowMode) const;
+	bool TryParseFrameLimitString(const FString& InOption, float& OutFrameLimit) const;
+	void LoadMouseSensitivitySetting();
+	void SaveMouseSensitivitySetting(float NewValue);
+	void SyncMouseSensitivitySliderToCurrent();
+	void LoadAudioSettings();
+	void SaveAudioSettings();
+	void SyncAudioSlidersToCurrent();
+	void ApplyAudioSettings();
 	void InitializeInspectMaliceWidget();
 	void PopulateInspectMaliceSelectionWidget();
 	void ResetInspectMaliceSelectionWidget();
@@ -85,6 +105,9 @@ private:
 
 	UFUNCTION()
 	void OnResolutionApplyClicked();
+
+	UFUNCTION()
+	void OnMouseSensitivitySliderChanged(float NewValue);
 
 	UFUNCTION()
 	void OnExitClicked();
@@ -159,8 +182,62 @@ private:
 	TObjectPtr<UButton> ExitBtn = nullptr;
 
 	UPROPERTY(Transient)
+	TObjectPtr<UComboBoxString> FullscreenModeComboBox = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UComboBoxString> FrameLimitComboBox = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UCheckBox> VSyncCheckBox = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<USlider> MouseSensitivitySlider = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<USlider> MasterVolumeSlider = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<USlider> BGMVolumeSlider = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<USlider> SFXVolumeSlider = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<USlider> InterfaceVolumeSlider = nullptr;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Settings|Audio")
+	TObjectPtr<USoundClass> MasterSoundClass = nullptr;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Settings|Audio")
+	TObjectPtr<USoundClass> BGMSoundClass = nullptr;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Settings|Audio")
+	TObjectPtr<USoundClass> SFXSoundClass = nullptr;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Settings|Audio")
+	TObjectPtr<USoundClass> InterfaceSoundClass = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<USoundMix> RuntimeAudioSettingsMix = nullptr;
+
+	UPROPERTY(Transient)
+	float MasterVolumeValue = 1.0f;
+
+	UPROPERTY(Transient)
+	float BGMVolumeValue = 1.0f;
+
+	UPROPERTY(Transient)
+	float SFXVolumeValue = 1.0f;
+
+	UPROPERTY(Transient)
+	float InterfaceVolumeValue = 1.0f;
+
+	UPROPERTY(Transient)
 	TArray<TObjectPtr<APlayerState>> InspectMaliceSelectablePlayers;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UQuickSlotComponent> BoundQuickSlotComponent = nullptr;
+
+	UPROPERTY(Transient)
+	float MouseSensitivityMultiplier = 1.0f;
 };

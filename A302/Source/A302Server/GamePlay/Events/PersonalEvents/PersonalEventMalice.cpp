@@ -28,4 +28,3 @@ void UPersonalEventMalice::ExecuteEvent_Implementation(ACharacter* InstigatorCha
 	OnEventResolved(InstigatorCharacter, true);
 }
 
-

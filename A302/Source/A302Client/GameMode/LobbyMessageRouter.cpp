@@ -8,6 +8,7 @@
 #include "Network/LobbyConstants.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
+#include "UI/WaitingRoomWidget.h"
 
 namespace
 {
@@ -71,6 +72,7 @@ void ULobbyMessageRouter::BuildHandlerMap()
 	PacketHandlers.Add(LobbyProtocol::ResRoomList, &ULobbyMessageRouter::HandleRoomList);
 	PacketHandlers.Add(LobbyProtocol::ResPlayerReady, &ULobbyMessageRouter::HandlePlayerReady);
 	PacketHandlers.Add(LobbyProtocol::ResPlayerLeft, &ULobbyMessageRouter::HandlePlayerLeft);
+	PacketHandlers.Add(LobbyProtocol::ResHostChanged, &ULobbyMessageRouter::HandleHostChanged);
 	PacketHandlers.Add(LobbyProtocol::ResGameStarted, &ULobbyMessageRouter::HandleGameStarted);
 	PacketHandlers.Add(LobbyProtocol::ResNicknameAvailable, &ULobbyMessageRouter::HandleNicknameAvailable);
 	PacketHandlers.Add(LobbyProtocol::ResChatMessage, &ULobbyMessageRouter::HandleChatMessage);
@@ -246,6 +248,39 @@ void ULobbyMessageRouter::HandlePlayerLeft(const TSharedPtr<FJsonObject>& Data)
 	}
 }
 
+void ULobbyMessageRouter::HandleHostChanged(const TSharedPtr<FJsonObject>& Data)
+{
+	if (!GameInstance || !Data.IsValid())
+	{
+		return;
+	}
+
+	if (!ShouldProcessRoomScopedMessage(Data, LobbyProtocol::ResHostChanged))
+	{
+		return;
+	}
+
+	FString NewHostName;
+	if (!Data->TryGetStringField(LobbyProtocol::KeyPlayerName, NewHostName) || NewHostName.IsEmpty())
+	{
+		Data->TryGetStringField(TEXT("hostName"), NewHostName);
+	}
+
+	if (NewHostName.IsEmpty())
+	{
+		return;
+	}
+
+	if (GameInstance->MyPlayerName == NewHostName)
+	{
+		GameInstance->bIsHost = true;
+		if (GameInstance->WaitingRoomWidget)
+		{
+			GameInstance->WaitingRoomWidget->OnHostChanged();
+		}
+	}
+}
+
 void ULobbyMessageRouter::HandleGameStarted(const TSharedPtr<FJsonObject>& Data)
 {
 	if (!GameInstance || !Data.IsValid())
@@ -360,4 +395,3 @@ void ULobbyMessageRouter::HandleError(const TSharedPtr<FJsonObject>& Data)
 	const FString ErrorMsg = Data->GetStringField(LobbyProtocol::KeyMessage);
 	UE_LOG(LogTemp, Warning, TEXT("[LobbyMessageRouter] Error: %s"), *ErrorMsg);
 }
-

@@ -11,6 +11,7 @@
 #include "Network/GameServerBackendSubsystem.h"
 #include "Network/A302NetworkEndpointConfig.h"
 #include "Character/MyCharacter.h"
+#include "Character/MyPlayerController.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
@@ -37,7 +38,7 @@ AA302GameMode::AA302GameMode()
     }
 
     DefaultPawnClass = nullptr;
-    PlayerControllerClass = APlayerController::StaticClass();
+    PlayerControllerClass = AMyPlayerController::StaticClass();
     static ConstructorHelpers::FClassFinder<APlayerController> PlayerControllerBPClass(TEXT("/Game/WorkSpace/Character/BP_MyPlayerController"));
     if (PlayerControllerBPClass.Succeeded())
     {

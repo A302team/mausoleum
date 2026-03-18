@@ -62,7 +62,6 @@ public:
 	UPROPERTY()
 	TObjectPtr<class UGameNetworkSubsystem> GameNetworkSubsystem;
 
-
 	UFUNCTION(BlueprintCallable)
 	void ConnectToServer(const FString &URL);
 
@@ -134,4 +133,7 @@ private:
 	FString LocalRoomStreamingRoomCode;
 
 	FTimerHandle LobbyWidgetRetryTimerHandle;
+
+	UFUNCTION()
+	void OnWorldAdded(UWorld *World);
 };

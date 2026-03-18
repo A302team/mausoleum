@@ -1,6 +1,7 @@
 #include "Character/Components/InteractComponent.h"
 #include "Blueprint/UserWidget.h"
 #include "GameFramework/Character.h"
+#include "GameFramework/PlayerController.h"
 #include "Components/MeshComponent.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/Engine.h"
@@ -25,9 +26,31 @@ void UInteractComponent::BeginPlay()
 		return;
 	}
 
-	if (InteractionWidgetClass)
+	TryInitializeLocalUIWidgets();
+}
+
+bool UInteractComponent::TryInitializeLocalUIWidgets()
+{
+	if (bLocalUIInitialized)
 	{
-		InteractionWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), InteractionWidgetClass);
+		return true;
+	}
+
+	ACharacter* OwnerCharacter = GetOwnerCharacter();
+	if (!OwnerCharacter || !OwnerCharacter->IsLocallyControlled())
+	{
+		return false;
+	}
+
+	APlayerController* LocalPC = Cast<APlayerController>(OwnerCharacter->GetController());
+	if (!LocalPC || !LocalPC->IsLocalController())
+	{
+		return false;
+	}
+
+	if (InteractionWidgetClass && !InteractionWidgetInstance)
+	{
+		InteractionWidgetInstance = CreateWidget<UUserWidget>(LocalPC, InteractionWidgetClass);
 		if (InteractionWidgetInstance)
 		{
 			InteractionWidgetInstance->AddToViewport(10);
@@ -35,34 +58,43 @@ void UInteractComponent::BeginPlay()
 		}
 	}
 
-	if (CrosshairWidgetClass)
+	if (CrosshairWidgetClass && !CrosshairWidgetInstance)
 	{
-		CrosshairWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), CrosshairWidgetClass);
+		CrosshairWidgetInstance = CreateWidget<UUserWidget>(LocalPC, CrosshairWidgetClass);
 		if (CrosshairWidgetInstance)
 		{
 			CrosshairWidgetInstance->AddToViewport(20);
 		}
 	}
-    
-	if (QTEWidgetClass)
+
+	if (QTEWidgetClass && !QTEWidgetInstance)
 	{
-		QTEWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), QTEWidgetClass);
+		QTEWidgetInstance = CreateWidget<UUserWidget>(LocalPC, QTEWidgetClass);
 		if (QTEWidgetInstance)
 		{
 			QTEWidgetInstance->AddToViewport(50);
 			QTEWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
-			UE_LOG(LogTemp, Warning, TEXT("[C++] QTE 위젯 생성 및 뷰포트 추가 완료!"));
+			UE_LOG(LogTemp, Log, TEXT("[InteractComponent] QTE widget initialized for local player."));
 		}
 		else
 		{
-			UE_LOG(LogTemp, Error, TEXT("[C++] QTE 위젯 생성 실패!"));
+			UE_LOG(LogTemp, Warning, TEXT("[InteractComponent] Failed to create QTE widget for local player."));
 		}
 	}
+
+	bLocalUIInitialized = true;
+	return true;
 }
 
 void UInteractComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	if (!bLocalUIInitialized)
+	{
+		TryInitializeLocalUIWidgets();
+	}
+
 	CheckForInteractables();
 }
 
