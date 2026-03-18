@@ -11,5 +11,8 @@ class A302SHARED_API UItemTimeKnife : public UItemKnife
 
 public:
 	virtual bool Use_Implementation(ACharacter* Instigator, const FItemTargetData& TargetData) override;
+
+protected:
+	virtual void PlayUsePresentation(ACharacter* Instigator) override;
 };
 

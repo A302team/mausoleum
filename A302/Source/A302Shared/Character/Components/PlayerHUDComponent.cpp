@@ -35,6 +35,7 @@ namespace
 	constexpr int32 PlayerHUDVoteSlotCount = 6;
 	constexpr int32 PlayerHUDQuickSlotCount = 5;
 	constexpr int32 MaxInspectMaliceTargets = 5;
+	constexpr int32 MaxNicknameUiLen = 7;
 	constexpr float DefaultMouseSensitivityMultiplier = 1.0f;
 	constexpr float MinMouseSensitivityMultiplier = 0.1f;
 	constexpr float MaxMouseSensitivityMultiplier = 3.0f;
@@ -44,6 +45,11 @@ namespace
 	const TCHAR* BGMVolumeConfigKey = TEXT("BGMVolume");
 	const TCHAR* SFXVolumeConfigKey = TEXT("SFXVolume");
 	const TCHAR* InterfaceVolumeConfigKey = TEXT("InterfaceVolume");
+
+	FString ClampNicknameForUi(const FString& Name)
+	{
+		return Name.Len() > MaxNicknameUiLen ? Name.Left(MaxNicknameUiLen) : Name;
+	}
 
 	void EnsureComboHasOption(UComboBoxString* ComboBox, const FString& Option)
 	{
@@ -495,7 +501,7 @@ FString UPlayerHUDComponent::ResolvePlayerDisplayName(const APlayerState* Target
 	}
 
 	const FString PlayerName = TargetPlayerState->GetPlayerName();
-	return PlayerName.IsEmpty() ? GetNameSafe(TargetPlayerState) : PlayerName;
+	return ClampNicknameForUi(PlayerName.IsEmpty() ? GetNameSafe(TargetPlayerState) : PlayerName);
 }
 
 void UPlayerHUDComponent::InitializeInGameHUD(TSubclassOf<UUserWidget> InQuickSlotBarClass, TSubclassOf<UUserWidget> InInGameSettingClass, TSubclassOf<UUserWidget> InInspectMaliceWidgetClass)
@@ -545,7 +551,7 @@ void UPlayerHUDComponent::ShowPublicMaliceAnnouncement(const FString& PlayerName
 
 	if (UTextBlock* UserText = FindPublicMaliceAnnouncementText(TEXT("PublicMaliceBorderUser")))
 	{
-		UserText->SetText(FText::FromString(PlayerName));
+		UserText->SetText(FText::FromString(ClampNicknameForUi(PlayerName)));
 	}
 
 	if (UTextBlock* MaliceNumText = FindPublicMaliceAnnouncementText(TEXT("PublicMaliceNum")))

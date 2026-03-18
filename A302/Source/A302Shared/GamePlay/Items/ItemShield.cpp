@@ -55,10 +55,15 @@ bool UItemShield::Use_Implementation(ACharacter* Instigator, const FItemTargetDa
 
     if (IA302CharacterBridge* CharacterBridge = Cast<IA302CharacterBridge>(Instigator))
     {
-        CharacterBridge->EquipShieldWeapon();
-        CharacterBridge->PlayShieldBlockPresentation();
+        OnItemUsed(MyCharacter);
+
+        MyCharacter->EquipWeapon(MyCharacter->ShieldActorClass);
+
+        if (UMyAnimInstance* Anim = Cast<UMyAnimInstance>(MyCharacter->GetMesh()->GetAnimInstance()))
+        {
+            Anim->PlayBlockMontage();
+        }
     }
 
     return true;
 }
-

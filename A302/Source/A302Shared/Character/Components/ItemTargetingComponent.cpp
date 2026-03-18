@@ -33,13 +33,16 @@ void UItemTargetingComponent::TickComponent(
 )
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-	if (bEnableAttackRangeDebug)
+	if (bEnableTargetRangeDebug)
 	{
 		UpdateAttackRangeDebugState();
 	}
 }
 
-AActor* UItemTargetingComponent::FindTargetActorForUse(FVector& OutTargetLocation) const
+AActor* UItemTargetingComponent::FindTargetActorForUse(
+	const UItemDefinition* ItemDefinition,
+	FVector& OutTargetLocation
+) const
 {
 	OutTargetLocation = FVector::ZeroVector;
 
@@ -49,9 +52,10 @@ AActor* UItemTargetingComponent::FindTargetActorForUse(FVector& OutTargetLocatio
 		return nullptr;
 	}
 
+	const float TraceDistance = ResolveTargetTraceDistance(ItemDefinition);
 	const FVector Start = OwnerCharacter->GetPawnViewLocation();
 	const FVector ForwardVector = OwnerCharacter->GetViewRotation().Vector();
-	const FVector End = Start + (ForwardVector * AttackTraceDistance);
+	const FVector End = Start + (ForwardVector * TraceDistance);
 
 	OutTargetLocation = End;
 
@@ -84,7 +88,7 @@ AActor* UItemTargetingComponent::FindTargetActorForUse(FVector& OutTargetLocatio
 		OwnerCharacter->GetActorLocation(),
 		FQuat::Identity,
 		ObjectQueryParams,
-		FCollisionShape::MakeSphere(AttackTraceDistance),
+		FCollisionShape::MakeSphere(TraceDistance),
 		Params
 	);
 
@@ -160,7 +164,7 @@ bool UItemTargetingComponent::TryBuildTargetDataForUse(
 	}
 
 	FVector TargetLocation = FVector::ZeroVector;
-	AActor* TargetActor = FindTargetActorForUse(TargetLocation);
+	AActor* TargetActor = FindTargetActorForUse(ItemDefinition, TargetLocation);
 	if (!TargetActor)
 	{
 		return false;
@@ -194,7 +198,7 @@ void UItemTargetingComponent::UpdateAttackRangeDebugState()
 			)
 			{
 				FVector TargetLocation = FVector::ZeroVector;
-				AActor* TargetActor = FindTargetActorForUse(TargetLocation);
+				AActor* TargetActor = FindTargetActorForUse(ItemDefinition, TargetLocation);
 				if (TargetActor)
 				{
 					FItemTargetData TargetData;
@@ -208,16 +212,28 @@ void UItemTargetingComponent::UpdateAttackRangeDebugState()
 		}
 	}
 
-	if (bIsTargetInRangeNow && !bWasAttackTargetInRange)
+	if (bIsTargetInRangeNow && !bWasTargetInRange)
 	{
 		LogAndScreenMessage(
-			FString::Printf(TEXT("[Targeting] Attack target in range: %s"), *TargetName),
+			FString::Printf(TEXT("[Targeting] Usable target in range: %s"), *TargetName),
 			FColor::Green,
 			1.2f
 		);
 	}
 
-	bWasAttackTargetInRange = bIsTargetInRangeNow;
+	bWasTargetInRange = bIsTargetInRangeNow;
+}
+
+float UItemTargetingComponent::ResolveTargetTraceDistance(const UItemDefinition* ItemDefinition) const
+{
+	if (!ItemDefinition)
+	{
+		return DefaultTraceDistance;
+	}
+
+	return ItemDefinition->Payload.ItemUseRange > 0.0f
+		? ItemDefinition->Payload.ItemUseRange
+		: DefaultTraceDistance;
 }
 
 ACharacter* UItemTargetingComponent::GetOwnerCharacter() const
