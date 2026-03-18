@@ -18,7 +18,7 @@ namespace
 	FText BuildCursedSwordCountdownContext(float RemainingSeconds)
 	{
 		const int32 SafeSeconds = FMath::Max(0, FMath::CeilToInt(RemainingSeconds));
-		return FText::FromString(FString::Printf(TEXT("%d초 안에 사용하지 않을 시 죽습니다."), SafeSeconds));
+		return FText::FromString(FString::Printf(TEXT("%d초 안에 사용하지 않을 시 사망합니다."), SafeSeconds));
 	}
 
 	FText ResolveCursedSwordTitle(const UItemDefinition* GrantedKnifeDefinition, const UPersonalEventCursedSwordDefinition* EventDef)
