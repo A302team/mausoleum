@@ -7,15 +7,6 @@
 #include "GameData/Items/ItemDefinition.h"
 #include "GamePlay/Items/BaseItem.h"
 
-namespace
-{
-	const FText DevilsEyeTitle = FText::FromString(TEXT("악마의 눈동자"));
-	const FText DevilsEyeDescription = FText::FromString(
-		TEXT("눈동자의 형상을 한 붉은 수정구를 얻었습니다. 수정구를 사용하여 타인의 내면을 들여다볼 수 있을 것 같습니다.")
-	);
-	const FText DevilsEyeConfirmChoice = FText::FromString(TEXT("확인"));
-}
-
 void UPersonalEventDevilsEye::ExecuteEvent_Implementation(AMyCharacter* InstigatorCharacter)
 {
 	if (!InstigatorCharacter)
@@ -33,12 +24,12 @@ void UPersonalEventDevilsEye::ExecuteEvent_Implementation(AMyCharacter* Instigat
 	PlayerController->ActivePersonalEvent = this;
 
 	TArray<FText> Choices;
-	Choices.Add(DevilsEyeConfirmChoice);
+	Choices.Add(FText::FromString(TEXT("확인")));
 
 	PlayerController->Client_ShowPersonalEvent(
 		EventID,
-		DevilsEyeTitle,
-		DevilsEyeDescription,
+		FText::FromString(TEXT("악마의 눈동자")),
+		FText::FromString(TEXT("눈동자의 형상을 한 붉은 수정구를 얻었습니다. 수정구를 사용하여 타인의 내면을 들여다볼 수 있을 것 같습니다.")),
 		Choices
 	);
 }
