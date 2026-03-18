@@ -57,6 +57,8 @@ public:
 	void Multicast_ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount);
 	UFUNCTION(Server, Reliable)
 	void Server_RequestInteractionReward(ABaseInteractable* Interactable);
+	UFUNCTION(Server, Reliable)
+	void Server_RequestTargetedItemUse(UItemDefinition* ItemDefinition, AActor* TargetActor);
 	UFUNCTION(Client, Reliable)
 	void Client_GrantInteractionReward(URewardDefinition* RewardDefinition);
 

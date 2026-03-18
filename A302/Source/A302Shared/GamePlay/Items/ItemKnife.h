@@ -14,6 +14,9 @@ public:
     virtual bool CanUse_Implementation(ACharacter* Instigator, const FItemTargetData& TargetData) const override;
     virtual bool Use_Implementation(ACharacter* Instigator, const FItemTargetData& TargetData) override;
 
+protected:
+    virtual void PlayUsePresentation(ACharacter* Instigator);
+
 private:
     bool HasLineOfSight(ACharacter* Instigator, AActor* Target) const;
 };

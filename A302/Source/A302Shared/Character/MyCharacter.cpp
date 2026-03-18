@@ -16,6 +16,7 @@
 #include "GameData/Events/PersonalEvents/PersonalEventMaliceDefinition.h"
 #include "GameData/Events/PersonalEvents/PersonalEventPublicMaliceDefinition.h"
 #include "GameData/Events/PersonalEvents/PersonalEventCursedSwordDefinition.h"
+#include "GameData/Events/PersonalEvents/PersonalEventDevilsEyeDefinition.h"
 #include "GameData/RewardDefinition.h"
 #include "GameData/RewardTypes.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -25,6 +26,7 @@
 #include "GamePlay/Actor/WeaponActor.h"
 #include "GamePlay/Events/GroupEvents/BaseGroupEvent.h"
 #include "GamePlay/Events/PersonalEvents/BasePersonalEvent.h"
+#include "GamePlay/Events/PersonalEvents/PersonalEventDevilsEye.h"
 #include "GamePlay/Items/BaseItem.h"
 #include "GamePlay/Items/ItemShield.h"
 #include "GamePlay/Items/ItemTimeKnife.h"
@@ -640,6 +642,40 @@ void AMyCharacter::Server_RequestInteractionReward_Implementation(ABaseInteracta
 	}
 
 	ResolveInteractionRewardOnServer(Interactable);
+}
+
+void AMyCharacter::Server_RequestTargetedItemUse_Implementation(UItemDefinition* ItemDefinition, AActor* TargetActor)
+{
+	if (!HasAuthority() || !ItemDefinition || !IsValid(TargetActor) || TargetActor == this)
+	{
+		return;
+	}
+
+	UClass* LogicClass = ItemDefinition->ResolveRewardLogicClass();
+	if (!LogicClass || !LogicClass->IsChildOf(UBaseItem::StaticClass()))
+	{
+		return;
+	}
+
+	const UBaseItem* ItemLogic = Cast<UBaseItem>(LogicClass->GetDefaultObject());
+	if (!ItemLogic)
+	{
+		return;
+	}
+
+	FString SystemMessage;
+	if (!ItemLogic->ResolveServerTargetedUse(this, TargetActor, SystemMessage))
+	{
+		return;
+	}
+
+	if (!SystemMessage.IsEmpty())
+	{
+		if (AMyPlayerController* OwnerPlayerController = Cast<AMyPlayerController>(GetController()))
+		{
+			OwnerPlayerController->Client_ReceiveSystemMessage(SystemMessage);
+		}
+	}
 }
 
 void AMyCharacter::Client_GrantInteractionReward_Implementation(URewardDefinition* RewardDefinition)
