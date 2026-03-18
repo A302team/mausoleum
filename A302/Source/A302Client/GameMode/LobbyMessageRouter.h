@@ -28,6 +28,7 @@ private:
 	void HandleRoomList(const TSharedPtr<FJsonObject>& Data);
 	void HandlePlayerReady(const TSharedPtr<FJsonObject>& Data);
 	void HandlePlayerLeft(const TSharedPtr<FJsonObject>& Data);
+	void HandleHostChanged(const TSharedPtr<FJsonObject>& Data);
 	void HandleGameStarted(const TSharedPtr<FJsonObject>& Data);
 	void HandleNicknameAvailable(const TSharedPtr<FJsonObject>& Data);
 	void HandleChatMessage(const TSharedPtr<FJsonObject>& Data);

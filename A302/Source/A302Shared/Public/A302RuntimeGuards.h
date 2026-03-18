@@ -23,7 +23,7 @@ namespace A302RuntimeGuards
 
 	inline bool IsInGameWorld(const UWorld* World)
 	{
-		return MapNameContains(World, TEXT("MyTestLevel")) || MapNameContains(World, TEXT("sirisMap"));
+		return MapNameContains(World, TEXT("MyTestLevel")) || MapNameContains(World, TEXT("MyMap"));
 	}
 
 	inline bool IsInGameWorld(const UObject* WorldContextObject)

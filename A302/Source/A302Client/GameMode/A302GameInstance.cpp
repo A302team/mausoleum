@@ -49,6 +49,11 @@ void UA302GameInstance::OnStart()
     OnMapLoaded(CurrentWorld);
 }
 
+void UA302GameInstance::OnWorldAdded(UWorld *World)
+{
+    OnMapLoaded(World);
+}
+
 void UA302GameInstance::OnMapLoaded(UWorld *LoadedWorld)
 {
     if (!LoadedWorld)
@@ -245,7 +250,7 @@ void UA302GameInstance::EnsureLocalRoomLevelInstance(UWorld* LoadedWorld)
         return;
     }
 
-    constexpr TCHAR TemplateLevelPath[] = TEXT("/Game/PersonalWorkSpace/siris/sirisMap");
+    constexpr TCHAR TemplateLevelPath[] = TEXT("/Game/PersonalWorkSpace/wjtmd28/MyMap");
     const FVector RoomOffset = A302RoomWorldOffset::ResolveRoomOffset(ResolvedRoomCode);
     const FString LevelInstanceNameOverride = A302RoomWorldOffset::BuildLevelInstanceNameOverride(ResolvedRoomCode);
 

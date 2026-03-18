@@ -6,9 +6,11 @@
 #include "Character/MyPlayerController.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/Button.h"
+#include "Components/CheckBox.h"
 #include "Components/ComboBoxString.h"
 #include "Components/Image.h"
 #include "Components/PanelWidget.h"
+#include "Components/Slider.h"
 #include "Components/TextBlock.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -19,16 +21,48 @@
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/PlayerState.h"
 #include "GameMode/A302PlayerState.h"
+#include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "Misc/ConfigCacheIni.h"
 #include "UI/PersonalEventWidget.h"
 #include "UI/VoteClickableUserWidget.h"
 #include "Room/RoomScopeRules.h"
+#include "Sound/SoundClass.h"
+#include "Sound/SoundMix.h"
 
 namespace
 {
 	constexpr int32 PlayerHUDVoteSlotCount = 6;
 	constexpr int32 PlayerHUDQuickSlotCount = 5;
 	constexpr int32 MaxInspectMaliceTargets = 5;
+	constexpr float DefaultMouseSensitivityMultiplier = 1.0f;
+	constexpr float MinMouseSensitivityMultiplier = 0.1f;
+	constexpr float MaxMouseSensitivityMultiplier = 3.0f;
+	const TCHAR* LocalSettingsSection = TEXT("/Script/A302.LocalSettings");
+	const TCHAR* MouseSensitivityConfigKey = TEXT("MouseSensitivityMultiplier");
+	const TCHAR* MasterVolumeConfigKey = TEXT("MasterVolume");
+	const TCHAR* BGMVolumeConfigKey = TEXT("BGMVolume");
+	const TCHAR* SFXVolumeConfigKey = TEXT("SFXVolume");
+	const TCHAR* InterfaceVolumeConfigKey = TEXT("InterfaceVolume");
+
+	void EnsureComboHasOption(UComboBoxString* ComboBox, const FString& Option)
+	{
+		if (!ComboBox || Option.IsEmpty())
+		{
+			return;
+		}
+
+		const int32 OptionCount = ComboBox->GetOptionCount();
+		for (int32 OptionIndex = 0; OptionIndex < OptionCount; ++OptionIndex)
+		{
+			if (ComboBox->GetOptionAtIndex(OptionIndex).Equals(Option, ESearchCase::IgnoreCase))
+			{
+				return;
+			}
+		}
+
+		ComboBox->AddOption(Option);
+	}
 
 	ACharacter* FindCharacterForPlayerState(const UObject* WorldContextObject, const APlayerState* TargetPlayerState)
 	{
@@ -53,11 +87,59 @@ namespace
 
 		return nullptr;
 	}
+
+	bool HasExpectedQuickSlotLayout(UUserWidget* RootWidget, FString* OutMissingNames = nullptr)
+	{
+		if (!RootWidget)
+		{
+			return false;
+		}
+
+		const UClass* WidgetClass = RootWidget->GetClass();
+		const bool bIsHud2Layout = WidgetClass && WidgetClass->GetName().Contains(TEXT("WBP_HUD2"), ESearchCase::IgnoreCase);
+
+		TArray<FString> MissingNames;
+		for (int32 SlotIndex = 0; SlotIndex < PlayerHUDQuickSlotCount; ++SlotIndex)
+		{
+			const FName SlotWidgetName(*FString::Printf(TEXT("QuickSlot%d"), SlotIndex + 1));
+			if (!RootWidget->GetWidgetFromName(SlotWidgetName))
+			{
+				MissingNames.Add(SlotWidgetName.ToString());
+			}
+		}
+
+		if (!bIsHud2Layout)
+		{
+			static const FName RequiredTextNames[] =
+			{
+				TEXT("ShieldCount"),
+				TEXT("MaliceCount"),
+				TEXT("ItemTimer")
+			};
+
+			for (const FName RequiredName : RequiredTextNames)
+			{
+				if (!RootWidget->GetWidgetFromName(RequiredName))
+				{
+					MissingNames.Add(RequiredName.ToString());
+				}
+			}
+		}
+
+		if (OutMissingNames)
+		{
+			*OutMissingNames = FString::Join(MissingNames, TEXT(","));
+		}
+
+		return MissingNames.Num() == 0;
+	}
 }
 
 UPlayerHUDComponent::UPlayerHUDComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
+	LoadMouseSensitivitySetting();
+	LoadAudioSettings();
 }
 
 AMyPlayerController* UPlayerHUDComponent::GetOwnerController() const
@@ -449,6 +531,11 @@ bool UPlayerHUDComponent::IsInGameSettingMenuOpen() const
 	return InGameSettingWidget && InGameSettingWidget->GetVisibility() == ESlateVisibility::Visible;
 }
 
+float UPlayerHUDComponent::GetMouseSensitivityMultiplier() const
+{
+	return FMath::Max(0.01f, MouseSensitivityMultiplier);
+}
+
 void UPlayerHUDComponent::ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount)
 {
 	if (UWorld* World = GetWorld())
@@ -565,19 +652,87 @@ void UPlayerHUDComponent::InitializeQuickSlotWidget()
 	AMyPlayerController* OwnerController = GetOwnerController();
 	if (!OwnerController || !QuickSlotBarClass)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("[PlayerHUDComponent] InitializeQuickSlotWidget skipped. controller=%s class=%s"), *GetNameSafe(OwnerController), *GetNameSafe(QuickSlotBarClass.Get()));
 		return;
 	}
 
-	if (!QuickSlotBarWidget)
+	auto CreateAndAttachQuickSlotWidget = [&](TSubclassOf<UUserWidget> WidgetClass) -> UUserWidget*
 	{
-		QuickSlotBarWidget = CreateWidget<UUserWidget>(OwnerController, QuickSlotBarClass);
-		if (!QuickSlotBarWidget)
+		if (!WidgetClass)
 		{
-			return;
+			return nullptr;
 		}
 
-		QuickSlotBarWidget->AddToViewport();
+		UUserWidget* NewWidget = CreateWidget<UUserWidget>(OwnerController, WidgetClass);
+		if (!NewWidget)
+		{
+			return nullptr;
+		}
+
+		if (!NewWidget->IsInViewport())
+		{
+			if (!NewWidget->AddToPlayerScreen(500))
+			{
+				NewWidget->AddToViewport(500);
+			}
+		}
+
+		return NewWidget;
+	};
+
+	if (!QuickSlotBarWidget)
+	{
+		QuickSlotBarWidget = CreateAndAttachQuickSlotWidget(QuickSlotBarClass);
+		if (!QuickSlotBarWidget)
+		{
+			UE_LOG(LogTemp, Error, TEXT("[PlayerHUDComponent] Failed to create quick slot widget. class=%s"), *GetNameSafe(QuickSlotBarClass.Get()));
+			return;
+		}
 	}
+
+	FString MissingNames;
+	if (!HasExpectedQuickSlotLayout(QuickSlotBarWidget, &MissingNames))
+	{
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("[PlayerHUDComponent] Quick slot layout mismatch. class=%s missing=[%s]. Forcing WBP_HUD2."),
+			*GetNameSafe(QuickSlotBarClass.Get()),
+			*MissingNames
+		);
+
+		if (UClass* QuickSlotWidgetClass = LoadClass<UUserWidget>(nullptr, TEXT("/Game/WorkSpace/UI/WBP_HUD2.WBP_HUD2_C")))
+		{
+			if (QuickSlotWidgetClass != QuickSlotBarWidget->GetClass())
+			{
+				if (UUserWidget* CandidateWidget = CreateAndAttachQuickSlotWidget(QuickSlotWidgetClass))
+				{
+					FString CandidateMissingNames;
+					if (HasExpectedQuickSlotLayout(CandidateWidget, &CandidateMissingNames))
+					{
+						QuickSlotBarWidget->RemoveFromParent();
+						QuickSlotBarWidget = CandidateWidget;
+						QuickSlotBarClass = QuickSlotWidgetClass;
+						UE_LOG(LogTemp, Log, TEXT("[PlayerHUDComponent] Applied direct quick slot class=%s"), *GetNameSafe(QuickSlotBarClass.Get()));
+					}
+					else
+					{
+						UE_LOG(
+							LogTemp,
+							Error,
+							TEXT("[PlayerHUDComponent] WBP_HUD2 layout mismatch. missing=[%s]"),
+							*CandidateMissingNames
+						);
+						CandidateWidget->RemoveFromParent();
+					}
+				}
+			}
+		}
+	}
+
+	QuickSlotBarWidget->SetVisibility(ESlateVisibility::Visible);
+	QuickSlotBarWidget->SetIsEnabled(true);
+	UE_LOG(LogTemp, Log, TEXT("[PlayerHUDComponent] Quick slot widget ready. class=%s widget=%s"), *GetNameSafe(QuickSlotBarClass.Get()), *GetNameSafe(QuickSlotBarWidget));
 
 	InitializeQuickSlotVisualState();
 	BindQuickSlotComponent();
@@ -806,6 +961,7 @@ void UPlayerHUDComponent::InitializeInGameSettingWidget()
 	AMyPlayerController* OwnerController = GetOwnerController();
 	if (!OwnerController || !InGameSettingClass)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("[PlayerHUDComponent] InitializeInGameSettingWidget skipped. controller=%s class=%s"), *GetNameSafe(OwnerController), *GetNameSafe(InGameSettingClass.Get()));
 		return;
 	}
 
@@ -814,15 +970,44 @@ void UPlayerHUDComponent::InitializeInGameSettingWidget()
 		InGameSettingWidget = CreateWidget<UUserWidget>(OwnerController, InGameSettingClass);
 		if (!InGameSettingWidget)
 		{
+			UE_LOG(LogTemp, Error, TEXT("[PlayerHUDComponent] Failed to create in-game setting widget. class=%s"), *GetNameSafe(InGameSettingClass.Get()));
 			return;
 		}
 
-		InGameSettingWidget->AddToViewport(100);
+		if (!InGameSettingWidget->IsInViewport())
+		{
+			if (!InGameSettingWidget->AddToPlayerScreen(510))
+			{
+				InGameSettingWidget->AddToViewport(510);
+			}
+		}
 		InGameSettingWidget->SetVisibility(ESlateVisibility::Hidden);
 	}
 
-	ResolutionComboBox = Cast<UComboBoxString>(InGameSettingWidget->GetWidgetFromName(TEXT("ResolutionComboBox")));
-	ResolutionApplyBtn = Cast<UButton>(InGameSettingWidget->GetWidgetFromName(TEXT("ResolutionApplyBtn")));
+	UE_LOG(LogTemp, Log, TEXT("[PlayerHUDComponent] In-game setting widget ready. class=%s widget=%s"), *GetNameSafe(InGameSettingClass.Get()), *GetNameSafe(InGameSettingWidget));
+
+	auto FindWidgetByNames = [&](std::initializer_list<const TCHAR*> Names) -> UWidget*
+	{
+		for (const TCHAR* WidgetName : Names)
+		{
+			if (UWidget* FoundWidget = InGameSettingWidget->GetWidgetFromName(FName(WidgetName)))
+			{
+				return FoundWidget;
+			}
+		}
+		return nullptr;
+	};
+
+	ResolutionComboBox = Cast<UComboBoxString>(FindWidgetByNames({ TEXT("ResolutionComboBox"), TEXT("VideoResolutionComboBox") }));
+	FullscreenModeComboBox = Cast<UComboBoxString>(FindWidgetByNames({ TEXT("FullscreenModeComboBox"), TEXT("ScreenModeComboBox") }));
+	FrameLimitComboBox = Cast<UComboBoxString>(FindWidgetByNames({ TEXT("FrameLimitComboBox"), TEXT("FrameRateComboBox"), TEXT("FPSComboBox") }));
+	VSyncCheckBox = Cast<UCheckBox>(FindWidgetByNames({ TEXT("VSyncCheckBox"), TEXT("VerticalSyncCheckBox") }));
+	MouseSensitivitySlider = Cast<USlider>(FindWidgetByNames({ TEXT("Mouse_Slider"), TEXT("MouseSensitivitySlider") }));
+	MasterVolumeSlider = Cast<USlider>(FindWidgetByNames({ TEXT("MasterVolume_Slider") }));
+	BGMVolumeSlider = Cast<USlider>(FindWidgetByNames({ TEXT("BGM_Slider") }));
+	SFXVolumeSlider = Cast<USlider>(FindWidgetByNames({ TEXT("SFX_Slider") }));
+	InterfaceVolumeSlider = Cast<USlider>(FindWidgetByNames({ TEXT("Interface_Slider") }));
+	ResolutionApplyBtn = Cast<UButton>(FindWidgetByNames({ TEXT("ResolutionApplyBtn"), TEXT("ApplyBtn") }));
 	ExitBtn = Cast<UButton>(InGameSettingWidget->GetWidgetFromName(TEXT("ExitBtn")));
 
 	if (ResolutionApplyBtn)
@@ -837,7 +1022,17 @@ void UPlayerHUDComponent::InitializeInGameSettingWidget()
 		ExitBtn->OnClicked.AddDynamic(this, &UPlayerHUDComponent::OnExitClicked);
 	}
 
-	SyncResolutionComboToCurrent();
+	if (MouseSensitivitySlider)
+	{
+		MouseSensitivitySlider->OnValueChanged.RemoveDynamic(this, &UPlayerHUDComponent::OnMouseSensitivitySliderChanged);
+		MouseSensitivitySlider->OnValueChanged.AddDynamic(this, &UPlayerHUDComponent::OnMouseSensitivitySliderChanged);
+	}
+
+	EnsureVideoSettingOptions();
+	SyncVideoSettingsToCurrent();
+	SyncMouseSensitivitySliderToCurrent();
+	SyncAudioSlidersToCurrent();
+	ApplyAudioSettings();
 }
 
 void UPlayerHUDComponent::OpenInGameSettingMenu()
@@ -858,7 +1053,9 @@ void UPlayerHUDComponent::OpenInGameSettingMenu()
 		return;
 	}
 
-	SyncResolutionComboToCurrent();
+	SyncVideoSettingsToCurrent();
+	SyncMouseSensitivitySliderToCurrent();
+	SyncAudioSlidersToCurrent();
 	InGameSettingWidget->SetVisibility(ESlateVisibility::Visible);
 
 	FInputModeGameAndUI InputMode;
@@ -892,6 +1089,42 @@ void UPlayerHUDComponent::CloseInGameSettingMenu()
 	OwnerController->bEnableMouseOverEvents = false;
 	OwnerController->SetIgnoreLookInput(false);
 	OwnerController->SetIgnoreMoveInput(false);
+}
+
+void UPlayerHUDComponent::EnsureVideoSettingOptions()
+{
+	if (ResolutionComboBox && ResolutionComboBox->GetOptionCount() == 0)
+	{
+		EnsureComboHasOption(ResolutionComboBox, TEXT("1280x720"));
+		EnsureComboHasOption(ResolutionComboBox, TEXT("1600x900"));
+		EnsureComboHasOption(ResolutionComboBox, TEXT("1920x1080"));
+		EnsureComboHasOption(ResolutionComboBox, TEXT("2560x1440"));
+	}
+
+	if (FullscreenModeComboBox && FullscreenModeComboBox->GetOptionCount() == 0)
+	{
+		EnsureComboHasOption(FullscreenModeComboBox, TEXT("전체화면"));
+		EnsureComboHasOption(FullscreenModeComboBox, TEXT("전체화면 창"));
+		EnsureComboHasOption(FullscreenModeComboBox, TEXT("창모드"));
+	}
+
+	if (FrameLimitComboBox && FrameLimitComboBox->GetOptionCount() == 0)
+	{
+		EnsureComboHasOption(FrameLimitComboBox, TEXT("30"));
+		EnsureComboHasOption(FrameLimitComboBox, TEXT("60"));
+		EnsureComboHasOption(FrameLimitComboBox, TEXT("120"));
+		EnsureComboHasOption(FrameLimitComboBox, TEXT("144"));
+		EnsureComboHasOption(FrameLimitComboBox, TEXT("240"));
+		EnsureComboHasOption(FrameLimitComboBox, TEXT("무제한"));
+	}
+}
+
+void UPlayerHUDComponent::SyncVideoSettingsToCurrent()
+{
+	SyncResolutionComboToCurrent();
+	SyncFullscreenModeComboToCurrent();
+	SyncFrameLimitComboToCurrent();
+	SyncVSyncCheckBoxToCurrent();
 }
 
 void UPlayerHUDComponent::SyncResolutionComboToCurrent()
@@ -959,37 +1192,360 @@ bool UPlayerHUDComponent::TryParseResolutionString(const FString& InOption, FInt
 	return true;
 }
 
-void UPlayerHUDComponent::OnResolutionApplyClicked()
+void UPlayerHUDComponent::SyncFullscreenModeComboToCurrent()
 {
-	AMyPlayerController* OwnerController = GetOwnerController();
-	if (!OwnerController || !ResolutionComboBox)
-	{
-		return;
-	}
-
-	const FString SelectedOption = ResolutionComboBox->GetSelectedOption();
-	if (SelectedOption.IsEmpty())
-	{
-		return;
-	}
-
-	FIntPoint TargetResolution = FIntPoint::ZeroValue;
-	if (!TryParseResolutionString(SelectedOption, TargetResolution))
+	if (!FullscreenModeComboBox)
 	{
 		return;
 	}
 
 	if (UGameUserSettings* GameUserSettings = GEngine ? GEngine->GetGameUserSettings() : nullptr)
 	{
-		GameUserSettings->SetFullscreenMode(EWindowMode::Windowed);
-		GameUserSettings->SetScreenResolution(TargetResolution);
+		switch (GameUserSettings->GetFullscreenMode())
+		{
+		case EWindowMode::Fullscreen:
+			FullscreenModeComboBox->SetSelectedOption(TEXT("전체화면"));
+			return;
+		case EWindowMode::WindowedFullscreen:
+			FullscreenModeComboBox->SetSelectedOption(TEXT("전체화면 창"));
+			return;
+		case EWindowMode::Windowed:
+		default:
+			FullscreenModeComboBox->SetSelectedOption(TEXT("창모드"));
+			return;
+		}
+	}
+}
+
+void UPlayerHUDComponent::SyncFrameLimitComboToCurrent()
+{
+	if (!FrameLimitComboBox)
+	{
+		return;
+	}
+
+	if (UGameUserSettings* GameUserSettings = GEngine ? GEngine->GetGameUserSettings() : nullptr)
+	{
+		const float FrameLimit = GameUserSettings->GetFrameRateLimit();
+		if (FrameLimit <= 0.0f)
+		{
+			FrameLimitComboBox->SetSelectedOption(TEXT("무제한"));
+			return;
+		}
+
+		FrameLimitComboBox->SetSelectedOption(FString::FromInt(FMath::RoundToInt(FrameLimit)));
+	}
+}
+
+void UPlayerHUDComponent::SyncVSyncCheckBoxToCurrent()
+{
+	if (!VSyncCheckBox)
+	{
+		return;
+	}
+
+	if (UGameUserSettings* GameUserSettings = GEngine ? GEngine->GetGameUserSettings() : nullptr)
+	{
+		VSyncCheckBox->SetIsChecked(GameUserSettings->IsVSyncEnabled());
+	}
+}
+
+bool UPlayerHUDComponent::TryParseFullscreenModeString(const FString& InOption, EWindowMode::Type& OutWindowMode) const
+{
+	FString Option = InOption;
+	Option.TrimStartAndEndInline();
+	if (Option.IsEmpty())
+	{
+		return false;
+	}
+
+	if (Option.Contains(TEXT("창모드")) || Option.Equals(TEXT("Windowed"), ESearchCase::IgnoreCase))
+	{
+		OutWindowMode = EWindowMode::Windowed;
+		return true;
+	}
+
+	if (Option.Contains(TEXT("전체화면 창")) || Option.Contains(TEXT("테두리")) || Option.Equals(TEXT("Borderless"), ESearchCase::IgnoreCase) || Option.Equals(TEXT("WindowedFullscreen"), ESearchCase::IgnoreCase))
+	{
+		OutWindowMode = EWindowMode::WindowedFullscreen;
+		return true;
+	}
+
+	if (Option.Contains(TEXT("전체화면")) || Option.Equals(TEXT("Fullscreen"), ESearchCase::IgnoreCase))
+	{
+		OutWindowMode = EWindowMode::Fullscreen;
+		return true;
+	}
+
+	return false;
+}
+
+bool UPlayerHUDComponent::TryParseFrameLimitString(const FString& InOption, float& OutFrameLimit) const
+{
+	FString Option = InOption;
+	Option.TrimStartAndEndInline();
+	if (Option.IsEmpty())
+	{
+		return false;
+	}
+
+	if (Option.Contains(TEXT("무제한")) || Option.Equals(TEXT("Unlimited"), ESearchCase::IgnoreCase) || Option.Equals(TEXT("Off"), ESearchCase::IgnoreCase))
+	{
+		OutFrameLimit = 0.0f;
+		return true;
+	}
+
+	Option.ReplaceInline(TEXT("FPS"), TEXT(""), ESearchCase::IgnoreCase);
+	Option.ReplaceInline(TEXT("fps"), TEXT(""), ESearchCase::IgnoreCase);
+	Option.TrimStartAndEndInline();
+
+	const float ParsedValue = FCString::Atof(*Option);
+	if (ParsedValue <= 0.0f)
+	{
+		return false;
+	}
+
+	OutFrameLimit = ParsedValue;
+	return true;
+}
+
+void UPlayerHUDComponent::LoadMouseSensitivitySetting()
+{
+	float LoadedValue = DefaultMouseSensitivityMultiplier;
+	if (GConfig)
+	{
+		GConfig->GetFloat(LocalSettingsSection, MouseSensitivityConfigKey, LoadedValue, GGameUserSettingsIni);
+	}
+
+	MouseSensitivityMultiplier = FMath::Clamp(LoadedValue, MinMouseSensitivityMultiplier, MaxMouseSensitivityMultiplier);
+}
+
+void UPlayerHUDComponent::SaveMouseSensitivitySetting(float NewValue)
+{
+	MouseSensitivityMultiplier = FMath::Clamp(NewValue, MinMouseSensitivityMultiplier, MaxMouseSensitivityMultiplier);
+	if (GConfig)
+	{
+		GConfig->SetFloat(LocalSettingsSection, MouseSensitivityConfigKey, MouseSensitivityMultiplier, GGameUserSettingsIni);
+		GConfig->Flush(false, GGameUserSettingsIni);
+	}
+}
+
+void UPlayerHUDComponent::SyncMouseSensitivitySliderToCurrent()
+{
+	if (MouseSensitivitySlider)
+	{
+		MouseSensitivitySlider->SetValue(MouseSensitivityMultiplier);
+	}
+}
+
+void UPlayerHUDComponent::OnMouseSensitivitySliderChanged(float NewValue)
+{
+	MouseSensitivityMultiplier = FMath::Clamp(NewValue, MinMouseSensitivityMultiplier, MaxMouseSensitivityMultiplier);
+}
+
+void UPlayerHUDComponent::LoadAudioSettings()
+{
+	MasterVolumeValue = 1.0f;
+	BGMVolumeValue = 1.0f;
+	SFXVolumeValue = 1.0f;
+	InterfaceVolumeValue = 1.0f;
+
+	if (GConfig)
+	{
+		GConfig->GetFloat(LocalSettingsSection, MasterVolumeConfigKey, MasterVolumeValue, GGameUserSettingsIni);
+		GConfig->GetFloat(LocalSettingsSection, BGMVolumeConfigKey, BGMVolumeValue, GGameUserSettingsIni);
+		GConfig->GetFloat(LocalSettingsSection, SFXVolumeConfigKey, SFXVolumeValue, GGameUserSettingsIni);
+		GConfig->GetFloat(LocalSettingsSection, InterfaceVolumeConfigKey, InterfaceVolumeValue, GGameUserSettingsIni);
+	}
+
+	MasterVolumeValue = FMath::Clamp(MasterVolumeValue, 0.0f, 1.0f);
+	BGMVolumeValue = FMath::Clamp(BGMVolumeValue, 0.0f, 1.0f);
+	SFXVolumeValue = FMath::Clamp(SFXVolumeValue, 0.0f, 1.0f);
+	InterfaceVolumeValue = FMath::Clamp(InterfaceVolumeValue, 0.0f, 1.0f);
+}
+
+void UPlayerHUDComponent::SaveAudioSettings()
+{
+	MasterVolumeValue = FMath::Clamp(MasterVolumeValue, 0.0f, 1.0f);
+	BGMVolumeValue = FMath::Clamp(BGMVolumeValue, 0.0f, 1.0f);
+	SFXVolumeValue = FMath::Clamp(SFXVolumeValue, 0.0f, 1.0f);
+	InterfaceVolumeValue = FMath::Clamp(InterfaceVolumeValue, 0.0f, 1.0f);
+
+	if (GConfig)
+	{
+		GConfig->SetFloat(LocalSettingsSection, MasterVolumeConfigKey, MasterVolumeValue, GGameUserSettingsIni);
+		GConfig->SetFloat(LocalSettingsSection, BGMVolumeConfigKey, BGMVolumeValue, GGameUserSettingsIni);
+		GConfig->SetFloat(LocalSettingsSection, SFXVolumeConfigKey, SFXVolumeValue, GGameUserSettingsIni);
+		GConfig->SetFloat(LocalSettingsSection, InterfaceVolumeConfigKey, InterfaceVolumeValue, GGameUserSettingsIni);
+		GConfig->Flush(false, GGameUserSettingsIni);
+	}
+}
+
+void UPlayerHUDComponent::SyncAudioSlidersToCurrent()
+{
+	if (MasterVolumeSlider)
+	{
+		MasterVolumeSlider->SetValue(MasterVolumeValue);
+	}
+	if (BGMVolumeSlider)
+	{
+		BGMVolumeSlider->SetValue(BGMVolumeValue);
+	}
+	if (SFXVolumeSlider)
+	{
+		SFXVolumeSlider->SetValue(SFXVolumeValue);
+	}
+	if (InterfaceVolumeSlider)
+	{
+		InterfaceVolumeSlider->SetValue(InterfaceVolumeValue);
+	}
+}
+
+void UPlayerHUDComponent::ApplyAudioSettings()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	if (!RuntimeAudioSettingsMix)
+	{
+		RuntimeAudioSettingsMix = NewObject<USoundMix>(this, TEXT("RuntimeAudioSettingsMix"));
+	}
+	if (!RuntimeAudioSettingsMix)
+	{
+		return;
+	}
+
+	auto ApplyClassVolume = [&](USoundClass* SoundClass, float Volume)
+	{
+		if (!SoundClass)
+		{
+			return;
+		}
+
+		UGameplayStatics::SetSoundMixClassOverride(
+			World,
+			RuntimeAudioSettingsMix,
+			SoundClass,
+			FMath::Clamp(Volume, 0.0f, 1.0f),
+			1.0f,
+			0.05f,
+			true
+		);
+	};
+
+	ApplyClassVolume(MasterSoundClass, MasterVolumeValue);
+	ApplyClassVolume(BGMSoundClass, BGMVolumeValue);
+	ApplyClassVolume(SFXSoundClass, SFXVolumeValue);
+	ApplyClassVolume(InterfaceSoundClass, InterfaceVolumeValue);
+	UGameplayStatics::PushSoundMixModifier(World, RuntimeAudioSettingsMix);
+}
+
+void UPlayerHUDComponent::OnResolutionApplyClicked()
+{
+	AMyPlayerController* OwnerController = GetOwnerController();
+	if (!OwnerController || (!ResolutionComboBox && !FullscreenModeComboBox && !FrameLimitComboBox && !VSyncCheckBox))
+	{
+		return;
+	}
+
+	FIntPoint TargetResolution = FIntPoint::ZeroValue;
+	EWindowMode::Type TargetWindowMode = EWindowMode::Windowed;
+	float TargetFrameLimit = 0.0f;
+	bool bHasResolutionSelection = false;
+	bool bHasWindowModeSelection = false;
+	bool bHasFrameLimitSelection = false;
+
+	if (ResolutionComboBox)
+	{
+		const FString SelectedResolution = ResolutionComboBox->GetSelectedOption();
+		if (!SelectedResolution.IsEmpty())
+		{
+			bHasResolutionSelection = TryParseResolutionString(SelectedResolution, TargetResolution);
+		}
+	}
+
+	if (FullscreenModeComboBox)
+	{
+		const FString SelectedWindowMode = FullscreenModeComboBox->GetSelectedOption();
+		if (!SelectedWindowMode.IsEmpty())
+		{
+			bHasWindowModeSelection = TryParseFullscreenModeString(SelectedWindowMode, TargetWindowMode);
+		}
+	}
+
+	if (FrameLimitComboBox)
+	{
+		const FString SelectedFrameLimit = FrameLimitComboBox->GetSelectedOption();
+		if (!SelectedFrameLimit.IsEmpty())
+		{
+			bHasFrameLimitSelection = TryParseFrameLimitString(SelectedFrameLimit, TargetFrameLimit);
+		}
+	}
+
+	if (UGameUserSettings* GameUserSettings = GEngine ? GEngine->GetGameUserSettings() : nullptr)
+	{
+		if (bHasWindowModeSelection)
+		{
+			GameUserSettings->SetFullscreenMode(TargetWindowMode);
+		}
+
+		if (bHasResolutionSelection)
+		{
+			GameUserSettings->SetScreenResolution(TargetResolution);
+		}
+
+		if (bHasFrameLimitSelection)
+		{
+			GameUserSettings->SetFrameRateLimit(TargetFrameLimit);
+		}
+
+		if (VSyncCheckBox)
+		{
+			GameUserSettings->SetVSyncEnabled(VSyncCheckBox->IsChecked());
+		}
+
+		if (MouseSensitivitySlider)
+		{
+			SaveMouseSensitivitySetting(MouseSensitivitySlider->GetValue());
+		}
+
+		if (MasterVolumeSlider)
+		{
+			MasterVolumeValue = MasterVolumeSlider->GetValue();
+		}
+		if (BGMVolumeSlider)
+		{
+			BGMVolumeValue = BGMVolumeSlider->GetValue();
+		}
+		if (SFXVolumeSlider)
+		{
+			SFXVolumeValue = SFXVolumeSlider->GetValue();
+		}
+		if (InterfaceVolumeSlider)
+		{
+			InterfaceVolumeValue = InterfaceVolumeSlider->GetValue();
+		}
+
+		SaveAudioSettings();
+		ApplyAudioSettings();
+
 		GameUserSettings->ApplyResolutionSettings(false);
 		GameUserSettings->ApplySettings(false);
 		GameUserSettings->SaveSettings();
 
-		const FString SetResCommand = FString::Printf(TEXT("r.SetRes %dx%dw"), TargetResolution.X, TargetResolution.Y);
-		OwnerController->ConsoleCommand(SetResCommand, true);
-		SyncResolutionComboToCurrent();
+		if (bHasResolutionSelection)
+		{
+			const TCHAR WindowModeSuffix = (bHasWindowModeSelection && TargetWindowMode == EWindowMode::Windowed) ? TEXT('w') : TEXT('f');
+			const FString SetResCommand = FString::Printf(TEXT("r.SetRes %dx%d%c"), TargetResolution.X, TargetResolution.Y, WindowModeSuffix);
+			OwnerController->ConsoleCommand(SetResCommand, true);
+		}
+
+		SyncVideoSettingsToCurrent();
+		SyncMouseSensitivitySliderToCurrent();
+		SyncAudioSlidersToCurrent();
 	}
 }
 
@@ -1285,4 +1841,3 @@ void UPlayerHUDComponent::OnInspectMalicePlayer5Clicked()
 {
 	ApplyInspectMaliceSelection(4);
 }
-

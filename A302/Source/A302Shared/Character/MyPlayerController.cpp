@@ -4,6 +4,8 @@
 #include "Character/Components/PlayerHUDComponent.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/ActorComponent.h"
+#include "Components/TextBlock.h"
+#include "UI/PersonalEventWidget.h"
 #include "EnhancedInputSubsystems.h"
 #include "GameMode/A302PlayerState.h"
 #include "GameFramework/Pawn.h"
@@ -67,6 +69,28 @@ AMyPlayerController::AMyPlayerController()
 	PlayerEventComponent = CreateDefaultSubobject<UPlayerEventComponent>(TEXT("PlayerEventComponent"));
 	PlayerHUDComponent = CreateDefaultSubobject<UPlayerHUDComponent>(TEXT("PlayerHUDComponent"));
 
+	if (!QuickSlotBarClass)
+	{
+		QuickSlotBarClass = LoadClass<UUserWidget>(nullptr, TEXT("/Game/WorkSpace/UI/WBP_HUD2.WBP_HUD2_C"));
+	}
+
+	if (!InGameSettingClass)
+	{
+		InGameSettingClass = LoadClass<UUserWidget>(nullptr, TEXT("/Game/WorkSpace/UI/WBP_InGameSetting.WBP_InGameSetting_C"));
+		if (!InGameSettingClass)
+		{
+			InGameSettingClass = LoadClass<UUserWidget>(nullptr, TEXT("/Game/WorkSpace/UI/WBP_InGameSetting2.WBP_InGameSetting2_C"));
+		}
+	}
+
+	if (!PersonalEventWidgetClass)
+	{
+		if (UClass* LoadedPersonalEventClass = LoadClass<UUserWidget>(nullptr, TEXT("/Game/WorkSpace/UI/WBP_PersonalEvent.WBP_PersonalEvent_C")))
+		{
+			PersonalEventWidgetClass = LoadedPersonalEventClass;
+		}
+	}
+
 	static ConstructorHelpers::FClassFinder<UUserWidget> InspectMaliceWidgetBPClass(TEXT("/Game/WorkSpace/UI/PersonalEvent/WBP_SelectUser"));
 	if (InspectMaliceWidgetBPClass.Succeeded())
 	{
@@ -77,6 +101,12 @@ AMyPlayerController::AMyPlayerController()
 	if (GroupEventVoteWidgetBPClass.Succeeded())
 	{
 		GroupEventVoteWidgetClass = GroupEventVoteWidgetBPClass.Class;
+	}
+
+	static ConstructorHelpers::FClassFinder<UUserWidget> TitleCardWidgetBPClass(TEXT("/Game/WorkSpace/UI/WBP_TitleCard"));
+	if (TitleCardWidgetBPClass.Succeeded())
+	{
+		TitleCardWidgetClass = TitleCardWidgetBPClass.Class;
 	}
 }
 
@@ -123,6 +153,32 @@ bool AMyPlayerController::IsInGameMap() const
 
 void AMyPlayerController::InitializeClientInGameWidgets()
 {
+	// Redirect fallback 대신 현재 실제 위젯 경로를 직접 사용한다.
+	if (UClass* LoadedQuickSlotClass = LoadClass<UUserWidget>(nullptr, TEXT("/Game/WorkSpace/UI/WBP_HUD2.WBP_HUD2_C")))
+	{
+		QuickSlotBarClass = LoadedQuickSlotClass;
+	}
+
+	if (UClass* LoadedInGameSettingClass = LoadClass<UUserWidget>(nullptr, TEXT("/Game/WorkSpace/UI/WBP_InGameSetting.WBP_InGameSetting_C")))
+	{
+		InGameSettingClass = LoadedInGameSettingClass;
+	}
+
+	if (UClass* LoadedPersonalEventClass = LoadClass<UUserWidget>(nullptr, TEXT("/Game/WorkSpace/UI/WBP_PersonalEvent.WBP_PersonalEvent_C")))
+	{
+		PersonalEventWidgetClass = LoadedPersonalEventClass;
+	}
+
+	UE_LOG(
+		LogTemp,
+		Log,
+		TEXT("[MyPlayerController] InitializeClientInGameWidgets. controller=%s quickSlot=%s inGameSetting=%s personalEvent=%s"),
+		*GetNameSafe(this),
+		*GetNameSafe(QuickSlotBarClass.Get()),
+		*GetNameSafe(InGameSettingClass.Get()),
+		*GetNameSafe(PersonalEventWidgetClass.Get())
+	);
+
 	InitializeChatWidget();
 
 	if (PlayerHUDComponent)
@@ -164,6 +220,73 @@ void AMyPlayerController::ToggleInGameSettingMenu()
 bool AMyPlayerController::IsInGameSettingMenuOpen() const
 {
 	return PlayerHUDComponent ? PlayerHUDComponent->IsInGameSettingMenuOpen() : false;
+}
+
+float AMyPlayerController::GetMouseSensitivityMultiplier() const
+{
+	return PlayerHUDComponent ? PlayerHUDComponent->GetMouseSensitivityMultiplier() : 1.0f;
+}
+
+void AMyPlayerController::HideTitleCard()
+{
+	if (TitleCardWidgetInstance)
+	{
+		TitleCardWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+	}
+}
+
+void AMyPlayerController::Client_HideTitleCard_Implementation()
+{
+	HideTitleCard();
+}
+
+void AMyPlayerController::Client_ShowTitleCard_Implementation(const FText& Title, const FText& Context, float DisplaySeconds)
+{
+	if (!TitleCardWidgetClass)
+	{
+		return;
+	}
+
+	if (!TitleCardWidgetInstance)
+	{
+		TitleCardWidgetInstance = CreateWidget<UUserWidget>(this, TitleCardWidgetClass);
+	}
+	if (!TitleCardWidgetInstance)
+	{
+		return;
+	}
+
+	if (UTextBlock* TitleText = Cast<UTextBlock>(TitleCardWidgetInstance->GetWidgetFromName(TEXT("EventTitle"))))
+	{
+		TitleText->SetText(Title);
+	}
+
+	if (UTextBlock* ContextText = Cast<UTextBlock>(TitleCardWidgetInstance->GetWidgetFromName(TEXT("EventContext"))))
+	{
+		ContextText->SetText(Context);
+	}
+
+	if (!TitleCardWidgetInstance->IsInViewport())
+	{
+		TitleCardWidgetInstance->AddToViewport(140);
+	}
+
+	TitleCardWidgetInstance->SetVisibility(ESlateVisibility::Visible);
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(TitleCardHideTimerHandle);
+		if (DisplaySeconds > 0.0f)
+		{
+			World->GetTimerManager().SetTimer(
+				TitleCardHideTimerHandle,
+				this,
+				&AMyPlayerController::HideTitleCard,
+				FMath::Max(0.5f, DisplaySeconds),
+				false
+			);
+		}
+	}
 }
 
 void AMyPlayerController::ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount)

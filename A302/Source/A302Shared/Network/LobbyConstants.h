@@ -44,6 +44,7 @@ namespace LobbyProtocol
     const FString ResRoomList = TEXT("room_list");
     const FString ResNicknameAvailable = TEXT("nickname_available");
     const FString ResPlayerLeft = TEXT("player_left");
+    const FString ResHostChanged = TEXT("host_changed");
     const FString ResChatMessage = TEXT("chat_message");
 }
 

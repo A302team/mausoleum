@@ -1,6 +1,6 @@
 param(
     [string]$EngineRoot = "C:\UnrealEngine",
-    [string]$Map = "/Game/PersonalWorkSpace/siris/sirisMap",
+    [string]$Map = "/Game/PersonalWorkSpace/wjtmd28/MyMap",
     [int]$GamePort = 47777,
     [switch]$SkipLobby,
     [switch]$SkipGameServer,
@@ -231,7 +231,7 @@ if (-not $SkipLobby) {
 }
 
 if (-not $SkipGameServer) {
-    $DefaultServerMap = "/Game/PersonalWorkSpace/siris/sirisMap"
+    $DefaultServerMap = "/Game/PersonalWorkSpace/wjtmd28/MyMap"
     $ServerGameModeClass = "/Script/A302Server.A302GameMode"
     $ServerGameInstanceClass = "/Script/A302Shared.A302SharedGameInstance"
     $LaunchMap = ""
@@ -261,7 +261,7 @@ if (-not $SkipGameServer) {
 
     $CookMaps = @(
         $LaunchMapBase,
-        "/Game/PersonalWorkSpace/siris/sirisMap"
+        "/Game/PersonalWorkSpace/wjtmd28/MyMap"
     ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
 
     $StagedServerExe = Resolve-StagedServerExe -ArchiveRoot $ArchiveDirectory -ProjectRoot $ProjectRoot -ProjectName $ProjectName

@@ -79,6 +79,7 @@ public:
 	FOnQTEEnded OnQTEEnded;
 
 private:
+	bool TryInitializeLocalUIWidgets();
 	ACharacter* GetOwnerCharacter() const;
 	IA302CharacterBridge* GetOwnerCharacterBridge() const;
 	void CheckForInteractables();
@@ -103,6 +104,8 @@ private:
 	
 	UPROPERTY()
 	TObjectPtr<ACharacter> CachedOwnerCharacter = nullptr;
+
+	bool bLocalUIInitialized = false;
 	
 	// -- QTE --
 	UPROPERTY(BlueprintReadOnly, Category = "Interaction|QTE", meta = (AllowPrivateAccess = "true"))
