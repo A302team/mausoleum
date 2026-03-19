@@ -14,6 +14,8 @@ namespace Backend::Protocol {
     constexpr std::string_view REQ_REGISTER_DEDICATED = "register_dedicated";
     constexpr std::string_view REQ_PREPARE_GAME = "prepare_game";
     constexpr std::string_view REQ_DEDICATED_READY = "dedicated_ready";
+    constexpr std::string_view REQ_FINISH_GAME = "finish_game";
+    constexpr std::string_view REQ_LOGOUT = "logout";
     constexpr std::string_view RES_DEDICATED_REGISTERED = "dedicated_registered";
 
     constexpr std::string_view ROLE_DEDICATED = "dedicated";

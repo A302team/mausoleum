@@ -60,10 +60,6 @@ AA302GameMode::AA302GameMode()
 void AA302GameMode::BeginPlay()
 {
     Super::BeginPlay();
-    if (GetNetMode() == NM_DedicatedServer)
-    {
-        HUDClass = nullptr;
-    }
     DefaultPawnClass = nullptr;
 
     if (!RoomMembershipRegistry)
@@ -141,6 +137,24 @@ void AA302GameMode::Logout(AController *Exiting)
     {
         PlayerSubsystem->HandlePlayerLogout(Exiting);
     }
+
+	if (APlayerController* PC = Cast<APlayerController>(Exiting))
+	{
+		if (APlayerState* PS = PC->PlayerState)
+		{
+			FString PlayerName = PS->GetPlayerName();
+			FString RoomCode = TEXT("");
+			if (RoomMembershipRegistry)
+			{
+				RoomCode = RoomMembershipRegistry->GetPlayerRoomCode(PC);
+			}   
+
+			if (BackendRouter)
+			{
+				BackendRouter->NotifyPlayerLogout(PlayerName, RoomCode);
+			}
+		}
+	}
 
     Super::Logout(Exiting);
 
