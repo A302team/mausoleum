@@ -2,10 +2,10 @@
 
 #include "CoreMinimal.h"
 #include "GamePlay/Items/ItemKnife.h"
-#include "ItemTimeKnife.generated.h"
+#include "ItemCursedSword.generated.h"
 
 UCLASS(BlueprintType)
-class A302SHARED_API UItemTimeKnife : public UItemKnife
+class A302SHARED_API UItemCursedSword : public UItemKnife
 {
 	GENERATED_BODY()
 

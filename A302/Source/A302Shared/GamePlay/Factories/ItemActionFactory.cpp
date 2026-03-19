@@ -3,7 +3,7 @@
 #include "GameData/Items/ItemDefinition.h"
 #include "GameData/Items/ItemInstance.h"
 #include "GamePlay/Items/BaseItem.h"
-#include "GamePlay/Items/ItemTimeKnife.h"
+#include "GamePlay/Items/ItemCursedSword.h"
 
 UBaseItem* UItemActionFactory::CreateLogic(UObject* Outer, UItemInstance* Instance) const
 {
@@ -19,8 +19,8 @@ UBaseItem* UItemActionFactory::CreateLogic(UObject* Outer, UItemInstance* Instan
     }
 
     UClass* LogicClass = Def->ResolveRewardLogicClass();
-    const bool bIsTimedKnifeLogic = LogicClass && LogicClass->IsChildOf(UItemTimeKnife::StaticClass());
-    if (Def->RewardCategory != ERewardCategory::BasicItem && !bIsTimedKnifeLogic)
+    const bool bIsCursedSwordLogic = LogicClass && LogicClass->IsChildOf(UItemCursedSword::StaticClass());
+    if (Def->RewardCategory != ERewardCategory::BasicItem && !bIsCursedSwordLogic)
     {
         return nullptr;
     }
