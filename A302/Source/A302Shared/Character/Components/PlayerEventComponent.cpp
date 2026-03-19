@@ -38,6 +38,11 @@ void UPlayerEventComponent::ShowPersonalEvent(FName EventID, const FText& Title,
 	Client_ShowPersonalEvent(EventID, Title, Description, Choices);
 }
 
+void UPlayerEventComponent::ShowInspectMaliceSelectionWidget()
+{
+	Client_ShowInspectMaliceSelectionWidget();
+}
+
 void UPlayerEventComponent::OpenGroupEventVote(FName EventID, const FText& EventTitle, const FText& EventDescription, float VoteDuration)
 {
 	Client_OpenGroupEventVote(EventID, EventTitle, EventDescription, VoteDuration);
@@ -123,6 +128,17 @@ void UPlayerEventComponent::Client_ShowPersonalEvent_Implementation(FName EventI
 			GameHUD->ProcessEvent(Func, &Params);
 		}
 	}
+}
+
+void UPlayerEventComponent::Client_ShowInspectMaliceSelectionWidget_Implementation()
+{
+	AMyPlayerController* OwnerController = GetOwnerController();
+	if (!OwnerController)
+	{
+		return;
+	}
+
+	OwnerController->Client_ShowInspectMaliceSelectionWidget();
 }
 
 void UPlayerEventComponent::Client_OpenGroupEventVote_Implementation(FName EventID, const FText& EventTitle, const FText& EventDescription, float VoteDuration)

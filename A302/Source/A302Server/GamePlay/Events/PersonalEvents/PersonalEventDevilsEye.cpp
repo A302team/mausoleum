@@ -31,25 +31,23 @@ void UPersonalEventDevilsEye::ExecuteEvent_Implementation(ACharacter* Instigator
 		return;
 	}
 
-	TArray<FText> Choices;
-	Choices.Add(FText::FromString(TEXT("확인")));
+	UPlayerEventComponent* EventComp = PlayerController->GetPlayerEventComponent();
+	if (!EventComp)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[DevilsEye] PlayerEventComponent is missing."));
+		return;
+	}
 
-	PlayerController->Client_ShowPersonalEvent(
+	TArray<FText> Choices;
+	Choices.Add(DevilsEyeConfirmChoice);
+
+	EventComp->SetActivePersonalEvent(this);
+	EventComp->ShowPersonalEvent(
 		EventID,
-		FText::FromString(TEXT("악마의 눈동자")),
-		FText::FromString(TEXT("눈동자의 형상을 한 붉은 수정구를 얻었습니다. 수정구를 사용하여 타인의 내면을 들여다볼 수 있을 것 같습니다.")),
+		DevilsEyeTitle,
+		DevilsEyeDescription,
 		Choices
 	);
-	if (UPlayerEventComponent* EventComp = PlayerController->FindComponentByClass<UPlayerEventComponent>())
-	{
-		EventComp->SetActivePersonalEvent(this);
-		EventComp->ShowPersonalEvent(
-			EventID,
-			DevilsEyeTitle,
-			DevilsEyeDescription,
-			Choices
-		);
-	}
 }
 
 void UPersonalEventDevilsEye::OnEventResolvedMulti(ACharacter* InstigatorCharacter, int32 ChoiceIndex)

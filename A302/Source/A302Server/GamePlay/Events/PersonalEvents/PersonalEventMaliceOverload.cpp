@@ -12,13 +12,19 @@ void UPersonalEventMaliceOverload::ExecuteEvent_Implementation(ACharacter* Insti
 		return;
 	}
 
-	AMyPlayerController* ClientEventBridge = Cast<AMyPlayerController>(InstigatorCharacter->GetController());
-	if (!ClientEventBridge)
+	AMyPlayerController* PlayerController = Cast<AMyPlayerController>(InstigatorCharacter->GetController());
+	if (!PlayerController)
 	{
 		return;
 	}
 
-	ClientEventBridge->SetActivePersonalEvent(this);
+	UPlayerEventComponent* EventComp = PlayerController->GetPlayerEventComponent();
+	if (!EventComp)
+	{
+		return;
+	}
+
+	EventComp->SetActivePersonalEvent(this);
 
 	UMaliceComponent* MaliceComponent = InstigatorCharacter->FindComponentByClass<UMaliceComponent>();
 	const int32 CurrentMalice = MaliceComponent ? FMath::Max(0, MaliceComponent->MaliceCount) : 0;
@@ -32,7 +38,7 @@ void UPersonalEventMaliceOverload::ExecuteEvent_Implementation(ACharacter* Insti
 	TArray<FText> Choices;
 	Choices.Add(FText::FromString(TEXT("확인")));
 
-	ClientEventBridge->ShowPersonalEvent(
+	EventComp->ShowPersonalEvent(
 		EventID,
 		FText::FromString(TEXT("끓어오르는 악의")),
 		FText::FromString(Description),

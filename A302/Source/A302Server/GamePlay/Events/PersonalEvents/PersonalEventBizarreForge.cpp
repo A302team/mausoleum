@@ -10,10 +10,13 @@
 void UPersonalEventBizarreForge::ExecuteEvent_Implementation(ACharacter* InstigatorCharacter)
 {
     if (!InstigatorCharacter) return;
-    AMyPlayerController* ClientEventBridge = Cast<AMyPlayerController>(InstigatorCharacter->GetController());
-    if (!ClientEventBridge) return;
+    AMyPlayerController* PlayerController = Cast<AMyPlayerController>(InstigatorCharacter->GetController());
+    if (!PlayerController) return;
 
-    ClientEventBridge->SetActivePersonalEvent(this);
+    UPlayerEventComponent* EventComp = PlayerController->GetPlayerEventComponent();
+    if (!EventComp) return;
+
+    EventComp->SetActivePersonalEvent(this);
     
     UMaliceComponent* MaliceComp = InstigatorCharacter->FindComponentByClass<UMaliceComponent>();
     int32 CurrentRawMalice = MaliceComp ? MaliceComp->GetRawMalice() : 0;
@@ -27,7 +30,7 @@ void UPersonalEventBizarreForge::ExecuteEvent_Implementation(ACharacter* Instiga
         // 분기 A(악의 0)
         Choices.Add(FText::FromString(TEXT("확인")));
         
-        ClientEventBridge->ShowPersonalEvent(EventID, 
+        EventComp->ShowPersonalEvent(EventID, 
             FText::FromString(TEXT("기괴한 용광로")), 
             FText::FromString(TEXT("불길하게 생긴 조각상의 검은 기운이 엄습합니다.\n(악의 +1)")), 
             Choices);
@@ -39,7 +42,7 @@ void UPersonalEventBizarreForge::ExecuteEvent_Implementation(ACharacter* Instiga
         Choices.Add(FText::FromString(TEXT("악의 서린 방패 제련")));
         Choices.Add(FText::FromString(TEXT("무시하기")));
         
-        ClientEventBridge->ShowPersonalEvent(EventID, 
+        EventComp->ShowPersonalEvent(EventID, 
             FText::FromString(TEXT("기괴한 용광로")), 
             FText::FromString(TEXT("불길하게 생긴 조각상이 검붉은 빛을 내뿜으며 내면의 악의와 공명합니다.\n악의를 제련할 수 있을 것 같습니다...")), 
             Choices);

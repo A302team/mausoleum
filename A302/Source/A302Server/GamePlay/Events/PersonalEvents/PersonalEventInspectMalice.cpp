@@ -9,14 +9,21 @@ void UPersonalEventInspectMalice::ExecuteEvent_Implementation(ACharacter* Instig
 		return;
 	}
 
-	AMyPlayerController* ClientEventBridge = Cast<AMyPlayerController>(InstigatorCharacter->GetController());
-	if (!ClientEventBridge)
+	AMyPlayerController* PlayerController = Cast<AMyPlayerController>(InstigatorCharacter->GetController());
+	if (!PlayerController)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[PersonalEventInspectMalice] ClientEventBridge is missing."));
+		UE_LOG(LogTemp, Warning, TEXT("[PersonalEventInspectMalice] PlayerController is missing."));
+		return;
+	}
+
+	UPlayerEventComponent* EventComp = PlayerController->GetPlayerEventComponent();
+	if (!EventComp)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PersonalEventInspectMalice] PlayerEventComponent is missing."));
 		return;
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("[PersonalEventInspectMalice] Requesting inspect malice selection UI on owning client."));
-	ClientEventBridge->ShowInspectMaliceSelectionWidget();
+	EventComp->ShowInspectMaliceSelectionWidget();
 	OnEventResolved(InstigatorCharacter, true);
 }
