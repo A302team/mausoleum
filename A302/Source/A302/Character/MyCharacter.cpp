@@ -516,7 +516,7 @@ void AMyCharacter::Server_RequestInteractionReward_Implementation(ABaseInteracta
 
 void AMyCharacter::Server_RequestTargetedItemUse_Implementation(UItemDefinition* ItemDefinition, AActor* TargetActor)
 {
-	if (!HasAuthority() || !ItemDefinition || !IsValid(TargetActor) || TargetActor == this)
+	if (!HasAuthority() || !ItemDefinition || !IsValid(TargetActor))
 	{
 		return;
 	}

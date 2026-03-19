@@ -158,8 +158,9 @@ bool UItemTargetingComponent::TryBuildTargetDataForUse(
 		return false;
 	}
 
-	const bool bNeedsTargetActor = bForceTargetActor || ItemDefinition->Payload.UseMode == EItemUseMode::Targeted;
-	if (!bNeedsTargetActor)
+	const bool bRequiresTargetActor = bForceTargetActor || ItemDefinition->Payload.UseMode == EItemUseMode::Targeted;
+	const bool bSupportsOptionalTarget = ItemDefinition->Payload.UseMode == EItemUseMode::SelfOrTargeted;
+	if (!bRequiresTargetActor && !bSupportsOptionalTarget)
 	{
 		return true;
 	}
@@ -168,7 +169,7 @@ bool UItemTargetingComponent::TryBuildTargetDataForUse(
 	AActor* TargetActor = FindTargetActorForUse(ItemDefinition, TargetLocation);
 	if (!TargetActor)
 	{
-		return false;
+		return !bRequiresTargetActor;
 	}
 
 	OutTargetData.TargetActor = TargetActor;
@@ -194,7 +195,10 @@ void UItemTargetingComponent::UpdateAttackRangeDebugState()
 			if (
 				ItemDefinition &&
 				ItemLogic &&
-				ItemDefinition->Payload.UseMode == EItemUseMode::Targeted &&
+				(
+					ItemDefinition->Payload.UseMode == EItemUseMode::Targeted ||
+					ItemDefinition->Payload.UseMode == EItemUseMode::SelfOrTargeted
+				) &&
 				ItemLogic->GetClass()->ImplementsInterface(UUsableItem::StaticClass())
 			)
 			{

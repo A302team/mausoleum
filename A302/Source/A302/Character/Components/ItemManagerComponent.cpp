@@ -240,17 +240,23 @@ bool UItemManagerComponent::TryUseItemAtSlot(
 
 	FItemTargetData TargetData;
 	UClass* LogicClass = ItemDefinition->ResolveRewardLogicClass();
-	const bool bNeedsTarget =
+	const bool bRequiresTargetActor =
 		ItemDefinition->Payload.UseMode == EItemUseMode::Targeted ||
 		(LogicClass && LogicClass->IsChildOf(UItemKnife::StaticClass()));
+	const bool bSupportsOptionalTarget = ItemDefinition->Payload.UseMode == EItemUseMode::SelfOrTargeted;
 
-	if (bNeedsTarget)
+	if (bRequiresTargetActor || bSupportsOptionalTarget)
 	{
 		if (!ItemTargetingComponent && GetOwner())
 		{
 			ItemTargetingComponent = GetOwner()->FindComponentByClass<UItemTargetingComponent>();
 		}
-		if (!ItemTargetingComponent || !ItemTargetingComponent->TryBuildTargetDataForUse(ItemDefinition, TargetData, true))
+		if (!ItemTargetingComponent)
+		{
+			return false;
+		}
+
+		if (!ItemTargetingComponent->TryBuildTargetDataForUse(ItemDefinition, TargetData, bRequiresTargetActor))
 		{
 			UE_LOG(
 				LogTemp,
