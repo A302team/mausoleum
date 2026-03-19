@@ -20,6 +20,18 @@ void UPersonalEventCursedSword::ExecuteEvent_Implementation(ACharacter* Instigat
 {
 	if (!InstigatorCharacter)
 	{
+		const int32 SafeSeconds = FMath::Max(0, FMath::CeilToInt(RemainingSeconds));
+		return FText::FromString(FString::Printf(TEXT("%d초 안에 사용하지 않을 시 사망합니다."), SafeSeconds));
+	}
+
+	FText ResolveCursedSwordTitle(const UItemDefinition* GrantedKnifeDefinition, const UPersonalEventCursedSwordDefinition* EventDef)
+	{
+		if (GrantedKnifeDefinition && !GrantedKnifeDefinition->DisplayName.IsEmpty())
+		{
+			return GrantedKnifeDefinition->DisplayName;
+		}
+
+		if (EventDef && !EventDef->DisplayName.IsEmpty())
 		return;
 	}
 
