@@ -1,5 +1,6 @@
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <chrono>
 #include <cstdint>
 #include <mutex>
@@ -26,8 +27,11 @@ private:
     // 전체 클라이언트
     std::unordered_map<CLIENT_KEY, ClientInfo> clients;
 
-    // roomCode → speaker → clientKey
-    std::unordered_map<std::string, std::unordered_map<std::string, CLIENT_KEY>> rooms;
+    // roomCode -> members(clientKey)
+    std::unordered_map<std::string, std::unordered_set<CLIENT_KEY>> rooms;
+
+    // clientKey -> joined roomCode
+    std::unordered_map<CLIENT_KEY, std::string> clientRooms;
 
     static constexpr int TIMEOUT_SECONDS = Voice::Config::CLIENT_TIMEOUT_SECONDS;
     mutable std::mutex mutex_;
@@ -40,15 +44,15 @@ public:
     size_t clientCount() const override;
 
     void joinRoom(const std::string& roomCode,
-                  const std::string& speaker,
+                  const CLIENT_KEY& key,
                   const ClientInfo& clientInfo)
     ;
 
-    void leaveRoom(const std::string& roomCode,
-                   const std::string& speaker)
+    void leaveRoom(const CLIENT_KEY& key)
     ;
 
     std::vector<std::pair<CLIENT_KEY, ClientInfo>> getClientsSnapshot() const;
+    std::vector<std::pair<CLIENT_KEY, ClientInfo>> getRoomClientsSnapshot(const std::string& roomCode) const;
 
     void cleanupStaleClients() override;
 };

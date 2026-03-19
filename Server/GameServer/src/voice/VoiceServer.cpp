@@ -109,7 +109,7 @@ void VoiceServer::handleJoin(ParsedPacket& packet){
 
     ClientInfo clientInfo{packet.senderAddr, now};
     clientManager.addClient(packet.senderKey, clientInfo);
-    clientManager.joinRoom(packet.roomCode, packet.speakerName, clientInfo);
+    clientManager.joinRoom(packet.roomCode, packet.senderKey, clientInfo);
 
     LOG_INFO(tag(), "클라이언트 Join - 방: " << packet.roomCode << " / 화자: " << packet.speakerName);
 }
@@ -121,10 +121,10 @@ void VoiceServer::handleVoiceData(ParsedPacket& packet){
     // 클라이언트 갱신 (lastSeen 업데이트)
     ClientInfo clientInfo{packet.senderAddr, now};
     clientManager.addClient(packet.senderKey, clientInfo);
-    clientManager.joinRoom(packet.roomCode, packet.speakerName, clientInfo);
+    clientManager.joinRoom(packet.roomCode, packet.senderKey, clientInfo);
 
     int cnt = 0;
-    auto clientsSnapshot = clientManager.getClientsSnapshot();
+    auto clientsSnapshot = clientManager.getRoomClientsSnapshot(packet.roomCode);
     for(const auto& [otherKey, otherClient] : clientsSnapshot){
         if(otherKey != packet.senderKey){
             network.sendUdp(otherClient.addr, packet.rawBuffer, packet.rawSize);
@@ -144,7 +144,7 @@ void VoiceServer::handleLeave(ParsedPacket& packet){
         LOG_WARN(tag(), "인증되지 않은 클라이언트의 Leave 패킷 수신 - 방: " << packet.roomCode << " / 화자: " << packet.speakerName);
         return;
     }
-    clientManager.leaveRoom(packet.roomCode, packet.speakerName);
+    clientManager.leaveRoom(packet.senderKey);
     clientManager.removeClient(packet.senderKey);
 
     LOG_INFO(tag(), "클라이언트 Leave - 방: " << packet.roomCode << " / 화자: " << packet.speakerName);

@@ -1,9 +1,18 @@
 {
 	"FileVersion": 3,
-	"EngineAssociation": "5.7",
+	"EngineAssociation": "{941BEA9F-4B73-B481-01CB-0FB2B796D01D}",
 	"Category": "",
 	"Description": "",
 	"Modules": [
+		{
+			"Name": "A302Shared",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"AdditionalDependencies": [
+				"Engine",
+				"CoreUObject"
+			]
+		},
 		{
 			"Name": "A302",
 			"Type": "Runtime",
@@ -12,6 +21,36 @@
 				"Engine",
 				"CoreUObject",
 				"UMG"
+			]
+		},
+		{
+			"Name": "A302Client",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"TargetAllowList": [
+				"Game",
+				"Editor"
+			],
+			"AdditionalDependencies": [
+				"A302Shared",
+				"Engine",
+				"CoreUObject",
+				"UMG"
+			]
+		},
+		{
+			"Name": "A302Server",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"TargetAllowList": [
+				"Server",
+				"Editor"
+			],
+			"AdditionalDependencies": [
+				"A302Shared",
+				"A302",
+				"Engine",
+				"CoreUObject"
 			]
 		}
 	],

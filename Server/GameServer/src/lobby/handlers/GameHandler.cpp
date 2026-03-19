@@ -50,14 +50,11 @@ void GameHandler::handleStartGame(WebSocketType* ws, const json& data) {
             return;
         }
 
-        room->setPhase(GamePhase::InGame);
-        LOG_INFO("Lobby", "===== [" << roomCode << "] 게임 시작! =====");
+        if (!requestStartGameCallback || !requestStartGameCallback(roomCode, playerName)) {
+            sendError(ws, std::string(DEDICATED_NOT_READY));
+            return;
+        }
 
-        room->broadcast({{std::string(KEY_TYPE), RES_GAME_STARTED},
-                         {std::string(KEY_DATA), {
-                             {std::string(KEY_ROOM_CODE), roomCode},
-                             {"serverIP", "j14a302.p.ssafy.io"},
-                             {"serverPort", 47777}
-                         }}});
+        LOG_INFO("Lobby", "===== [" << roomCode << "] 게임 시작 요청 전달 (대상: dedicated) =====");
     }
 }
