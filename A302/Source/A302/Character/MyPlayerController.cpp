@@ -5,9 +5,11 @@
 #include "Character/Components/MaliceComponent.h"
 #include "Character/MyCharacter.h"
 #include "Components/Button.h"
+#include "Components/CheckBox.h"
 #include "Components/ComboBoxString.h"
 #include "Components/Image.h"
 #include "Components/PanelWidget.h"
+#include "Components/Slider.h"
 #include "Components/TextBlock.h"
 #include "EngineUtils.h"
 #include "EnhancedInputSubsystems.h"
@@ -34,6 +36,50 @@ namespace
 	constexpr int32 PlayerControllerQuickSlotCount = 5;
 	constexpr int32 MaxInspectMaliceTargets = 5;
 	constexpr int32 GroupEventVoteSlotCount = 6;
+	constexpr int32 MaxNicknameUiLen = 7;
+
+	FString ClampNicknameForUi(const FString& Name)
+	{
+		return Name.Len() > MaxNicknameUiLen ? Name.Left(MaxNicknameUiLen) : Name;
+	}
+
+	void GatherWidgetTree(UWidget* RootWidget, TArray<UWidget*>& OutWidgets)
+	{
+		if (!RootWidget)
+		{
+			return;
+		}
+
+		OutWidgets.Add(RootWidget);
+
+		if (UPanelWidget* PanelWidget = Cast<UPanelWidget>(RootWidget))
+		{
+			const int32 ChildCount = PanelWidget->GetChildrenCount();
+			for (int32 ChildIndex = 0; ChildIndex < ChildCount; ++ChildIndex)
+			{
+				GatherWidgetTree(PanelWidget->GetChildAt(ChildIndex), OutWidgets);
+			}
+		}
+	}
+
+	template <typename WidgetType>
+	WidgetType* FindNamedWidget(UUserWidget* RootWidget, std::initializer_list<const TCHAR*> PreferredNames)
+	{
+		if (!RootWidget)
+		{
+			return nullptr;
+		}
+
+		for (const TCHAR* PreferredName : PreferredNames)
+		{
+			if (WidgetType* FoundWidget = Cast<WidgetType>(RootWidget->GetWidgetFromName(FName(PreferredName))))
+			{
+				return FoundWidget;
+			}
+		}
+
+		return nullptr;
+	}
 
 	AMyCharacter *FindCharacterForPlayerState(const UObject *WorldContextObject, const APlayerState *TargetPlayerState)
 	{
@@ -211,6 +257,16 @@ UTextBlock *AMyPlayerController::FindItemTimerText() const
 	return Cast<UTextBlock>(QuickSlotBarWidget->GetWidgetFromName(TEXT("ItemTimer")));
 }
 
+UTextBlock* AMyPlayerController::FindTitleCardText(const FName& WidgetName) const
+{
+	if (!TitleCardWidgetInstance)
+	{
+		return nullptr;
+	}
+
+	return Cast<UTextBlock>(TitleCardWidgetInstance->GetWidgetFromName(WidgetName));
+}
+
 bool AMyPlayerController::UpdateQuickSlotItemVisual(int32 SlotIndex, const FText &ItemName, UTexture2D *ItemIcon)
 {
 	bool bNameUpdated = false;
@@ -257,6 +313,17 @@ bool AMyPlayerController::UpdateQuickSlotItemVisual(int32 SlotIndex, const FText
 bool AMyPlayerController::UpdateQuickSlotItemName(int32 SlotIndex, const FText &ItemName)
 {
 	return UpdateQuickSlotItemVisual(SlotIndex, ItemName, nullptr);
+}
+
+void AMyPlayerController::Client_SetQuickSlotItemVisual_Implementation(int32 SlotIndex, const FText& ItemName, UTexture2D* ItemIcon, bool bVisible)
+{
+	if (!bVisible)
+	{
+		UpdateQuickSlotItemVisual(SlotIndex, FText::GetEmpty(), nullptr);
+		return;
+	}
+
+	UpdateQuickSlotItemVisual(SlotIndex, ItemName, ItemIcon);
 }
 
 void AMyPlayerController::UpdateQuickSlotSelectionVisual(int32 SelectedSlotIndex)
@@ -321,9 +388,27 @@ void AMyPlayerController::SetItemTimerVisible(bool bVisible)
 	}
 }
 
+void AMyPlayerController::HideTitleCard()
+{
+	if (TitleCardWidgetInstance)
+	{
+		TitleCardWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+	}
+}
+
+void AMyPlayerController::Client_HideTitleCard_Implementation()
+{
+	HideTitleCard();
+}
+
 bool AMyPlayerController::IsInGameSettingMenuOpen() const
 {
 	return InGameSettingWidget && InGameSettingWidget->GetVisibility() == ESlateVisibility::Visible;
+}
+
+float AMyPlayerController::GetMouseSensitivityMultiplier() const
+{
+	return MouseSensitivityMultiplier;
 }
 
 void AMyPlayerController::ShowPublicMaliceAnnouncement(const FString &PlayerName, int32 MaliceCount)
@@ -335,7 +420,7 @@ void AMyPlayerController::ShowPublicMaliceAnnouncement(const FString &PlayerName
 
 	if (UTextBlock *UserText = FindPublicMaliceAnnouncementText(TEXT("PublicMaliceBorderUser")))
 	{
-		UserText->SetText(FText::FromString(PlayerName));
+		UserText->SetText(FText::FromString(ClampNicknameForUi(PlayerName)));
 	}
 	else
 	{
@@ -396,13 +481,70 @@ void AMyPlayerController::InitializeInGameSettingWidget()
 		InGameSettingWidget->SetVisibility(ESlateVisibility::Hidden);
 	}
 
-	ResolutionComboBox = Cast<UComboBoxString>(InGameSettingWidget->GetWidgetFromName(TEXT("ResolutionComboBox")));
-	ResolutionApplyBtn = Cast<UButton>(InGameSettingWidget->GetWidgetFromName(TEXT("ResolutionApplyBtn")));
-	ExitBtn = Cast<UButton>(InGameSettingWidget->GetWidgetFromName(TEXT("ExitBtn")));
+	ResolutionComboBox = FindNamedWidget<UComboBoxString>(InGameSettingWidget, { TEXT("ResolutionComboBox"), TEXT("VideoResolutionComboBox") });
+	FullscreenModeComboBox = FindNamedWidget<UComboBoxString>(InGameSettingWidget, { TEXT("FullscreenModeComboBox"), TEXT("ScreenModeComboBox") });
+	FrameLimitComboBox = FindNamedWidget<UComboBoxString>(InGameSettingWidget, { TEXT("FrameLimitComboBox"), TEXT("FrameRateComboBox"), TEXT("FPSComboBox") });
+	ResolutionApplyBtn = FindNamedWidget<UButton>(InGameSettingWidget, { TEXT("ApplyBtn"), TEXT("ResolutionApplyBtn") });
+	ExitBtn = FindNamedWidget<UButton>(InGameSettingWidget, { TEXT("ExitBtn") });
+	VSyncCheckBox = FindNamedWidget<UCheckBox>(InGameSettingWidget, { TEXT("VSyncCheckBox"), TEXT("VerticalSyncCheckBox") });
+	MouseSensitivitySlider = FindNamedWidget<USlider>(InGameSettingWidget, { TEXT("Mouse_Slider"), TEXT("MouseSensitivitySlider") });
+	MasterVolumeSlider = FindNamedWidget<USlider>(InGameSettingWidget, { TEXT("MasterVolume_Slider") });
+	BGMVolumeSlider = FindNamedWidget<USlider>(InGameSettingWidget, { TEXT("BGM_Slider") });
+	SFXVolumeSlider = FindNamedWidget<USlider>(InGameSettingWidget, { TEXT("SFX_Slider") });
+	InterfaceVolumeSlider = FindNamedWidget<USlider>(InGameSettingWidget, { TEXT("Interface_Slider") });
 
 	if (!ResolutionComboBox)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[PC] ResolutionComboBox widget not found"));
+		UE_LOG(LogTemp, Warning, TEXT("[PC] ResolutionComboBox widget not found. Expected explicit name: ResolutionComboBox (or VideoResolutionComboBox)."));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("[PC] Bound settings resolution combo: %s"), *ResolutionComboBox->GetName());
+	}
+
+	if (!FullscreenModeComboBox)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PC] FullscreenModeComboBox widget not found. Expected explicit name: FullscreenModeComboBox (or ScreenModeComboBox)."));
+	}
+
+	if (!FrameLimitComboBox)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PC] FrameLimitComboBox widget not found. Expected explicit name: FrameLimitComboBox (or FrameRateComboBox / FPSComboBox)."));
+	}
+
+	if (!VSyncCheckBox)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PC] VSyncCheckBox widget not found. Expected explicit name: VSyncCheckBox (or VerticalSyncCheckBox)."));
+	}
+
+	if (!MouseSensitivitySlider)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PC] MouseSensitivitySlider widget not found. Expected explicit name: Mouse_Slider (or MouseSensitivitySlider)."));
+	}
+	else
+	{
+		MouseSensitivitySlider->OnValueChanged.RemoveDynamic(this, &AMyPlayerController::OnMouseSensitivitySliderChanged);
+		MouseSensitivitySlider->OnValueChanged.AddDynamic(this, &AMyPlayerController::OnMouseSensitivitySliderChanged);
+	}
+
+	if (!MasterVolumeSlider)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PC] MasterVolume slider widget not found. Expected explicit name: MasterVolume_Slider."));
+	}
+
+	if (!BGMVolumeSlider)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PC] BGM slider widget not found. Expected explicit name: BGM_Slider."));
+	}
+
+	if (!SFXVolumeSlider)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PC] SFX slider widget not found. Expected explicit name: SFX_Slider."));
+	}
+
+	if (!InterfaceVolumeSlider)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PC] Interface slider widget not found. Expected explicit name: Interface_Slider."));
 	}
 
 	if (ResolutionApplyBtn)
@@ -412,7 +554,7 @@ void AMyPlayerController::InitializeInGameSettingWidget()
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[PC] ResolutionApplyBtn widget not found"));
+		UE_LOG(LogTemp, Warning, TEXT("[PC] ResolutionApplyBtn widget not found. Expected ResolutionApplyBtn or ApplyBtn."));
 	}
 
 	if (ExitBtn)
@@ -425,7 +567,10 @@ void AMyPlayerController::InitializeInGameSettingWidget()
 		UE_LOG(LogTemp, Warning, TEXT("[PC] ExitBtn widget not found"));
 	}
 
-	SyncResolutionComboToCurrent();
+	EnsureVideoSettingOptions();
+	SyncVideoSettingsToCurrent();
+	SyncMouseSensitivitySliderToCurrent();
+	SyncAudioSlidersToCurrent();
 }
 
 void AMyPlayerController::OpenInGameSettingMenu()
@@ -440,7 +585,9 @@ void AMyPlayerController::OpenInGameSettingMenu()
 		return;
 	}
 
-	SyncResolutionComboToCurrent();
+	SyncVideoSettingsToCurrent();
+	SyncMouseSensitivitySliderToCurrent();
+	SyncAudioSlidersToCurrent();
 	InGameSettingWidget->SetVisibility(ESlateVisibility::Visible);
 
 	FInputModeGameAndUI InputMode;
@@ -495,7 +642,22 @@ void AMyPlayerController::Server_RegisterPlayerDisplayName_Implementation(const 
 
 AMyPlayerController::AMyPlayerController()
 {
-	static ConstructorHelpers::FClassFinder<UUserWidget> InspectMaliceWidgetBPClass(TEXT("/Game/WorkSpace/UI/WBP_SelectUser"));
+	LoadMouseSensitivitySetting();
+	LoadAudioSettings();
+
+	static ConstructorHelpers::FClassFinder<UUserWidget> InGameSettingWidgetBPClass(TEXT("/Game/WorkSpace/UI/WBP_InGameSetting2"));
+	if (InGameSettingWidgetBPClass.Succeeded())
+	{
+		InGameSettingClass = InGameSettingWidgetBPClass.Class;
+	}
+
+	static ConstructorHelpers::FClassFinder<UUserWidget> TitleCardWidgetBPClass(TEXT("/Game/WorkSpace/UI/WBP_TitleCard"));
+	if (TitleCardWidgetBPClass.Succeeded())
+	{
+		TitleCardWidgetClass = TitleCardWidgetBPClass.Class;
+	}
+
+	static ConstructorHelpers::FClassFinder<UUserWidget> InspectMaliceWidgetBPClass(TEXT("/Game/WorkSpace/UI/PersonalEvent/WBP_SelectUser"));
 	if (InspectMaliceWidgetBPClass.Succeeded())
 	{
 		InspectMaliceWidgetClass = InspectMaliceWidgetBPClass.Class;
@@ -515,6 +677,15 @@ void AMyPlayerController::BeginPlay()
 	// 로컬 컨트롤러에서만 실행
 	if (!IsLocalController())
 		return;
+	
+	if (NotificationLogClass)
+	{
+		NotificationLogInstance = CreateWidget<UUserWidget>(this, NotificationLogClass);
+		if (NotificationLogInstance)
+		{
+			NotificationLogInstance->AddToViewport(500);
+		}
+	}
 
 	SetInputMode(FInputModeGameOnly());
 
@@ -537,11 +708,37 @@ void AMyPlayerController::BeginPlay()
 		}
 	}
 
-	// 인게임 레벨일 때만 ChatWidget 생성
-	FString MapName = GetWorld()->GetMapName();
-	if (MapName.Contains(TEXT("MyTestLevel")))
+	AGameModeBase* ActiveGameMode = UGameplayStatics::GetGameMode(this);
+	AA302GameMode *GameMode = Cast<AA302GameMode>(ActiveGameMode);
+	const bool bUsesMyGameMode = ActiveGameMode && ActiveGameMode->GetClass()->GetName().Contains(TEXT("MyGameMode"));
+	if ((GameMode || bUsesMyGameMode) && !HUDWidget)
 	{
-		AA302GameMode *GameMode = Cast<AA302GameMode>(UGameplayStatics::GetGameMode(this));
+		TSubclassOf<UUserWidget> HUDClassToCreate = nullptr;
+		if (GameMode && GameMode->HUDWidgetClass)
+		{
+			HUDClassToCreate = GameMode->HUDWidgetClass;
+		}
+		else if (bUsesMyGameMode)
+		{
+			HUDClassToCreate = LoadClass<UUserWidget>(nullptr, TEXT("/Game/WorkSpace/UI/WBP_HUD2.WBP_HUD2_C"));
+		}
+
+		if (HUDClassToCreate)
+		{
+			HUDWidget = CreateWidget<UUserWidget>(this, HUDClassToCreate);
+			if (HUDWidget)
+			{
+				HUDWidget->AddToViewport();
+				QuickSlotBarWidget = HUDWidget;
+				InitializeQuickSlotVisualState();
+				UpdateShieldCountText(0);
+				UpdateMaliceCountText(0);
+				UpdateItemTimerText(30.0f);
+				SetItemTimerVisible(false);
+				UE_LOG(LogTemp, Log, TEXT("[PC] HUDWidget 생성 성공: %s"), *GetNameSafe(HUDClassToCreate));
+			}
+		}
+
 		if (GameMode && GameMode->ChatWidgetClass)
 		{
 			UChatWidget *ChatWidget = CreateWidget<UChatWidget>(this, GameMode->ChatWidgetClass);
@@ -554,7 +751,7 @@ void AMyPlayerController::BeginPlay()
 		}
 	}
 
-	if (QuickSlotBarClass)
+	if (!QuickSlotBarWidget && QuickSlotBarClass)
 	{
 		QuickSlotBarWidget = CreateWidget<UUserWidget>(this, QuickSlotBarClass);
 		if (QuickSlotBarWidget)
@@ -567,7 +764,7 @@ void AMyPlayerController::BeginPlay()
 			SetItemTimerVisible(false);
 		}
 	}
-	else
+	else if (!QuickSlotBarWidget)
 	{
 		UE_LOG(LogTemp, Error, TEXT("[PC] QuickSlotBarClass is NULL"));
 	}
@@ -610,6 +807,38 @@ void AMyPlayerController::InitializeQuickSlotVisualState()
 	}
 
 	SetPublicMaliceAnnouncementVisible(false);
+}
+
+void AMyPlayerController::Client_ReceiveSystemMessage_Implementation(const FString& Message)
+{
+	// 🚩 디버깅 로그 추가
+	if (!NotificationLogInstance) 
+	{
+		UE_LOG(LogTemp, Error, TEXT("[SYSTEM ERROR] NotificationLogInstance is NULL!"));
+		return;
+	}
+    
+	UFunction* Func = NotificationLogInstance->FindFunction(FName("AddNotificationMessage"));
+	if (!Func)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[SYSTEM ERROR] Cannot find function 'AddNotificationMessage' in widget!"));
+		return;
+	}
+	
+	if (Func)
+	{
+		struct FNotificationParams
+		{
+			FText NewMessage;
+		};
+
+		FNotificationParams Params;
+		Params.NewMessage = FText::FromString(Message);
+
+		NotificationLogInstance->ProcessEvent(Func, &Params);
+	}
+	
+	UE_LOG(LogTemp, Warning, TEXT("[SYSTEM] %s"), *Message);
 }
 
 void AMyPlayerController::InitializeInspectMaliceWidget()
@@ -1082,7 +1311,7 @@ FString AMyPlayerController::ResolvePlayerDisplayName(const APlayerState *Target
 	}
 
 	const FString PlayerName = TargetPlayerState->GetPlayerName();
-	return PlayerName.IsEmpty() ? GetNameSafe(TargetPlayerState) : PlayerName;
+	return ClampNicknameForUi(PlayerName.IsEmpty() ? GetNameSafe(TargetPlayerState) : PlayerName);
 }
 
 void AMyPlayerController::ApplyInspectMaliceSelection(int32 EntryIndex)
@@ -1314,6 +1543,57 @@ void AMyPlayerController::Client_ShowPersonalEvent_Implementation(FName EventID,
 	}
 }
 
+void AMyPlayerController::Client_ShowTitleCard_Implementation(const FText& Title, const FText& Context, float DisplaySeconds)
+{
+	if (!TitleCardWidgetClass)
+	{
+		return;
+	}
+
+	if (!TitleCardWidgetInstance)
+	{
+		TitleCardWidgetInstance = CreateWidget<UUserWidget>(this, TitleCardWidgetClass);
+	}
+
+	if (!TitleCardWidgetInstance)
+	{
+		return;
+	}
+
+	if (UTextBlock* TitleText = FindTitleCardText(TEXT("EventTitle")))
+	{
+		TitleText->SetText(Title);
+	}
+
+	if (UTextBlock* ContextText = FindTitleCardText(TEXT("EventContext")))
+	{
+		ContextText->SetText(Context);
+	}
+
+	if (!TitleCardWidgetInstance->IsInViewport())
+	{
+		TitleCardWidgetInstance->AddToViewport(140);
+	}
+
+	TitleCardWidgetInstance->SetVisibility(ESlateVisibility::HitTestInvisible);
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(TitleCardHideTimerHandle);
+
+		if (DisplaySeconds > 0.0f)
+		{
+			World->GetTimerManager().SetTimer(
+				TitleCardHideTimerHandle,
+				this,
+				&AMyPlayerController::HideTitleCard,
+				FMath::Max(0.5f, DisplaySeconds),
+				false
+			);
+		}
+	}
+}
+
 void AMyPlayerController::Server_ResolvePersonalEvent_Implementation(FName EventID, int32 ChoiceIndex)
 {
 	AMyCharacter* MyChar = Cast<AMyCharacter>(GetPawn());
@@ -1321,18 +1601,14 @@ void AMyPlayerController::Server_ResolvePersonalEvent_Implementation(FName Event
 	{
 		return;
 	}
-
-	// 만약 플레이어가 취소를 눌렀다면 여기서 조기 종료
-	if (ChoiceIndex == 0)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[Event] %s 거절됨."), *EventID.ToString());
-	}
+	
+	UE_LOG(LogTemp, Log, TEXT("[Event] %s Resolved with ChoiceIndex: %d"), *EventID.ToString(), ChoiceIndex);
 
 	if (UBasePersonalEvent *TargetEvent = Cast<UBasePersonalEvent>(ActivePersonalEvent))
 	{
 		if (TargetEvent->EventID == EventID)
 		{
-			TargetEvent->OnEventResolvedMulti(MyChar, ChoiceIndex);
+			TargetEvent->OnEventResolved(MyChar, ChoiceIndex);
 		}
 	}
 	// 이벤트 캐시 초기화

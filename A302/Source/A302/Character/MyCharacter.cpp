@@ -18,6 +18,7 @@
 #include "GameData/Events/PersonalEvents/PersonalEventMaliceDefinition.h"
 #include "GameData/Events/PersonalEvents/PersonalEventPublicMaliceDefinition.h"
 #include "GameData/Events/PersonalEvents/PersonalEventCursedSwordDefinition.h"
+#include "GameData/Events/PersonalEvents/PersonalEventDevilsEyeDefinition.h"
 #include "GameData/RewardDefinition.h"
 #include "GameData/RewardTypes.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -32,6 +33,7 @@
 #include "GamePlay/Events/PersonalEvents/PersonalEventMalice.h"
 #include "GamePlay/Events/PersonalEvents/PersonalEventPublicMalice.h"
 #include "GamePlay/Events/PersonalEvents/PersonalEventCursedSword.h"
+#include "GamePlay/Events/PersonalEvents/PersonalEventDevilsEye.h"
 #include "GamePlay/Items/BaseItem.h"
 #include "GamePlay/Items/ItemShield.h"
 #include "GamePlay/Items/ItemTimeKnife.h"
@@ -368,9 +370,14 @@ void AMyCharacter::OnMove(const FInputActionValue& Value)
 void AMyCharacter::OnLook(const FInputActionValue& Value)
 {
 	const FVector2D Axis = Value.Get<FVector2D>();
+	float LookSensitivityMultiplier = 1.0f;
+	if (const AMyPlayerController* MyPlayerController = Cast<AMyPlayerController>(GetController()))
+	{
+		LookSensitivityMultiplier = MyPlayerController->GetMouseSensitivityMultiplier();
+	}
 
-	AddControllerYawInput(Axis.X);
-	AddControllerPitchInput(Axis.Y);
+	AddControllerYawInput(Axis.X * LookSensitivityMultiplier);
+	AddControllerPitchInput(Axis.Y * LookSensitivityMultiplier);
 }
 
 void AMyCharacter::OnJump(const FInputActionValue& Value)
@@ -507,6 +514,40 @@ void AMyCharacter::Server_RequestInteractionReward_Implementation(ABaseInteracta
 	ResolveInteractionRewardOnServer(Interactable);
 }
 
+void AMyCharacter::Server_RequestTargetedItemUse_Implementation(UItemDefinition* ItemDefinition, AActor* TargetActor)
+{
+	if (!HasAuthority() || !ItemDefinition || !IsValid(TargetActor) || TargetActor == this)
+	{
+		return;
+	}
+
+	UClass* LogicClass = ItemDefinition->ResolveRewardLogicClass();
+	if (!LogicClass || !LogicClass->IsChildOf(UBaseItem::StaticClass()))
+	{
+		return;
+	}
+
+	const UBaseItem* ItemLogic = Cast<UBaseItem>(LogicClass->GetDefaultObject());
+	if (!ItemLogic)
+	{
+		return;
+	}
+
+	FString SystemMessage;
+	if (!ItemLogic->ResolveServerTargetedUse(this, TargetActor, SystemMessage))
+	{
+		return;
+	}
+
+	if (!SystemMessage.IsEmpty())
+	{
+		if (AMyPlayerController* OwnerPlayerController = Cast<AMyPlayerController>(GetController()))
+		{
+			OwnerPlayerController->Client_ReceiveSystemMessage(SystemMessage);
+		}
+	}
+}
+
 void AMyCharacter::Client_GrantInteractionReward_Implementation(URewardDefinition* RewardDefinition)
 {
 	HandleRewardPickup(nullptr, RewardDefinition);
@@ -558,14 +599,31 @@ bool AMyCharacter::HandlePersonalEventPickup(AActor* InteractedActor, const URew
 	if (!RewardDefinition) return false;
 	
 	UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass();
+	UClass* PersonalEventClass = nullptr;
+
+	if (LogicClass && LogicClass->IsChildOf(UBasePersonalEvent::StaticClass()))
+	{
+		PersonalEventClass = LogicClass;
+	}
+	else
+	{
+		URewardDefinition* MutableRewardDefinition = const_cast<URewardDefinition*>(RewardDefinition);
+		const bool bIsLegacyTimedKnifeLogic = LogicClass && LogicClass->IsChildOf(UItemTimeKnife::StaticClass());
+		const bool bIsCursedSwordDefinition = Cast<UPersonalEventCursedSwordDefinition>(MutableRewardDefinition) != nullptr;
+
+		if (bIsLegacyTimedKnifeLogic || bIsCursedSwordDefinition)
+		{
+			PersonalEventClass = UPersonalEventCursedSword::StaticClass();
+		}
+	}
 	
-	if (!LogicClass || !LogicClass->IsChildOf(UBasePersonalEvent::StaticClass()))
+	if (!PersonalEventClass || !PersonalEventClass->IsChildOf(UBasePersonalEvent::StaticClass()))
 	{
 		UE_LOG(LogTemp, Error, TEXT("[Event] %s의 RewardLogicClass가 비어있거나 올바른 이벤트 클래스가 아닙니다! 에디터를 확인하세요."), *RewardDefinition->GetName());
 		return false;
 	}
 	
-	UBasePersonalEvent* PersonalEvent = NewObject<UBasePersonalEvent>(this, LogicClass);
+	UBasePersonalEvent* PersonalEvent = NewObject<UBasePersonalEvent>(this, PersonalEventClass);
 	if (PersonalEvent)
 	{
 		PersonalEvent->EventID = RewardDefinition->ItemId;
@@ -738,30 +796,6 @@ void AMyCharacter::OnAttack(const FInputActionValue& Value)
 	if (QuickSlotComponent->TryUseSelectedItem(UsedItemDefinition, UsedSlotIndex))
 	{
 		BP_OnPrimaryItemUsed(UsedItemDefinition, UsedSlotIndex + 1);
-
-		UClass* UsedLogicClass = UsedItemDefinition ? UsedItemDefinition->ResolveRewardLogicClass() : nullptr;
-		if (UsedLogicClass && UsedLogicClass->IsChildOf(UBaseItem::StaticClass()))
-		{
-			if (const UBaseItem* BaseItemLogic = Cast<UBaseItem>(UsedLogicClass->GetDefaultObject()))
-			{
-				BaseItemLogic->OnItemUsed(this);
-			}
-		}
-		const bool bUsedTimedKillKnife = UsedLogicClass && UsedLogicClass->IsChildOf(UItemTimeKnife::StaticClass());
-
-		if (UMyAnimInstance* Anim = Cast<UMyAnimInstance>(GetMesh()->GetAnimInstance()))
-		{
-			if (bUsedTimedKillKnife)
-			{
-				EquipWeapon(TimeKnifeActorClass);
-				Anim->PlayTimeKnifeMontage();
-			}
-			else
-			{
-				EquipWeapon(KnifeActorClass);
-				Anim->PlayAttackMontage();
-			}
-		}
 	}
 }
 
