@@ -1,14 +1,23 @@
 #include "Animation/AnimNotify/HideWeapon.h"
-#include "Character/MyCharacter.h"
-#include "Character/Components/Combat/EquipmentComponent.h"
+#include "GameFramework/Character.h"
+#include "GamePlay/Actor/WeaponActor.h"
 
 void UHideWeapon::Notify(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation)
 {
-    if (AMyCharacter* CharacterBridge = Cast<AMyCharacter>(MeshComp->GetOwner()))
+    if (!MeshComp) return;
+
+    ACharacter* OwnerCharacter = Cast<ACharacter>(MeshComp->GetOwner());
+    if (!OwnerCharacter) return;
+
+    // 붙어있는 무기 찾기
+    TArray<AActor*> AttachedActors;
+    OwnerCharacter->GetAttachedActors(AttachedActors);
+
+    for (AActor* Actor : AttachedActors)
     {
-        if (UEquipmentComponent* EquipmentComp = CharacterBridge->GetEquipmentComponent())
+        if (AWeaponActor* Weapon = Cast<AWeaponActor>(Actor))
         {
-            EquipmentComp->HideWeapon();
+            Weapon->Destroy();
         }
     }
 }
