@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameMode.h"
+#include "Interface/A302ServerRewardBridge.h"
 #include "A302GameMode.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInGameChatReceived, const FString &, PlayerName, const FString &, Message);
@@ -21,7 +22,7 @@ class UA302ServerPhaseSubsystem;
 class UA302ServerBackendRouter;
 
 UCLASS()
-class A302SERVER_API AA302GameMode : public AGameMode
+class A302SERVER_API AA302GameMode : public AGameMode, public IA302ServerRewardBridge
 {
     GENERATED_BODY()
 
@@ -34,8 +35,8 @@ public:
     UPROPERTY(BlueprintAssignable)
     FOnInGameChatReceived OnInGameChatReceived;
 
-    virtual bool TryHandlePersonalEventReward(ACharacter* InstigatorCharacter, AActor* InteractedActor, const URewardDefinition* RewardDefinition);
-    virtual bool TryHandleGroupEventReward(ACharacter* InstigatorCharacter, AActor* InteractedActor, const URewardDefinition* RewardDefinition);
+    virtual bool TryHandlePersonalEventReward(ACharacter* InstigatorCharacter, AActor* InteractedActor, const URewardDefinition* RewardDefinition) override;
+    virtual bool TryHandleGroupEventReward(ACharacter* InstigatorCharacter, AActor* InteractedActor, const URewardDefinition* RewardDefinition) override;
     virtual APawn* SpawnDefaultPawnFor_Implementation(AController* NewPlayer, AActor* StartSpot) override;
 
     void SpawnPlayersInRoom(const FString& RoomCode);
