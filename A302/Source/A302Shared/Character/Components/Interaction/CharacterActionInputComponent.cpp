@@ -7,7 +7,7 @@
 #include "Character/Components/Combat/EquipmentComponent.h"
 #include "Interface/A302AnimationBridge.h"
 #include "GamePlay/Items/BaseItem.h"
-#include "GamePlay/Items/ItemTimeKnife.h"
+#include "GamePlay/Items/ItemCursedSword.h"
 #include "GameData/Items/ItemDefinition.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
@@ -186,14 +186,14 @@ void UCharacterActionInputComponent::OnAttack(const FInputActionValue& Value)
 		
 		if (IA302AnimationBridge* Anim = Cast<IA302AnimationBridge>(OwnerCharacter->GetMesh()->GetAnimInstance()))
 		{
-			const bool bIsTimedKnife = UsedLogicClass && UsedLogicClass->IsChildOf(UItemTimeKnife::StaticClass());
+			const bool bIsCursedSword = UsedLogicClass && UsedLogicClass->IsChildOf(UItemCursedSword::StaticClass());
 			
 			if (EquipmentComp)
 			{
-				bIsTimedKnife ? EquipmentComp->EquipTimeKnifeWeapon() : EquipmentComp->EquipKnifeWeapon();
+				bIsCursedSword ? EquipmentComp->EquipTimeKnifeWeapon() : EquipmentComp->EquipKnifeWeapon();
 			}
 
-			bIsTimedKnife ? Anim->PlayTimeKnifeAnimation() : Anim->PlayAttackAnimation();
+			bIsCursedSword ? Anim->PlayTimeKnifeAnimation() : Anim->PlayAttackAnimation();
 		}
 	}
 }
