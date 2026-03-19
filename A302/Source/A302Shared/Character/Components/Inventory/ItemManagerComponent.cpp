@@ -7,7 +7,7 @@
 #include "GamePlay/Items/BaseItem.h"
 #include "GamePlay/Items/ItemKnife.h"
 #include "GamePlay/Items/ItemShield.h"
-#include "GamePlay/Items/ItemTimeKnife.h"
+#include "GamePlay/Items/ItemCursedSword.h"
 #include "Interface/UsableItem.h"
 
 UItemManagerComponent::UItemManagerComponent()
@@ -94,8 +94,8 @@ bool UItemManagerComponent::AddItemToSlot(int32 SlotIndex, UItemDefinition* Item
 	}
 
 	UClass* LogicClass = ItemDefinition->ResolveRewardLogicClass();
-	const bool bIsTimedKnifeLogic = LogicClass && LogicClass->IsChildOf(UItemTimeKnife::StaticClass());
-	if (ItemDefinition->RewardCategory != ERewardCategory::BasicItem && !bIsTimedKnifeLogic)
+	const bool bIsCursedSwordLogic = LogicClass && LogicClass->IsChildOf(UItemCursedSword::StaticClass());
+	if (ItemDefinition->RewardCategory != ERewardCategory::BasicItem && !bIsCursedSwordLogic)
 	{
 		return false;
 	}

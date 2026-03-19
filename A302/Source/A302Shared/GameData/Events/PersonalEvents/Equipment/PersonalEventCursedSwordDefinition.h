@@ -7,7 +7,7 @@
 class UItemDefinition;
 
 USTRUCT(BlueprintType)
-struct FPersonalEventTimeKnifePayload
+struct FPersonalEventCursedSwordPayload
 {
     GENERATED_BODY()
 
@@ -25,5 +25,5 @@ class A302SHARED_API UPersonalEventCursedSwordDefinition : public UPersonalEvent
 
 public:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "PersonalEvent")
-    FPersonalEventTimeKnifePayload Payload;
+    FPersonalEventCursedSwordPayload Payload;
 };
