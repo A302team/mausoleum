@@ -33,7 +33,7 @@
 #include "GamePlay/Events/PersonalEvents/BasePersonalEvent.h"
 #include "GamePlay/Items/BaseItem.h"
 #include "GamePlay/Items/ItemShield.h"
-#include "GamePlay/Items/ItemTimeKnife.h"
+#include "GamePlay/Items/ItemCursedSword.h"
 #include "InputAction.h"
 #include "InputActionValue.h"
 #include "InputCoreTypes.h"
