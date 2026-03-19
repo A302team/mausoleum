@@ -33,6 +33,13 @@ bool UItemKnife::CanUse_Implementation(ACharacter* Instigator, const FItemTarget
 
     if (!A302GameplayGuards::CanInstigatorAffectTargetActor(Instigator, TargetActor))
     {
+        UE_LOG(
+            LogTemp,
+            Warning,
+            TEXT("[ItemKnife] CanUse failed: interaction guard blocked target. instigator=%s target=%s"),
+            *GetNameSafe(Instigator),
+            *GetNameSafe(TargetActor)
+        );
         return false;
     }
 

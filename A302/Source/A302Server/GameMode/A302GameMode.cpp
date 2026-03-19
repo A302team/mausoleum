@@ -12,6 +12,7 @@
 #include "Network/A302NetworkEndpointConfig.h"
 #include "Character/MyCharacter.h"
 #include "Character/MyPlayerController.h"
+#include "GameData/RewardDefinition.h"
 #include "Subsystem/A302ServerPlayerSubsystem.h"
 #include "Network/A302ServerBackendRouter.h"
 #include "GameFramework/Character.h"
@@ -234,11 +235,16 @@ bool AA302GameMode::TryHandlePersonalEventReward(ACharacter* InstigatorCharacter
         return false;
     }
 
-    if (const AA302PlayerState* InstigatorState = InstigatorCharacter->GetPlayerState<AA302PlayerState>())
+    const bool bIsStandaloneLocal = A302GameplayGuards::IsStandaloneLocalExecution(InstigatorCharacter);
+    if (!bIsStandaloneLocal)
     {
-        if (!IsRoomGameplayActive(InstigatorState->GetRoomCode()))
+        if (const AA302PlayerState* InstigatorState = InstigatorCharacter->GetPlayerState<AA302PlayerState>())
         {
-            return false;
+            if (!IsRoomGameplayActive(InstigatorState->GetRoomCode()))
+            {
+                UE_LOG(LogTemp, Warning, TEXT("[Reward] Personal event blocked: room gameplay inactive. player=%s room=%s reward=%s"), *GetNameSafe(InstigatorCharacter), *InstigatorState->GetRoomCode(), *GetNameSafe(RewardDefinition));
+                return false;
+            }
         }
     }
 
@@ -252,11 +258,16 @@ bool AA302GameMode::TryHandleGroupEventReward(ACharacter* InstigatorCharacter, A
         return false;
     }
 
-    if (const AA302PlayerState* InstigatorState = InstigatorCharacter->GetPlayerState<AA302PlayerState>())
+    const bool bIsStandaloneLocal = A302GameplayGuards::IsStandaloneLocalExecution(InstigatorCharacter);
+    if (!bIsStandaloneLocal)
     {
-        if (!IsRoomGameplayActive(InstigatorState->GetRoomCode()))
+        if (const AA302PlayerState* InstigatorState = InstigatorCharacter->GetPlayerState<AA302PlayerState>())
         {
-            return false;
+            if (!IsRoomGameplayActive(InstigatorState->GetRoomCode()))
+            {
+                UE_LOG(LogTemp, Warning, TEXT("[Reward] Group event blocked: room gameplay inactive. player=%s room=%s reward=%s"), *GetNameSafe(InstigatorCharacter), *InstigatorState->GetRoomCode(), *GetNameSafe(RewardDefinition));
+                return false;
+            }
         }
     }
 

@@ -5,7 +5,7 @@
 #include "GameData/Items/ItemDefinition.h"
 #include "GameData/Items/ItemTypes.h"
 #include "GameFramework/Character.h"
-#include "GamePlay/Items/ItemTimeKnife.h"
+#include "GamePlay/Items/ItemCursedSword.h"
 
 ACharacter* UQuickSlotComponent::GetOwnerCharacter() const
 {
@@ -278,8 +278,8 @@ bool UQuickSlotComponent::TryAddItemByDefinition(UItemDefinition* ItemDefinition
 	}
 
 	UClass* LogicClass = ItemDefinition->ResolveRewardLogicClass();
-	const bool bIsTimedKnifeLogic = LogicClass && LogicClass->IsChildOf(UItemTimeKnife::StaticClass());
-	if (ItemDefinition->RewardCategory != ERewardCategory::BasicItem && !bIsTimedKnifeLogic)
+	const bool bIsCursedSwordLogic = LogicClass && LogicClass->IsChildOf(UItemCursedSword::StaticClass());
+	if (ItemDefinition->RewardCategory != ERewardCategory::BasicItem && !bIsCursedSwordLogic)
 	{
 		UE_LOG(
 			LogTemp,

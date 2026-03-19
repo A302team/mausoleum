@@ -9,13 +9,104 @@
 #include "GameData/Events/PersonalEvents/Equipment/PersonalEventCursedSwordDefinition.h"
 #include "GamePlay/Items/BaseItem.h"
 #include "GamePlay/Items/ItemShield.h"
-#include "GamePlay/Items/ItemTimeKnife.h"
+#include "GamePlay/Items/ItemCursedSword.h"
 #include "GamePlay/Events/PersonalEvents/BasePersonalEvent.h"
 #include "GamePlay/Events/GroupEvents/BaseGroupEvent.h"
 #include "Object/BaseInteractable.h"
 #include "Interface/A302ServerRewardBridge.h"
 #include "A302GameplayGuards.h"
 #include "GameFramework/GameModeBase.h"
+
+namespace
+{
+	bool TryExecutePersonalEventWithoutBridge(ACharacter* InstigatorCharacter, AActor* InteractedActor, const URewardDefinition* RewardDefinition)
+	{
+		if (!InstigatorCharacter || !RewardDefinition)
+		{
+			return false;
+		}
+
+		UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass();
+		if (!LogicClass || !LogicClass->IsChildOf(UBasePersonalEvent::StaticClass()))
+		{
+			UE_LOG(
+				LogTemp,
+				Error,
+				TEXT("[Reward] Direct personal event fallback failed: invalid logic. reward=%s logic=%s"),
+				*GetNameSafe(RewardDefinition),
+				*GetNameSafe(LogicClass)
+			);
+			return false;
+		}
+
+		UBasePersonalEvent* PersonalEvent = NewObject<UBasePersonalEvent>(InstigatorCharacter, LogicClass);
+		if (!PersonalEvent)
+		{
+			UE_LOG(
+				LogTemp,
+				Error,
+				TEXT("[Reward] Direct personal event fallback failed: NewObject returned null. reward=%s logic=%s"),
+				*GetNameSafe(RewardDefinition),
+				*GetNameSafe(LogicClass)
+			);
+			return false;
+		}
+
+		PersonalEvent->EventID = RewardDefinition->ItemId;
+		PersonalEvent->InitializeRuntimeContext(InstigatorCharacter);
+		PersonalEvent->InitializeContext(RewardDefinition, InteractedActor);
+		PersonalEvent->ExecuteEvent(InstigatorCharacter);
+		return true;
+	}
+
+	bool TryExecuteGroupEventWithoutBridge(ACharacter* InstigatorCharacter, AActor* InteractedActor, const URewardDefinition* RewardDefinition)
+	{
+		if (!InstigatorCharacter || !InstigatorCharacter->HasAuthority() || !RewardDefinition)
+		{
+			return false;
+		}
+
+		UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass();
+		if (!LogicClass || !LogicClass->IsChildOf(UBaseGroupEvent::StaticClass()))
+		{
+			UE_LOG(
+				LogTemp,
+				Error,
+				TEXT("[Reward] Direct group event fallback failed: invalid logic. reward=%s logic=%s"),
+				*GetNameSafe(RewardDefinition),
+				*GetNameSafe(LogicClass)
+			);
+			return false;
+		}
+
+		UObject* GroupEventOuter = InstigatorCharacter->GetWorld()
+			? InstigatorCharacter->GetWorld()->GetAuthGameMode()
+			: nullptr;
+		if (!GroupEventOuter)
+		{
+			GroupEventOuter = InstigatorCharacter;
+		}
+
+		UBaseGroupEvent* GroupEvent = NewObject<UBaseGroupEvent>(GroupEventOuter, LogicClass);
+		if (!GroupEvent)
+		{
+			UE_LOG(
+				LogTemp,
+				Error,
+				TEXT("[Reward] Direct group event fallback failed: NewObject returned null. reward=%s logic=%s"),
+				*GetNameSafe(RewardDefinition),
+				*GetNameSafe(LogicClass)
+			);
+			return false;
+		}
+
+		GroupEvent->EventID = RewardDefinition->ItemId;
+		GroupEvent->InitializeRuntimeContext(InstigatorCharacter);
+		GroupEvent->InitializeContext(RewardDefinition, InteractedActor);
+		GroupEvent->ExecuteEvent(InstigatorCharacter);
+		return true;
+	}
+}
 
 UCharacterRewardComponent::UCharacterRewardComponent()
 {
@@ -48,7 +139,22 @@ bool UCharacterRewardComponent::HandleRewardPickup(AActor* InteractedActor, cons
 		return false;
 	}
 
-	const ERewardCategory EffectiveCategory = ResolveEffectiveRewardCategory(RewardDefinition);
+	ERewardCategory EffectiveCategory = RewardDefinition->RewardCategory;
+	if (UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass())
+	{
+		const bool bIsLegacyPersonalEventClass =
+			RewardDefinition->RewardCategory != ERewardCategory::BasicItem &&
+			LogicClass->IsChildOf(UItemCursedSword::StaticClass());
+
+		if (LogicClass->IsChildOf(UBasePersonalEvent::StaticClass()) || bIsLegacyPersonalEventClass)
+		{
+			EffectiveCategory = ERewardCategory::PersonalEvent;
+		}
+		else if (LogicClass->IsChildOf(UBaseGroupEvent::StaticClass()))
+		{
+			EffectiveCategory = ERewardCategory::GroupEvent;
+		}
+	}
 
 	switch (EffectiveCategory)
 	{
@@ -114,15 +220,14 @@ bool UCharacterRewardComponent::ShouldGrantRewardLocally(const URewardDefinition
 	}
 
 	UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass();
-	if (LogicClass && LogicClass->IsChildOf(UItemTimeKnife::StaticClass()))
+	if (LogicClass && LogicClass->IsChildOf(UItemCursedSword::StaticClass()))
 	{
 		return true;
 	}
 
 	URewardDefinition* MutableRewardDefinition = const_cast<URewardDefinition*>(RewardDefinition);
 	return
-		Cast<UPersonalEventInspectMaliceDefinition>(MutableRewardDefinition) != nullptr ||
-		Cast<UPersonalEventCursedSwordDefinition>(MutableRewardDefinition) != nullptr;
+		Cast<UPersonalEventInspectMaliceDefinition>(MutableRewardDefinition) != nullptr;
 }
 
 void UCharacterRewardComponent::ResolveInteractionRewardOnServer(ABaseInteractable* Interactable)
@@ -199,7 +304,7 @@ void UCharacterRewardComponent::Server_RequestInteractionReward_Implementation(A
 void UCharacterRewardComponent::Server_RequestTargetedItemUse_Implementation(UItemDefinition* ItemDefinition, AActor* TargetActor)
 {
 	AMyCharacter* OwnerCharacter = GetOwnerCharacter();
-	if (!OwnerCharacter || !OwnerCharacter->HasAuthority() || !ItemDefinition || !IsValid(TargetActor) || TargetActor == OwnerCharacter)
+	if (!OwnerCharacter || !OwnerCharacter->HasAuthority() || !ItemDefinition || !IsValid(TargetActor))
 	{
 		return;
 	}
@@ -294,11 +399,14 @@ bool UCharacterRewardComponent::HandlePersonalEventPickup(AActor* InteractedActo
 
 	UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass();
 	const bool bIsPersonalEventClass = LogicClass && LogicClass->IsChildOf(UBasePersonalEvent::StaticClass());
-	const bool bIsLegacyTimedKnifeLogic = LogicClass && LogicClass->IsChildOf(UItemTimeKnife::StaticClass());
+	const bool bIsLegacyCursedSwordLogic =
+		RewardDefinition->RewardCategory != ERewardCategory::BasicItem &&
+		LogicClass &&
+		LogicClass->IsChildOf(UItemCursedSword::StaticClass());
 	const bool bIsCursedSwordDefinition =
 		Cast<UPersonalEventCursedSwordDefinition>(const_cast<URewardDefinition*>(RewardDefinition)) != nullptr;
 
-	if (!bIsPersonalEventClass && !bIsLegacyTimedKnifeLogic && !bIsCursedSwordDefinition)
+	if (!bIsPersonalEventClass && !bIsLegacyCursedSwordLogic && !bIsCursedSwordDefinition)
 	{
 		UE_LOG(
 			LogTemp,
@@ -315,7 +423,7 @@ bool UCharacterRewardComponent::HandlePersonalEventPickup(AActor* InteractedActo
 		return RewardBridge->TryHandlePersonalEventReward(OwnerCharacter, InteractedActor, RewardDefinition);
 	}
 
-	return false;
+	return TryExecutePersonalEventWithoutBridge(OwnerCharacter, InteractedActor, RewardDefinition);
 }
 
 bool UCharacterRewardComponent::HandleGroupEventPickup(AActor* InteractedActor, const URewardDefinition* RewardDefinition)
@@ -328,5 +436,5 @@ bool UCharacterRewardComponent::HandleGroupEventPickup(AActor* InteractedActor, 
 		return RewardBridge->TryHandleGroupEventReward(OwnerCharacter, InteractedActor, RewardDefinition);
 	}
 
-	return false;
+	return TryExecuteGroupEventWithoutBridge(OwnerCharacter, InteractedActor, RewardDefinition);
 }

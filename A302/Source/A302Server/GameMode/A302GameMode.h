@@ -37,7 +37,6 @@ public:
 
     virtual bool TryHandlePersonalEventReward(ACharacter* InstigatorCharacter, AActor* InteractedActor, const URewardDefinition* RewardDefinition) override;
     virtual bool TryHandleGroupEventReward(ACharacter* InstigatorCharacter, AActor* InteractedActor, const URewardDefinition* RewardDefinition) override;
-    virtual void NotifyInteractionRewardResolved(ACharacter* InstigatorCharacter, const URewardDefinition* RewardDefinition, ERewardCategory EffectiveCategory) override;
     virtual APawn* SpawnDefaultPawnFor_Implementation(AController* NewPlayer, AActor* StartSpot) override;
 
     void SpawnPlayersInRoom(const FString& RoomCode);
