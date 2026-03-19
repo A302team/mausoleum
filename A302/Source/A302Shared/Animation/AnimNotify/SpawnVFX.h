@@ -7,7 +7,7 @@
 class UNiagaraSystem;
 
 UCLASS()
-class A302CLIENT_API USpawnVFX : public UAnimNotify
+class A302SHARED_API USpawnVFX : public UAnimNotify
 {
     GENERATED_BODY()
 

@@ -2,10 +2,10 @@
 
 #include "CoreMinimal.h"
 #include "Animation/AnimNotifies/AnimNotify.h"
-#include "ShowWeapon.generated.h"
+#include "HideWeapon.generated.h"
 
 UCLASS()
-class A302CLIENT_API UShowWeapon : public UAnimNotify
+class A302SHARED_API UHideWeapon : public UAnimNotify
 {
     GENERATED_BODY()
 

@@ -22,7 +22,8 @@ public class A302Shared : ModuleRules
 			"UMG",
 			"SlateCore",
 			"Json",
-			"JsonUtilities"
+			"JsonUtilities",
+			"Niagara"
 		});
 	}
 }
