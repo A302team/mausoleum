@@ -5,7 +5,7 @@
 #include "HideWeapon.generated.h"
 
 UCLASS()
-class A302CLIENT_API UHideWeapon : public UAnimNotify
+class A302SHARED_API UHideWeapon : public UAnimNotify
 {
     GENERATED_BODY()
 
