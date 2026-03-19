@@ -10,6 +10,7 @@
 #include "Engine/World.h"
 #include "Character/MyCharacter.h"
 #include "Character/MyPlayerController.h"
+#include "Character/Components/PlayerEventComponent.h"
 
 namespace
 {

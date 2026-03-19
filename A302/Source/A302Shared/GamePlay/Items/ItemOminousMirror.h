@@ -5,6 +5,8 @@
 #include "Interface/UsableItem.h"
 #include "ItemOminousMirror.generated.h"
 
+class AMyCharacter;
+
 UCLASS(Blueprintable)
 class A302SHARED_API UItemOminousMirror : public UBaseItem, public IUsableItem
 {
@@ -14,7 +16,7 @@ public:
 	virtual bool CanUse_Implementation(ACharacter* Instigator, const FItemTargetData& TargetData) const override;
 	virtual bool Use_Implementation(ACharacter* Instigator, const FItemTargetData& TargetData) override;
 	virtual bool ResolveServerTargetedUse(
-		AMyCharacter* OwnerCharacter,
+		ACharacter* OwnerCharacter,
 		AActor* TargetActor,
 		FString& OutSystemMessage
 	) const override;

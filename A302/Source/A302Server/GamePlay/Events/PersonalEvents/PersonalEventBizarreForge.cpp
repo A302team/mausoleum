@@ -6,6 +6,7 @@
 #include "GamePlay/Items/BaseItem.h"
 #include "GameData/Items/ItemDefinition.h"
 #include "Character/MyPlayerController.h"
+#include "Character/Components/PlayerEventComponent.h"
 
 void UPersonalEventBizarreForge::ExecuteEvent_Implementation(ACharacter* InstigatorCharacter)
 {

@@ -1,9 +1,10 @@
 #include "GamePlay/Events/PersonalEvents/PersonalEventAnothersPortrait.h"
 
-#include "Character/Components/ItemManagerComponent.h"
+#include "Character/Components/Inventory/ItemManagerComponent.h"
+#include "Character/Components/PlayerEventComponent.h"
 #include "Character/MyCharacter.h"
 #include "Character/MyPlayerController.h"
-#include "GameData/Events/PersonalEvents/PersonalEventAnothersPortraitDefinition.h"
+#include "GameData/Events/PersonalEvents/Malice/PersonalEventAnothersPortraitDefinition.h"
 #include "GameData/Items/ItemDefinition.h"
 #include "GamePlay/Items/BaseItem.h"
 
@@ -40,7 +41,7 @@ void UPersonalEventAnothersPortrait::ExecuteEvent_Implementation(ACharacter* Ins
 	);
 }
 
-void UPersonalEventAnothersPortrait::OnEventResolved_Implementation(ACharacter* InstigatorCharacter, int32 ChoiceIndex)
+void UPersonalEventAnothersPortrait::OnEventResolvedMulti(ACharacter* InstigatorCharacter, int32 ChoiceIndex)
 {
 	(void)ChoiceIndex;
 

@@ -3,6 +3,7 @@
 #include "Character/Components/Inventory/ItemManagerComponent.h"
 #include "Character/MyCharacter.h"
 #include "Character/MyPlayerController.h"
+#include "Character/Components/PlayerEventComponent.h"
 #include "GameData/Events/PersonalEvents/Status/PersonalEventDevilsEyeDefinition.h"
 #include "GameData/Items/ItemDefinition.h"
 #include "GamePlay/Items/BaseItem.h"

@@ -1,6 +1,7 @@
 #include "GamePlay/Events/PersonalEvents/PersonalEventInspectMalice.h"
 
 #include "Character/MyPlayerController.h"
+#include "Character/Components/PlayerEventComponent.h"
 
 void UPersonalEventInspectMalice::ExecuteEvent_Implementation(ACharacter* InstigatorCharacter)
 {

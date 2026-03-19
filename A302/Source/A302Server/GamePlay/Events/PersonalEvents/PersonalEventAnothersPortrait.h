@@ -11,5 +11,5 @@ class A302SERVER_API UPersonalEventAnothersPortrait : public UBasePersonalEvent
 
 public:
 	virtual void ExecuteEvent_Implementation(ACharacter* InstigatorCharacter) override;
-	virtual void OnEventResolved_Implementation(ACharacter* InstigatorCharacter, int32 ChoiceIndex) override;
+	virtual void OnEventResolvedMulti(ACharacter* InstigatorCharacter, int32 ChoiceIndex) override;
 };
