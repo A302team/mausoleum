@@ -41,6 +41,11 @@ namespace A302GameplayGuards
 			return false;
 		}
 
+		if (IsStandaloneLocalExecution(InstigatorCharacter) || IsStandaloneLocalExecution(TargetCharacter))
+		{
+			return true;
+		}
+
 		return A302RoomScope::ArePlayersInSameActiveLogicalRoom(
 			InstigatorCharacter->GetPlayerState(),
 			TargetCharacter->GetPlayerState()
