@@ -3,6 +3,7 @@
 #include "lobby/handlers/GameHandler.h"
 #include "lobby/handlers/ChatHandler.h"
 #include "lobby/LobbyConstants.h"
+#include <utility>
 
 using namespace Lobby::Protocol;
 
@@ -12,12 +13,20 @@ public:
     GameHandler gameHandler;
     ChatHandler chatHandler;
 
-    Impl(RoomManager& rm, LobbyClientManager& cm)
-        : roomHandler(rm, cm), gameHandler(rm), chatHandler(rm) {}
+    Impl(
+        RoomManager& rm,
+        LobbyClientManager& cm,
+        std::function<bool(const std::string&, const std::string&)> onRequestStartGame
+    )
+        : roomHandler(rm, cm), gameHandler(rm, std::move(onRequestStartGame)), chatHandler(rm) {}
 };
 
-LobbyPacketRouter::LobbyPacketRouter(RoomManager& rm, LobbyClientManager& cm)
-    : roomManager(rm), clientManager(cm), pImpl(std::make_unique<Impl>(rm, cm))
+LobbyPacketRouter::LobbyPacketRouter(
+    RoomManager& rm,
+    LobbyClientManager& cm,
+    std::function<bool(const std::string&, const std::string&)> onRequestStartGame
+)
+    : roomManager(rm), clientManager(cm), pImpl(std::make_unique<Impl>(rm, cm, std::move(onRequestStartGame)))
 {
     registerHandlers();
 }

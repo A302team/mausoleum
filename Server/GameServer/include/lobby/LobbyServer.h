@@ -1,6 +1,7 @@
 #pragma once
 #include <iostream>
 #include <string_view>
+#include "backend/BackendService.h"
 #include "lobby/LobbyService.h"
 #include "websocket/WebSocketServer.h"
 #include "common/IServer.h"
@@ -10,6 +11,7 @@ class LobbyServer : public IServer {
 private:
     WebSocketServer wsServer;
     LobbyService service;
+    BackendService backendService;
 public:
     LobbyServer();
 

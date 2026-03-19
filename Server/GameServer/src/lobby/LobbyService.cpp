@@ -1,10 +1,13 @@
 #include "lobby/LobbyService.h"
 #include "common/logging/Logger.h"
 #include "lobby/LobbyConstants.h"
+#include <utility>
 
-LobbyService::LobbyService() : router(roomManager, clientManager) {}
+LobbyService::LobbyService(std::function<bool(const std::string&, const std::string&)> onRequestStartGame)
+    : router(roomManager, clientManager, std::move(onRequestStartGame)) {}
 
 void LobbyService::onDomainMessage(WebSocketType* ws, std::string_view type, const json& data) {
+    LOG_INFO("Lobby", "[ROLE=CLIENT] type=" << std::string(type));
     router.dispatch(ws, type, data);
 }
 
