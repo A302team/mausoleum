@@ -10,6 +10,10 @@ public class A302EditorTarget : TargetRules
 		Type = TargetType.Editor;
 		DefaultBuildSettings = BuildSettingsVersion.V6;
 		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_7;
+		ExtraModuleNames.Add("A302Shared");
 		ExtraModuleNames.Add("A302");
+		ExtraModuleNames.Add("A302Client");
+		ExtraModuleNames.Add("A302Server");
+		
 	}
 }

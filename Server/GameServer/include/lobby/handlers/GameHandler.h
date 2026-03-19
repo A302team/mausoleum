@@ -1,5 +1,6 @@
 #pragma once
 #include <nlohmann/json.hpp>
+#include <functional>
 #include <uwebsockets/App.h>
 #include "lobby/domain/RoomManager.h"
 
@@ -9,9 +10,11 @@ using WebSocketType = uWS::WebSocket<false, true, int>;
 class GameHandler {
 private:
     RoomManager& roomManager;
+    std::function<bool(const std::string&, const std::string&)> requestStartGameCallback;
 
 public:
-    explicit GameHandler(RoomManager& rm) : roomManager(rm) {}
+    GameHandler(RoomManager& rm, std::function<bool(const std::string&, const std::string&)> onRequestStartGame)
+        : roomManager(rm), requestStartGameCallback(std::move(onRequestStartGame)) {}
 
     void handleReady(WebSocketType* ws, const json& data);
     void handleStartGame(WebSocketType* ws, const json& data);

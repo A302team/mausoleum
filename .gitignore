@@ -5,10 +5,10 @@
 .githooks/pre-push
 
 .vscode/
-
+.Artifacts/
 # GameServer vcpkg
 Server/vcpkg/
 Server/GameServer/vcpkg_installed/
 Server/GameServer/build/
-
+Artifacts/**
 J14A302T.pem
