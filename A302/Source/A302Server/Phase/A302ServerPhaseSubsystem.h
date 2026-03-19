@@ -5,6 +5,8 @@
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "A302ServerPhaseSubsystem.generated.h"
 
+enum class ERewardCategory : uint8;
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnRoomPhaseChanged, const FString&, RoomCode, EGamePhase, NewPhase);
 
 USTRUCT(BlueprintType)
@@ -23,6 +25,15 @@ struct FA302RoomPhaseState
 
     UPROPERTY(BlueprintReadOnly)
     float PhaseChangedServerTime = 0.0f;
+
+    UPROPERTY(BlueprintReadOnly)
+    int32 Phase0ItemCount = 0;
+
+    UPROPERTY(BlueprintReadOnly)
+    int32 Phase1ClearObjectCount = 0;
+
+    UPROPERTY(BlueprintReadOnly)
+    int32 Phase2GroupEventCount = 0;
 
     UPROPERTY(BlueprintReadOnly)
     bool bFinished = false;
@@ -47,7 +58,19 @@ public:
     float Phase2Duration = 30.0f;
 
     UPROPERTY(Config, EditAnywhere, Category = "Phase")
+    int32 Phase0RequiredItemCount = 3;
+
+    UPROPERTY(Config, EditAnywhere, Category = "Phase")
+    int32 Phase1RequiredClearObjectCount = 3;
+
+    UPROPERTY(Config, EditAnywhere, Category = "Phase")
+    int32 Phase2RequiredGroupEventCount = 3;
+
+    UPROPERTY(Config, EditAnywhere, Category = "Phase")
     float PhasePollInterval = 0.25f;
+
+    UPROPERTY(Config, EditAnywhere, Category = "Phase|Log")
+    bool bLogPhasePolling = false;
 
     UPROPERTY(BlueprintAssignable, Category = "Phase")
     FOnRoomPhaseChanged OnRoomPhaseChanged;
@@ -64,6 +87,9 @@ public:
     UFUNCTION(BlueprintPure, Category = "Phase")
     bool IsRoomPhaseActive(const FString& RoomCode) const;
 
+    UFUNCTION(BlueprintCallable, Category = "Phase")
+    void NotifyRoomRewardResolved(const FString& RoomCode, ERewardCategory RewardCategory);
+
 private:
     void HandleMapLoaded(UWorld* LoadedWorld);
     void EvaluateRoomPhases();
@@ -71,8 +97,11 @@ private:
     void UpdateRoomPhase(const FString& RoomCode, double CurrentServerTime);
     bool HasAnyActiveRoom() const;
     UWorld* ResolveWorld() const;
-    EGamePhase ResolvePhase(double ElapsedSeconds) const;
+    EGamePhase ResolvePhase(const FA302RoomPhaseState& RoomState) const;
+    int32 CountAlivePlayersInRoom(const FString& RoomCode) const;
+    FString BuildRoomProgressSummary(const FA302RoomPhaseState& RoomState) const;
     static const TCHAR* ToString(EGamePhase Phase);
+    static const TCHAR* ToString(ERewardCategory RewardCategory);
 
     FTimerHandle PhaseUpdateTimerHandle;
 
