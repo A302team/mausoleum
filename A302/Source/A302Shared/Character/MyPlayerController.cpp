@@ -125,7 +125,7 @@ void AMyPlayerController::BeginPlay()
 			}, 0.2f, false);
 		}
 	}
-#endif	
+#endif
 }
 
 void AMyPlayerController::AcknowledgePossession(APawn* P)
