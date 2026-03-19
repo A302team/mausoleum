@@ -176,7 +176,7 @@ void UCharacterRewardComponent::Server_RequestInteractionReward_Implementation(A
 void UCharacterRewardComponent::Server_RequestTargetedItemUse_Implementation(UItemDefinition* ItemDefinition, AActor* TargetActor)
 {
 	AMyCharacter* OwnerCharacter = GetOwnerCharacter();
-	if (!OwnerCharacter || !OwnerCharacter->HasAuthority() || !ItemDefinition || !IsValid(TargetActor) || TargetActor == OwnerCharacter)
+	if (!OwnerCharacter || !OwnerCharacter->HasAuthority() || !ItemDefinition || !IsValid(TargetActor))
 	{
 		return;
 	}

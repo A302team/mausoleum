@@ -13,10 +13,10 @@ struct FItemDefinitionPayload
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item")
     EItemUseMode UseMode = EItemUseMode::SelfCast;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item", meta = (ClampMin = "1.0", EditCondition = "UseMode==EItemUseMode::Targeted"))
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item", meta = (ClampMin = "1.0", EditCondition = "UseMode==EItemUseMode::Targeted || UseMode==EItemUseMode::SelfOrTargeted"))
     float ItemUseRange = 200.0f;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item", meta = (EditCondition = "UseMode==EItemUseMode::Targeted"))
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item", meta = (EditCondition = "UseMode==EItemUseMode::Targeted || UseMode==EItemUseMode::SelfOrTargeted"))
     bool bRequiresLineOfSight = false;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item", meta = (ClampMin = "1", EditCondition = "UseMode==EItemUseMode::SelfCast"))
