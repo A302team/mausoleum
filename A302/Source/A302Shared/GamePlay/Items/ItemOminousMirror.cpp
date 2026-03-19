@@ -32,7 +32,9 @@ bool UItemOminousMirror::Use_Implementation(ACharacter* Instigator, const FItemT
 		return false;
 	}
 
-	OwnerCharacter->Server_RequestTargetedItemUse(const_cast<UItemDefinition*>(ItemDefinition), TargetCharacter);
+	// 서버에서 직접 효과가 적용되어야 하므로 이 부분은 삭제하거나 서버 전용 로직 호출
+	// OwnerCharacter가 AMyCharacter인 경우 필요한 로직이 있다면 여기서 직접 수행하거나
+	// ResolveServerTargetedUse가 나중에 호출되도록 보장해야 합니다.
 
 	if (UItemInstance* Inst = GetInstance())
 	{
@@ -44,13 +46,14 @@ bool UItemOminousMirror::Use_Implementation(ACharacter* Instigator, const FItemT
 }
 
 bool UItemOminousMirror::ResolveServerTargetedUse(
-	AMyCharacter* OwnerCharacter,
+	ACharacter* InOwnerCharacter,
 	AActor* TargetActor,
 	FString& OutSystemMessage
 ) const
 {
 	OutSystemMessage.Reset();
 
+	AMyCharacter* OwnerCharacter = Cast<AMyCharacter>(InOwnerCharacter);
 	AMyCharacter* TargetCharacter = Cast<AMyCharacter>(TargetActor);
 	if (!OwnerCharacter || !TargetCharacter || TargetCharacter == OwnerCharacter)
 	{

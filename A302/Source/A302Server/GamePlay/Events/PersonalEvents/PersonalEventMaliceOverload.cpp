@@ -1,9 +1,11 @@
 #include "GamePlay/Events/PersonalEvents/PersonalEventMaliceOverload.h"
+#include "GameData/Events/PersonalEvents/Malice/PersonalEventMaliceOverloadDefinition.h"
 
 #include "Character/Components/MaliceComponent.h"
 #include "GameFramework/PlayerState.h"
 #include "Character/MyCharacter.h"
 #include "Character/MyPlayerController.h"
+#include "Character/Components/PlayerEventComponent.h"
 
 void UPersonalEventMaliceOverload::ExecuteEvent_Implementation(ACharacter* InstigatorCharacter)
 {
