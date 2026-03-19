@@ -224,6 +224,11 @@ void UPlayerEventComponent::Server_ResolvePersonalEvent_Implementation(FName Eve
 		UE_LOG(LogTemp, Warning, TEXT("[Event] %s 거절됨."), *EventID.ToString());
 	}
 
+	if (!ActivePersonalEvent)
+	{
+		return;
+	}
+
 	if (UBasePersonalEvent* TargetEvent = Cast<UBasePersonalEvent>(ActivePersonalEvent))
 	{
 		if (!A302RoomScope::DoesEventBelongToPlayerRoom(OwnerController->PlayerState, TargetEvent))
