@@ -6,7 +6,7 @@
 #include "GameData/Items/ItemDefinition.h"
 #include "GameData/RewardDefinition.h"
 #include "GamePlay/Items/BaseItem.h"
-#include "GamePlay/Items/ItemTimeKnife.h"
+#include "GamePlay/Items/ItemCursedSword.h"
 #include "Engine/World.h"
 #include "Character/MyCharacter.h"
 #include "Character/MyPlayerController.h"
@@ -22,11 +22,11 @@ namespace
 		return FText::FromString(FString::Printf(TEXT("%d초 안에 사용하지 않을 시 사망합니다."), SafeSeconds));
 	}
 
-	FText ResolveCursedSwordTitle(const UItemDefinition* GrantedKnifeDefinition, const UPersonalEventCursedSwordDefinition* EventDef)
+	FText ResolveCursedSwordTitle(const UItemDefinition* GrantedCursedSwordDefinition, const UPersonalEventCursedSwordDefinition* EventDef)
 	{
-		if (GrantedKnifeDefinition && !GrantedKnifeDefinition->DisplayName.IsEmpty())
+		if (GrantedCursedSwordDefinition && !GrantedCursedSwordDefinition->DisplayName.IsEmpty())
 		{
-			return GrantedKnifeDefinition->DisplayName;
+			return GrantedCursedSwordDefinition->DisplayName;
 		}
 
 		if (EventDef && !EventDef->DisplayName.IsEmpty())
@@ -109,25 +109,25 @@ void UPersonalEventCursedSword::OnEventResolved(ACharacter* InstigatorCharacter,
 	const URewardDefinition* SourceRewardDefinition = GetRewardDefinition();
 	const UPersonalEventCursedSwordDefinition* EventDef =
 		Cast<UPersonalEventCursedSwordDefinition>(const_cast<URewardDefinition*>(SourceRewardDefinition));
-	RemainingSeconds = EventDef ? FMath::Max(1.0f, EventDef->Payload.TimedKillDuration) : 30.0f;
+	RemainingSeconds = EventDef ? FMath::Max(1.0f, EventDef->Payload.TimedKillDuration) : 10.0f;
 
-	UItemDefinition* GrantedKnifeDefinition = ResolveGrantedKnifeDefinition(SourceRewardDefinition, EventDef);
-	if (!GrantedKnifeDefinition)
+	UItemDefinition* GrantedCursedSwordDefinition = ResolveGrantedCursedSwordDefinition(SourceRewardDefinition, EventDef);
+	if (!GrantedCursedSwordDefinition)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[PersonalEventTimeKnife] Granted knife definition is missing."));
+		UE_LOG(LogTemp, Warning, TEXT("[PersonalEventCursedSword] Granted cursed sword definition is missing."));
 		OwnerCharacter = nullptr;
 		return;
 	}
 
 	int32 AddedSlotIndex = INDEX_NONE;
-	if (!TryGrantKnifeToPreferredSlot(InstigatorCharacter, GrantedKnifeDefinition, AddedSlotIndex))
+	if (!TryGrantCursedSwordToPreferredSlot(InstigatorCharacter, GrantedCursedSwordDefinition, AddedSlotIndex))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[PersonalEventTimeKnife] Failed to grant timed knife: add failed or slot full."));
+		UE_LOG(LogTemp, Warning, TEXT("[PersonalEventCursedSword] Failed to grant cursed sword: add failed or slot full."));
 		OwnerCharacter = nullptr;
 		return;
 	}
 
-	if (UClass* LogicClass = GrantedKnifeDefinition->ResolveRewardLogicClass())
+	if (UClass* LogicClass = GrantedCursedSwordDefinition->ResolveRewardLogicClass())
 	{
 		if (LogicClass->IsChildOf(UBaseItem::StaticClass()))
 		{
@@ -138,7 +138,7 @@ void UPersonalEventCursedSword::OnEventResolved(ACharacter* InstigatorCharacter,
 		}
 	}
 
-	GrantedItemId = GrantedKnifeDefinition->ItemId;
+	GrantedItemId = GrantedCursedSwordDefinition->ItemId;
 	GrantedSlotIndex = AddedSlotIndex;
 	bIsActive = true;
 
@@ -161,7 +161,6 @@ void UPersonalEventCursedSword::OnEventResolved(ACharacter* InstigatorCharacter,
 		);
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("[PersonalEventTimeKnife] Countdown started: %.0fs"), RemainingSeconds);
 }
 
 void UPersonalEventCursedSword::NotifyTimedKillConfirmed()
@@ -171,7 +170,6 @@ void UPersonalEventCursedSword::NotifyTimedKillConfirmed()
 		return;
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("[PersonalEventTimeKnife] Objective success."));
 	StopCountdown(true);
 }
 
@@ -182,7 +180,6 @@ void UPersonalEventCursedSword::CancelTimedKillCountdown()
 		return;
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("[PersonalEventTimeKnife] Countdown canceled."));
 	StopCountdown(true);
 }
 
@@ -214,7 +211,6 @@ void UPersonalEventCursedSword::HandleCountdownTick()
 		return;
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("[PersonalEventTimeKnife] Time expired."));
 	StopCountdown(true);
 	if (AMyCharacter* CharacterBridge = Cast<AMyCharacter>(Character))
 	{
@@ -277,10 +273,10 @@ void UPersonalEventCursedSword::StopCountdown(bool bHideTimer)
 	bIsActive = false;
 }
 
-bool UPersonalEventCursedSword::TryGrantKnifeToPreferredSlot(ACharacter* InstigatorCharacter, UItemDefinition* GrantedKnifeDefinition, int32& OutAddedSlotIndex) const
+bool UPersonalEventCursedSword::TryGrantCursedSwordToPreferredSlot(ACharacter* InstigatorCharacter, UItemDefinition* GrantedCursedSwordDefinition, int32& OutAddedSlotIndex) const
 {
 	OutAddedSlotIndex = INDEX_NONE;
-	if (!InstigatorCharacter || !GrantedKnifeDefinition)
+	if (!InstigatorCharacter || !GrantedCursedSwordDefinition)
 	{
 		return false;
 	}
@@ -288,6 +284,7 @@ bool UPersonalEventCursedSword::TryGrantKnifeToPreferredSlot(ACharacter* Instiga
 	UItemManagerComponent* ItemManagerComponent = InstigatorCharacter->FindComponentByClass<UItemManagerComponent>();
 	if (!ItemManagerComponent)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("[PersonalEventCursedSword] Grant failed: ItemManagerComponent missing on %s"), *GetNameSafe(InstigatorCharacter));
 		return false;
 	}
 
@@ -299,19 +296,19 @@ bool UPersonalEventCursedSword::TryGrantKnifeToPreferredSlot(ACharacter* Instiga
 			continue;
 		}
 
-		if (ItemManagerComponent->AddItemToSlot(SlotIndex, GrantedKnifeDefinition, 1))
+		if (ItemManagerComponent->AddItemToSlot(SlotIndex, GrantedCursedSwordDefinition, 1))
 		{
 			OutAddedSlotIndex = SlotIndex;
 			return true;
 		}
 	}
 
-	return ItemManagerComponent->TryAddItemToFirstEmptySlot(GrantedKnifeDefinition, 1, OutAddedSlotIndex);
+	return ItemManagerComponent->TryAddItemToFirstEmptySlot(GrantedCursedSwordDefinition, 1, OutAddedSlotIndex);
 }
 
-UItemDefinition* UPersonalEventCursedSword::ResolveGrantedKnifeDefinition(const URewardDefinition* SourceRewardDefinition, const UPersonalEventCursedSwordDefinition* EventDefinition) const
+UItemDefinition* UPersonalEventCursedSword::ResolveGrantedCursedSwordDefinition(const URewardDefinition* SourceRewardDefinition, const UPersonalEventCursedSwordDefinition* EventDefinition) const
 {
-	auto IsValidTimedKnifeItem = [](const UItemDefinition* Candidate)
+	auto IsValidCursedSwordItem = [](const UItemDefinition* Candidate)
 	{
 		if (!Candidate)
 		{
@@ -319,23 +316,31 @@ UItemDefinition* UPersonalEventCursedSword::ResolveGrantedKnifeDefinition(const 
 		}
 
 		UClass* CandidateLogicClass = Candidate->ResolveRewardLogicClass();
-		return CandidateLogicClass && CandidateLogicClass->IsChildOf(UItemTimeKnife::StaticClass());
+		return CandidateLogicClass && CandidateLogicClass->IsChildOf(UItemCursedSword::StaticClass());
 	};
 
 	if (EventDefinition)
 	{
 		UItemDefinition* GrantedDefinition = EventDefinition->Payload.GrantedItemDefinition.Get();
-		if (IsValidTimedKnifeItem(GrantedDefinition))
+		if (IsValidCursedSwordItem(GrantedDefinition))
 		{
 			return GrantedDefinition;
 		}
 	}
 
 	UItemDefinition* SourceAsItemDefinition = Cast<UItemDefinition>(const_cast<URewardDefinition*>(SourceRewardDefinition));
-	if (IsValidTimedKnifeItem(SourceAsItemDefinition))
+	if (IsValidCursedSwordItem(SourceAsItemDefinition))
 	{
 		return SourceAsItemDefinition;
 	}
+
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("[PersonalEventCursedSword] Failed to resolve granted cursed sword definition. source=%s sourceLogic=%s"),
+		*GetNameSafe(SourceAsItemDefinition),
+		*GetNameSafe(SourceAsItemDefinition ? SourceAsItemDefinition->ResolveRewardLogicClass() : nullptr)
+	);
 
 	return nullptr;
 }
