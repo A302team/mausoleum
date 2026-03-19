@@ -4,5 +4,6 @@
 
 namespace A302UI
 {
-	inline constexpr int32 MaxNicknameUiLen = 7;
+	inline constexpr int32 MaxNicknameLen = 20;
+	inline constexpr int32 MaxNicknameUiLen = 14;
 }

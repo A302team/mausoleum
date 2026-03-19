@@ -2,8 +2,8 @@
 
 #include "Character/Components/MaliceComponent.h"
 #include "GameFramework/PlayerState.h"
-#include "Interface/A302CharacterBridge.h"
-#include "Interface/A302ClientEventBridge.h"
+#include "Character/MyCharacter.h"
+#include "Character/MyPlayerController.h"
 
 namespace
 {
@@ -46,11 +46,11 @@ void UPersonalEventPublicMalice::ExecuteEvent_Implementation(ACharacter* Instiga
 		CurrentMaliceCount
 	);
 
-	if (IA302CharacterBridge* CharacterBridge = Cast<IA302CharacterBridge>(InstigatorCharacter))
+	if (AMyCharacter* CharacterBridge = Cast<AMyCharacter>(InstigatorCharacter))
 	{
 		CharacterBridge->BroadcastPublicMaliceAnnouncement(PlayerName, CurrentMaliceCount);
 	}
-	else if (IA302ClientEventBridge* ClientEventBridge = Cast<IA302ClientEventBridge>(InstigatorCharacter->GetController()))
+	else if (AMyPlayerController* ClientEventBridge = Cast<AMyPlayerController>(InstigatorCharacter->GetController()))
 	{
 		ClientEventBridge->ShowPublicMaliceAnnouncement(PlayerName, CurrentMaliceCount);
 	}

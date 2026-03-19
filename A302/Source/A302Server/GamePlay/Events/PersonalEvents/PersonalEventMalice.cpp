@@ -1,7 +1,7 @@
 #include "GamePlay/Events/PersonalEvents/PersonalEventMalice.h"
 
 #include "Character/Components/MaliceComponent.h"
-#include "GameData/Events/PersonalEvents/PersonalEventMaliceDefinition.h"
+#include "GameData/Events/PersonalEvents/Malice/PersonalEventMaliceDefinition.h"
 #include "GameData/RewardDefinition.h"
 
 void UPersonalEventMalice::ExecuteEvent_Implementation(ACharacter* InstigatorCharacter)

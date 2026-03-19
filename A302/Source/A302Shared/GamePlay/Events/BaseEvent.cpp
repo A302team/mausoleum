@@ -4,7 +4,7 @@
 #include "Engine/World.h"
 #include "GameMode/A302PlayerState.h"
 #include "GamePlay/Events/PersonalEvents/BasePersonalEvent.h"
-#include "Interface/A302ClientEventBridge.h"
+#include "Character/MyPlayerController.h"
 
 void UBaseEvent::InitializeRuntimeContext(ACharacter* InstigatorCharacter)
 {
@@ -31,7 +31,7 @@ void UBaseEvent::ExecuteEvent_Implementation(ACharacter* InstigatorCharacter)
 	if (!InstigatorCharacter) return;
 	InitializeRuntimeContext(InstigatorCharacter);
 
-	if (IA302ClientEventBridge* ClientEventBridge = Cast<IA302ClientEventBridge>(InstigatorCharacter->GetController()))
+	if (AMyPlayerController* ClientEventBridge = Cast<AMyPlayerController>(InstigatorCharacter->GetController()))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[Event] 클라이언트 브리지 찾음! UI 출력 RPC 호출 시도!"));
 		if (UBasePersonalEvent* PersonalEvent = Cast<UBasePersonalEvent>(this))

@@ -3,11 +3,10 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameMode/A302SharedGameInstance.h"
+#include "Engine/GameInstance.h"
 #include "A302GameInstance.generated.h"
 
 class FJsonObject;
-class ULobbyMessageRouter;
 class ULevelStreamingDynamic;
 
 USTRUCT(BlueprintType)
@@ -26,94 +25,107 @@ struct FRoomInfo
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlayerEntered, const FString &, PlayerName);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlayerReady, const FString &, PlayerName);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnGameStarted);
-
-// 플레이어가 방에서 나갔을 때 델리게이트
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlayerLeft, const FString &, PlayerName);
-
-// 플레이어 방 만들 때 호출하는 델리게이트
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnRoomCreated, const FString &, RoomCode);
-
-// 방 찾을 때 할 수 있는 행동에 대한 델리게이트
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnRoomListReceived, const TArray<FRoomInfo> &, RoomList);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnRoomJoined);
-
-// 닉네임 체크 델리게이트
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnNicknameAvailable);
-
-// 채팅 보내고 받는 델리게이트
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnChatMessageReceived, const FString &, PlayerName, const FString &, Message);
-
-// 아이템 획득 델리게이트
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnItemReceived, const FString &, PlayerName, const FString &, ItemType);
 
+/**
+ * A302GameInstance
+ * Dedicated Server와 Client 모두에서 사용되는 기본 게임 인스턴스입니다.
+ * 클라이언트 전용 로직(UI, WebSocket)은 헤더 의존성을 피하기 위해 최소화되었습니다.
+ */
 UCLASS()
-class A302CLIENT_API UA302GameInstance : public UA302SharedGameInstance
+class A302SHARED_API UA302GameInstance : public UGameInstance
 {
 	GENERATED_BODY()
 
 public:
+	UA302GameInstance();
 	virtual void Init() override;
 	virtual void OnStart() override;
 
-	UFUNCTION()
-	void OnMapLoaded(UWorld *LoadedWorld);
+	// Shared State
+	UPROPERTY(BlueprintReadWrite, Category = "Game")
+	FString CurrentRoomCode;
 
-	// WebSocket
+	UPROPERTY(BlueprintReadWrite, Category = "Game")
+	FString MyPlayerName;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Game")
+	bool bIsHost = false;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Config")
+	int32 MaxNicknameLength = 20;
+
+	UFUNCTION(BlueprintPure, Category = "Game")
+	bool IsNicknameValid(const FString& Nickname, FString& OutErrorMsg) const;
+
+	// Client-side Network (Generic pointers to avoid A302Client dependency)
 	UPROPERTY()
-	TObjectPtr<class UGameNetworkSubsystem> GameNetworkSubsystem;
+	TObjectPtr<UObject> GameNetworkSubsystem;
 
-	UFUNCTION(BlueprintCallable)
+	UPROPERTY()
+	TObjectPtr<UObject> MessageRouter;
+
+	UFUNCTION(BlueprintCallable, Category = "Network")
 	void ConnectToServer(const FString &URL);
 
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, Category = "Network")
 	void SendToServer(const FString &Message);
 
-	// 델리게이트
-	UPROPERTY(BlueprintAssignable)
+	// Delegates
+	UPROPERTY(BlueprintAssignable, Category = "Events")
 	FOnRoomCreated OnRoomCreated;
 
-	UPROPERTY(BlueprintAssignable)
+	UPROPERTY(BlueprintAssignable, Category = "Events")
 	FOnRoomJoined OnRoomJoined;
 
-	UPROPERTY(BlueprintAssignable)
+	UPROPERTY(BlueprintAssignable, Category = "Events")
 	FOnRoomListReceived OnRoomListReceived;
 
-	UPROPERTY(BlueprintAssignable)
+	UPROPERTY(BlueprintAssignable, Category = "Events")
 	FOnPlayerEntered OnPlayerEntered;
 
-	UPROPERTY(BlueprintAssignable)
+	UPROPERTY(BlueprintAssignable, Category = "Events")
 	FOnPlayerReady OnPlayerReady;
 
-	UPROPERTY(BlueprintAssignable)
+	UPROPERTY(BlueprintAssignable, Category = "Events")
 	FOnPlayerLeft OnPlayerLeft;
 
-	UPROPERTY(BlueprintAssignable)
+	UPROPERTY(BlueprintAssignable, Category = "Events")
 	FOnGameStarted OnGameStarted;
 
-	UPROPERTY(BlueprintAssignable)
+	UPROPERTY(BlueprintAssignable, Category = "Events")
 	FOnNicknameAvailable OnNicknameAvailable;
 
-	UPROPERTY(BlueprintAssignable)
+	UPROPERTY(BlueprintAssignable, Category = "Events")
 	FOnChatMessageReceived OnChatMessageReceived;
 
-	UPROPERTY(BlueprintAssignable)
+	UPROPERTY(BlueprintAssignable, Category = "Events")
 	FOnItemReceived OnItemReceived;
 
-	// 위젯 클래스
-	UPROPERTY(EditDefaultsOnly)
-	TSubclassOf<class ULobbyWidget> LobbyWidgetClass;
+	// UI Widgets (Soft references to avoid loading on Dedicated Server)
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSoftClassPtr<UUserWidget> LobbyWidgetClass;
 
 	UPROPERTY()
-	TObjectPtr<class ULobbyWidget> LobbyWidget;
+	TObjectPtr<UUserWidget> LobbyWidget;
 
-	UPROPERTY(EditDefaultsOnly)
-	TSubclassOf<class UWaitingRoomWidget> WaitingRoomWidgetClass;
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSoftClassPtr<UUserWidget> WaitingRoomWidgetClass;
 
 	UPROPERTY()
-	TObjectPtr<class UWaitingRoomWidget> WaitingRoomWidget;
+	TObjectPtr<UUserWidget> WaitingRoomWidget;
 
-	// 위젯 표시
+	UFUNCTION(BlueprintCallable, Category = "UI")
 	void ShowWaitingRoom(const FString &RoomCode);
+
+	UFUNCTION()
+	void OnMapLoaded(UWorld *LoadedWorld);
 
 private:
 	UFUNCTION()
@@ -124,16 +136,10 @@ private:
 	FString ResolveRoomCodeForInGameWorld(UWorld* LoadedWorld) const;
 
 	UPROPERTY(Transient)
-	TObjectPtr<ULobbyMessageRouter> MessageRouter;
-
-	UPROPERTY(Transient)
 	TObjectPtr<ULevelStreamingDynamic> LocalRoomStreamingLevel;
 
 	UPROPERTY(Transient)
 	FString LocalRoomStreamingRoomCode;
 
 	FTimerHandle LobbyWidgetRetryTimerHandle;
-
-	UFUNCTION()
-	void OnWorldAdded(UWorld *World);
 };

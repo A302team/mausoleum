@@ -1,10 +1,11 @@
 #include "Character/Dummy/DummyCharacter.h"
 
-#include "Character/Components/CombatStatusComponent.h"
+#include "Character/Components/Combat/CombatStatusComponent.h"
 #include "Character/Components/MaliceComponent.h"
+#include "Character/Components/PlayerEventComponent.h"
 #include "Engine/Engine.h"
 #include "GameData/Items/ItemDefinition.h"
-#include "Interface/A302CharacterBridge.h"
+#include "Character/MyCharacter.h"
 #include "Kismet/GameplayStatics.h"
 
 namespace
@@ -82,14 +83,17 @@ float ADummyCharacter::TakeDamage(
 
     bIsDead = true;
 
-    IA302CharacterBridge* KillerCharacter = DamageCauser ? Cast<IA302CharacterBridge>(DamageCauser) : nullptr;
+    AMyCharacter* KillerCharacter = DamageCauser ? Cast<AMyCharacter>(DamageCauser) : nullptr;
     if (!KillerCharacter && EventInstigator)
     {
-        KillerCharacter = Cast<IA302CharacterBridge>(EventInstigator->GetPawn());
+        KillerCharacter = Cast<AMyCharacter>(EventInstigator->GetPawn());
     }
     if (KillerCharacter)
     {
-        KillerCharacter->NotifyKilledCharacter();
+        if (UPlayerEventComponent* EventComp = KillerCharacter->FindComponentByClass<UPlayerEventComponent>())
+        {
+            EventComp->NotifyKilledCharacter();
+        }
     }
 
     LogAndScreenDummy(TEXT("Dummy Dead"), FColor::Red, 4.0f);

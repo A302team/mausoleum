@@ -20,7 +20,9 @@ public class A302Shared : ModuleRules
 		{
 			"WebSockets",
 			"UMG",
-			"SlateCore"
+			"SlateCore",
+			"Json",
+			"JsonUtilities"
 		});
 	}
 }

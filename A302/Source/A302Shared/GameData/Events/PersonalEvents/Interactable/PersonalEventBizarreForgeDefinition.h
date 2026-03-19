@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "PersonalEventDefinition.h"
+#include "GameData/Events/PersonalEvents/PersonalEventDefinition.h"
 #include "PersonalEventBizarreForgeDefinition.generated.h"
 
 class UItemDefinition;

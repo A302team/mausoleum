@@ -38,6 +38,18 @@ public:
 	void ConsumeMalice(int32 Count);
 
 	int32 GetMaliceCount() const { return FMath::Max(0, MaliceCount); }
+
+	UFUNCTION(BlueprintCallable, Category = "Malice")
+	void BroadcastPublicMaliceAnnouncement(const FString& PlayerName, int32 NewMaliceCount);
+
+	// Multicast_ShowPublicMaliceAnnouncement is removed in favor of targeted RPCs via UA302RoomEventSubsystem.
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Malice|Ending")
+	bool bMaliceEnding = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Malice|Ending")
+	bool bNiceEnding = true;
+
 private:
 	UFUNCTION()
 	void OnRep_MaliceCount();

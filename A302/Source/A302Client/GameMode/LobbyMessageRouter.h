@@ -13,7 +13,10 @@ class A302CLIENT_API ULobbyMessageRouter : public UObject
 	GENERATED_BODY()
 
 public:
+	UFUNCTION()
 	void Initialize(UA302GameInstance* InGameInstance);
+
+	UFUNCTION()
 	void HandleMessage(const FString& Message);
 
 private:

@@ -1,7 +1,7 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
-#include "PersonalEventDefinition.h"
+#include "GameData/Events/PersonalEvents/PersonalEventDefinition.h"
 #include "PersonalEventMaliceOverloadDefinition.generated.h"
 
 UCLASS(BlueprintType, Blueprintable)

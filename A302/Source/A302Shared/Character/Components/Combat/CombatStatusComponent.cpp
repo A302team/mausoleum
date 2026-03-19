@@ -1,4 +1,4 @@
-#include "Character/Components/CombatStatusComponent.h"
+#include "Character/Components/Combat/CombatStatusComponent.h"
 
 UCombatStatusComponent::UCombatStatusComponent()
 {

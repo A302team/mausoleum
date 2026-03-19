@@ -1,6 +1,6 @@
-#include "Character/Components/QuickSlotComponent.h"
+#include "Character/Components/Inventory/QuickSlotComponent.h"
 
-#include "Character/Components/ItemManagerComponent.h"
+#include "Character/Components/Inventory/ItemManagerComponent.h"
 #include "Engine/Engine.h"
 #include "GameData/Items/ItemDefinition.h"
 #include "GameData/Items/ItemTypes.h"

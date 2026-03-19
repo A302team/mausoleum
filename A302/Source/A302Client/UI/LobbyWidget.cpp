@@ -10,6 +10,7 @@
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
+#include "UI/NicknameUiConstants.h"
 
 void ULobbyWidget::NativeConstruct()
 {
@@ -49,11 +50,13 @@ void ULobbyWidget::CheckNickname(const FString& PlayerName)
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Output);
     FJsonSerializer::Serialize(Json.ToSharedRef(), Writer);
 
-    GI->SendToServer(Output);
+	GI->SendToServer(Output);
+	UE_LOG(LogTemp, Log, TEXT("[UI/LobbyWidget] CheckNickname sent: %s"), *PlayerName);
 }
 
 void ULobbyWidget::OnNicknameAvailable()
 {
+	UE_LOG(LogTemp, Log, TEXT("[UI/LobbyWidget] OnNicknameAvailable received. PendingAction: %d"), (int32)PendingAction);
     if (PendingAction == EPendingAction::CreateRoom)
     {
         TSharedPtr<FJsonObject> Data = MakeShareable(new FJsonObject);
@@ -112,6 +115,11 @@ void ULobbyWidget::OnCreateRoomClicked()
         return;
     }
 
+    if (PlayerName.Len() > A302UI::MaxNicknameLen) {
+        UE_LOG(LogTemp, Warning, TEXT("[UI/LobbyWidget] 닉네임은 %d자 이하로 입력해주세요!"), A302UI::MaxNicknameLen);
+        return;
+    }
+
     PendingAction = EPendingAction::CreateRoom;
     GI->MyPlayerName = PlayerName;
     CheckNickname(PlayerName);
@@ -124,6 +132,10 @@ void ULobbyWidget::OnEnterRoomClicked()
 
     if (PlayerName.IsEmpty()) {
         UE_LOG(LogTemp, Warning, TEXT("[UI/LobbyWidget] 닉네임을 입력해주세요!"));
+        return;
+    }
+    if (PlayerName.Len() > A302UI::MaxNicknameLen) {
+        UE_LOG(LogTemp, Warning, TEXT("[UI/LobbyWidget] 닉네임은 %d자 이하로 입력해주세요!"), A302UI::MaxNicknameLen);
         return;
     }
     if (RoomCode.IsEmpty()) {
@@ -142,6 +154,11 @@ void ULobbyWidget::OnFindRoomClicked()
 
     if (PlayerName.IsEmpty()) {
         UE_LOG(LogTemp, Warning, TEXT("[UI/LobbyWidget] 닉네임을 입력해주세요!"));
+        return;
+    }
+
+    if (PlayerName.Len() > A302UI::MaxNicknameLen) {
+        UE_LOG(LogTemp, Warning, TEXT("[UI/LobbyWidget] 닉네임은 %d자 이하로 입력해주세요!"), A302UI::MaxNicknameLen);
         return;
     }
 

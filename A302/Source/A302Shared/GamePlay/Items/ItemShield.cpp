@@ -1,8 +1,10 @@
 #include "GamePlay/Items/ItemShield.h"
-#include "Character/Components/CombatStatusComponent.h"
+#include "Character/Components/Combat/CombatStatusComponent.h"
 #include "GameData/Items/ItemInstance.h"
 #include "GameFramework/Character.h"
-#include "Interface/A302CharacterBridge.h"
+#include "Character/MyCharacter.h"
+#include "Animation/MyAnimInstance.h"
+#include "Character/Components/Combat/EquipmentComponent.h"
 
 bool UItemShield::CanUse_Implementation(ACharacter* Instigator, const FItemTargetData& /*TargetData*/) const
 {
@@ -53,11 +55,14 @@ bool UItemShield::Use_Implementation(ACharacter* Instigator, const FItemTargetDa
         Inst->Consume(1);
     }
 
-    if (IA302CharacterBridge* CharacterBridge = Cast<IA302CharacterBridge>(Instigator))
+    if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(Instigator))
     {
         OnItemUsed(MyCharacter);
 
-        MyCharacter->EquipWeapon(MyCharacter->ShieldActorClass);
+        if (UEquipmentComponent* EquipmentComp = MyCharacter->GetEquipmentComponent())
+        {
+            EquipmentComp->EquipWeapon(EquipmentComp->ShieldActorClass);
+        }
 
         if (UMyAnimInstance* Anim = Cast<UMyAnimInstance>(MyCharacter->GetMesh()->GetAnimInstance()))
         {

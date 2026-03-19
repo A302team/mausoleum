@@ -2,6 +2,7 @@
 
 #include "Character/Components/MaliceComponent.h"
 #include "Character/MyCharacter.h"
+#include "Character/Components/Interaction/CharacterRewardComponent.h"
 #include "GameData/Items/ItemInstance.h"
 
 FString UItemCrimsonQuartz::BuildInspectionMessage(int32 RawMaliceCount)
@@ -52,7 +53,10 @@ bool UItemCrimsonQuartz::Use_Implementation(ACharacter* Instigator, const FItemT
 		return false;
 	}
 
-	OwnerCharacter->Server_RequestTargetedItemUse(const_cast<UItemDefinition*>(ItemDefinition), TargetCharacter);
+	if (UCharacterRewardComponent* RewardComponent = OwnerCharacter->FindComponentByClass<UCharacterRewardComponent>())
+	{
+		RewardComponent->Server_RequestTargetedItemUse(const_cast<UItemDefinition*>(ItemDefinition), TargetCharacter);
+	}
 
 	if (UItemInstance* Inst = GetInstance())
 	{
@@ -64,7 +68,7 @@ bool UItemCrimsonQuartz::Use_Implementation(ACharacter* Instigator, const FItemT
 }
 
 bool UItemCrimsonQuartz::ResolveServerTargetedUse(
-	AMyCharacter* OwnerCharacter,
+	ACharacter* OwnerCharacter,
 	AActor* TargetActor,
 	FString& OutSystemMessage
 ) const

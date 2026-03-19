@@ -62,6 +62,7 @@ namespace BackendProtocol
     const FString ReqRegisterDedicated = TEXT("register_dedicated");
     const FString ReqPrepareGame = TEXT("prepare_game");
     const FString ReqDedicatedReady = TEXT("dedicated_ready");
+    const FString ReqFinishGame = TEXT("finish_game");
     const FString ResDedicatedRegistered = TEXT("dedicated_registered");
 
     const FString RoleDedicated = TEXT("dedicated");

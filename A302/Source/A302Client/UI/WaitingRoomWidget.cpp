@@ -91,6 +91,11 @@ void UWaitingRoomWidget::OnPlayerEntered(const FString &PlayerName)
     if (!PlayerListItemClass || !ScrollBox_Players)
         return;
 
+    if (PlayerItems.Contains(PlayerName))
+    {
+        return;
+    }
+
     UPlayerListItem *Item = CreateWidget<UPlayerListItem>(GetWorld(), PlayerListItemClass);
     if (Item)
     {

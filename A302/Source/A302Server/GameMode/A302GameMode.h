@@ -18,6 +18,7 @@ class URewardDefinition;
 class URoomMembershipRegistry;
 class UA302RoomRuntimeSubsystem;
 class UA302ServerPhaseSubsystem;
+class UA302ServerBackendRouter;
 
 UCLASS()
 class A302SERVER_API AA302GameMode : public AGameMode
@@ -35,12 +36,21 @@ public:
 
     virtual bool TryHandlePersonalEventReward(ACharacter* InstigatorCharacter, AActor* InteractedActor, const URewardDefinition* RewardDefinition);
     virtual bool TryHandleGroupEventReward(ACharacter* InstigatorCharacter, AActor* InteractedActor, const URewardDefinition* RewardDefinition);
+    virtual APawn* SpawnDefaultPawnFor_Implementation(AController* NewPlayer, AActor* StartSpot) override;
 
+    void SpawnPlayersInRoom(const FString& RoomCode);
+    void StartRoomGameplay(const FString& RoomCode);
+    bool IsRoomGameplayActive(const FString& RoomCode) const;
+
+    UFUNCTION(BlueprintCallable, Category = "Room")
     virtual void PostLogin(APlayerController *NewPlayer) override;
     virtual void Logout(AController *Exiting) override;
     virtual void HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer) override;
     virtual FString InitNewPlayer(APlayerController* NewPlayerController, const FUniqueNetIdRepl& UniqueId, const FString& Options, const FString& Portal) override;
-    virtual APawn* SpawnDefaultPawnFor_Implementation(AController* NewPlayer, AActor* StartSpot) override;
+
+    UFUNCTION(BlueprintCallable, Category = "Room")
+    URoomMembershipRegistry* GetRoomMembershipRegistry() const { return RoomMembershipRegistry; }
+    UGameServerBackendSubsystem* GetBackendSubsystem() const { return BackendSubsystem; }
 
 protected:
     virtual void BeginPlay() override;
@@ -62,10 +72,7 @@ private:
     TObjectPtr<UA302RoomRuntimeSubsystem> RoomRuntimeSubsystem;
 
     UPROPERTY(Transient)
-    TSet<FString> ActiveGameplayRooms;
-
-    UPROPERTY(Transient)
-    TSet<FString> ReadyGameplayRooms;
+    TObjectPtr<UA302ServerBackendRouter> BackendRouter;
 
     UPROPERTY(Config, EditAnywhere, Category = "Room Runtime")
     float ClientRoomStreamWarmupSeconds = 1.0f;
@@ -77,15 +84,8 @@ private:
     void HandleRoomPhaseChanged(const FString& RoomCode, EGamePhase NewPhase);
     void HandleRoomLevelReady(const FString& RoomCode);
 
-    void HandlePrepareGame(const TSharedPtr<FJsonObject>& Data);
-    bool IsRoomGameplayActive(const FString& RoomCode) const;
-    bool IsPlayerGameplayEnabled(const APlayerController* PlayerController) const;
-    void UpdatePlayerGameplayFlag(APlayerController* PlayerController, bool bEnabled) const;
-    void SpawnPlayersInRoom(const FString& RoomCode);
-    void StartRoomGameplay(const FString& RoomCode);
 
     int CurrentStage = 1;
 
     bool EnsureSpawnManager();
-    void QueueSpawnPlayer(APlayerController* PlayerController);
 };

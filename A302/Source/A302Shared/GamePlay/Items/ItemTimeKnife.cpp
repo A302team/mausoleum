@@ -2,11 +2,12 @@
 
 #include "GameFramework/Character.h"
 #include "Interface/A302AnimationBridge.h"
-#include "Interface/A302CharacterBridge.h"
+#include "Character/MyCharacter.h"
+#include "Character/Components/Combat/EquipmentComponent.h"
 
 bool UItemTimeKnife::Use_Implementation(ACharacter* Instigator, const FItemTargetData& TargetData)
 {
-	IA302CharacterBridge* CharacterBridge = Cast<IA302CharacterBridge>(Instigator);
+	AMyCharacter* CharacterBridge = Cast<AMyCharacter>(Instigator);
 	if (CharacterBridge)
 	{
 		CharacterBridge->SetTimedKnifeAttackInProgress(true);
@@ -29,10 +30,10 @@ bool UItemTimeKnife::Use_Implementation(ACharacter* Instigator, const FItemTarge
 
 void UItemTimeKnife::PlayUsePresentation(ACharacter* Instigator)
 {
-	IA302CharacterBridge* CharacterBridge = Cast<IA302CharacterBridge>(Instigator);
-	if (CharacterBridge)
+	AMyCharacter* CharacterBridge = Cast<AMyCharacter>(Instigator);
+	if (CharacterBridge && CharacterBridge->GetEquipmentComponent())
 	{
-		CharacterBridge->EquipTimeKnifeWeapon();
+		CharacterBridge->GetEquipmentComponent()->EquipTimeKnifeWeapon();
 	}
 
 	if (!Instigator)

@@ -1,9 +1,11 @@
 #include "Character/Components/PlayerEventComponent.h"
 
 #include "Room/RoomScopeRules.h"
-#include "Character/Components/ItemManagerComponent.h"
-#include "Character/Components/PlayerHUDComponent.h"
+#include "Character/Components/Inventory/ItemManagerComponent.h"
 #include "Character/MyPlayerController.h"
+#include "Character/MyCharacter.h"
+#include "Interface/A302TimedKillEventBridge.h"
+#include "GameFramework/HUD.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/PlayerState.h"
 #include "GamePlay/Events/BaseEvent.h"
@@ -61,6 +63,49 @@ void UPlayerEventComponent::RequestSubmitGroupVote(FName EventID, int32 TargetPl
 	Server_SubmitGroupVote(EventID, TargetPlayerId);
 }
 
+void UPlayerEventComponent::NotifyKilledCharacter()
+{
+	if (ActiveTimedKnifeEventObject && bTimedKnifeAttackInProgress)
+	{
+		if (IA302TimedKillEventBridge* TimedKillBridge = Cast<IA302TimedKillEventBridge>(ActiveTimedKnifeEventObject))
+		{
+			TimedKillBridge->NotifyTimedKillConfirmed();
+		}
+	}
+}
+
+void UPlayerEventComponent::NotifyTimedKnifeAttackSucceeded()
+{
+	if (IA302TimedKillEventBridge* TimedKillBridge = Cast<IA302TimedKillEventBridge>(ActiveTimedKnifeEventObject))
+	{
+		TimedKillBridge->NotifyTimedKillConfirmed();
+	}
+}
+
+void UPlayerEventComponent::RegisterTimedKillEvent(UObject* EventInstance)
+{
+	if (IA302TimedKillEventBridge* ExistingTimedKillBridge = Cast<IA302TimedKillEventBridge>(ActiveTimedKnifeEventObject);
+		ExistingTimedKillBridge && ActiveTimedKnifeEventObject != EventInstance)
+	{
+		ExistingTimedKillBridge->CancelTimedKillCountdown();
+	}
+
+	ActiveTimedKnifeEventObject = EventInstance;
+}
+
+void UPlayerEventComponent::ClearTimedKillEvent(UObject* EventInstance)
+{
+	if (!EventInstance || ActiveTimedKnifeEventObject == EventInstance)
+	{
+		ActiveTimedKnifeEventObject = nullptr;
+	}
+}
+
+void UPlayerEventComponent::SetTimedKnifeAttackInProgress(bool bInProgress)
+{
+	bTimedKnifeAttackInProgress = bInProgress;
+}
+
 void UPlayerEventComponent::Client_ShowPersonalEvent_Implementation(FName EventID, const FText& Title, const FText& Description, const TArray<FText>& Choices)
 {
 	AMyPlayerController* OwnerController = GetOwnerController();
@@ -69,9 +114,14 @@ void UPlayerEventComponent::Client_ShowPersonalEvent_Implementation(FName EventI
 		return;
 	}
 
-	if (UPlayerHUDComponent* HUDComponent = OwnerController->GetPlayerHUDComponent())
+	if (AHUD* GameHUD = OwnerController->GetHUD())
 	{
-		HUDComponent->ShowPersonalEventUI(OwnerController->PersonalEventWidgetClass, EventID, Title, Description, Choices);
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("ShowPersonalEvent")))
+		{
+			struct FParams { FName Id; FText T; FText D; TArray<FText> C; };
+			FParams Params { EventID, Title, Description, Choices };
+			GameHUD->ProcessEvent(Func, &Params);
+		}
 	}
 }
 
@@ -83,19 +133,32 @@ void UPlayerEventComponent::Client_OpenGroupEventVote_Implementation(FName Event
 		return;
 	}
 
-	if (UPlayerHUDComponent* HUDComponent = OwnerController->GetPlayerHUDComponent())
+	if (AHUD* GameHUD = OwnerController->GetHUD())
 	{
-		HUDComponent->ShowGroupEventVoteUI(OwnerController->GroupEventVoteWidgetClass, EventID, EventTitle, EventDescription, VoteDuration);
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("ShowGroupEventVote")))
+		{
+			struct FParams { FName Id; FText T; FText D; float V; };
+			FParams Params { EventID, EventTitle, EventDescription, VoteDuration };
+			GameHUD->ProcessEvent(Func, &Params);
+		}
 	}
 }
 
 void UPlayerEventComponent::Client_FinishGroupEventVote_Implementation(FName EventID, const FText& ResultText)
 {
-	if (AMyPlayerController* OwnerController = GetOwnerController())
+	AMyPlayerController* OwnerController = GetOwnerController();
+	if (!OwnerController)
 	{
-		if (UPlayerHUDComponent* HUDComponent = OwnerController->GetPlayerHUDComponent())
+		return;
+	}
+
+	if (AHUD* GameHUD = OwnerController->GetHUD())
+	{
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("FinishGroupEventVoteUI")))
 		{
-			HUDComponent->FinishGroupEventVoteUI(EventID, ResultText);
+			struct FParams { FName Id; FText R; };
+			FParams Params { EventID, ResultText };
+			GameHUD->ProcessEvent(Func, &Params);
 		}
 	}
 }

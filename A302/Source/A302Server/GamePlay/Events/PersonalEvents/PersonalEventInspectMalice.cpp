@@ -1,6 +1,6 @@
 #include "GamePlay/Events/PersonalEvents/PersonalEventInspectMalice.h"
 
-#include "Interface/A302ClientEventBridge.h"
+#include "Character/MyPlayerController.h"
 
 void UPersonalEventInspectMalice::ExecuteEvent_Implementation(ACharacter* InstigatorCharacter)
 {
@@ -9,7 +9,7 @@ void UPersonalEventInspectMalice::ExecuteEvent_Implementation(ACharacter* Instig
 		return;
 	}
 
-	IA302ClientEventBridge* ClientEventBridge = Cast<IA302ClientEventBridge>(InstigatorCharacter->GetController());
+	AMyPlayerController* ClientEventBridge = Cast<AMyPlayerController>(InstigatorCharacter->GetController());
 	if (!ClientEventBridge)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[PersonalEventInspectMalice] ClientEventBridge is missing."));

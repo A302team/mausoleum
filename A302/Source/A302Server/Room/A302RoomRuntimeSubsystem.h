@@ -45,6 +45,7 @@ public:
     FVector ResolveRoomOffset(const FString& RoomCode) const;
     void TouchRoom(const FString& RoomCode);
     bool StopRoomRuntime(const FString& RoomCode);
+    bool IsRoomLevelReady(const FString& RoomCode) const;
 
     void SetRoomPopulationResolver(TFunction<int32(const FString&)>&& InResolver);
 

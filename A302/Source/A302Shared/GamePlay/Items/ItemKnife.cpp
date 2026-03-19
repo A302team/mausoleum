@@ -7,10 +7,10 @@
 #include "GameData/Items/ItemInstance.h"
 #include "GameFramework/Character.h"
 #include "GamePlay/Actor/WeaponActor.h"
-#include "Kismet/GameplayStatics.h"
-#include "Interface/A302CharacterBridge.h"
+#include "Character/MyCharacter.h"
 #include "Kismet/GameplayStatics.h"
 #include "A302GameplayGuards.h"
+#include "Character/Components/Combat/EquipmentComponent.h"
 
 bool UItemKnife::CanUse_Implementation(ACharacter* Instigator, const FItemTargetData& TargetData) const
 {
@@ -113,9 +113,12 @@ void UItemKnife::PlayUsePresentation(ACharacter* Instigator)
         return;
     }
 
-    if (MyCharacter->KnifeActorClass)
+    if (UEquipmentComponent* EquipmentComp = MyCharacter->GetEquipmentComponent())
     {
-        MyCharacter->EquipWeapon(MyCharacter->KnifeActorClass);
+        if (EquipmentComp->KnifeActorClass)
+        {
+            EquipmentComp->EquipWeapon(EquipmentComp->KnifeActorClass);
+        }
     }
 
     if (UMyAnimInstance* Anim = Cast<UMyAnimInstance>(MyCharacter->GetMesh()->GetAnimInstance()))

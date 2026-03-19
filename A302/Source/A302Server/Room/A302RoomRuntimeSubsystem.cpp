@@ -66,6 +66,12 @@ bool UA302RoomRuntimeSubsystem::PrepareRoom(const FString& RoomCode)
     return RoomState.bLevelReady;
 }
 
+bool UA302RoomRuntimeSubsystem::IsRoomLevelReady(const FString& RoomCode) const
+{
+    const FA302RoomRuntimeState* State = RoomRuntimeStates.Find(A302RoomWorldOffset::NormalizeRoomCode(RoomCode));
+    return State ? State->bLevelReady : false;
+}
+
 FVector UA302RoomRuntimeSubsystem::ResolveRoomOffset(const FString& RoomCode) const
 {
     return A302RoomWorldOffset::ResolveRoomOffset(A302RoomWorldOffset::NormalizeRoomCode(RoomCode));

@@ -23,7 +23,7 @@ class UWidget;
 class UItemDefinition;
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
-class A302SHARED_API UPlayerHUDComponent : public UActorComponent
+class A302CLIENT_API UPlayerHUDComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
