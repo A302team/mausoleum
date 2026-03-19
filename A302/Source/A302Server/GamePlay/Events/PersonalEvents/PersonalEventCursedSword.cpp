@@ -14,11 +14,8 @@
 namespace
 {
 	constexpr int32 VisibleQuickSlotCount = 5;
-}
 
-void UPersonalEventCursedSword::ExecuteEvent_Implementation(ACharacter* InstigatorCharacter)
-{
-	if (!InstigatorCharacter)
+	FText BuildCursedSwordCountdownContext(float RemainingSeconds)
 	{
 		const int32 SafeSeconds = FMath::Max(0, FMath::CeilToInt(RemainingSeconds));
 		return FText::FromString(FString::Printf(TEXT("%d초 안에 사용하지 않을 시 사망합니다."), SafeSeconds));
@@ -32,18 +29,36 @@ void UPersonalEventCursedSword::ExecuteEvent_Implementation(ACharacter* Instigat
 		}
 
 		if (EventDef && !EventDef->DisplayName.IsEmpty())
+		{
+			return EventDef->DisplayName;
+		}
+
+		return FText::FromString(TEXT("저주받은 검 획득"));
+	}
+}
+
+void UPersonalEventCursedSword::ExecuteEvent_Implementation(ACharacter* InstigatorCharacter)
+{
+	if (!InstigatorCharacter)
+	{
 		return;
 	}
 
 	OwnerCharacter = InstigatorCharacter;
 
-	AMyPlayerController* ClientEventBridge = Cast<AMyPlayerController>(InstigatorCharacter->GetController());
-	if (!ClientEventBridge)
+	AMyPlayerController* PlayerController = Cast<AMyPlayerController>(InstigatorCharacter->GetController());
+	if (!PlayerController)
 	{
 		return;
 	}
 
-	ClientEventBridge->SetActivePersonalEvent(this);
+	UPlayerEventComponent* EventComp = PlayerController->GetPlayerEventComponent();
+	if (!EventComp)
+	{
+		return;
+	}
+
+	EventComp->SetActivePersonalEvent(this);
 
 	const URewardDefinition* SourceRewardDefinition = GetRewardDefinition();
 	const UPersonalEventDefinition* EventDef = Cast<UPersonalEventDefinition>(SourceRewardDefinition);
@@ -62,7 +77,7 @@ void UPersonalEventCursedSword::ExecuteEvent_Implementation(ACharacter* Instigat
 			Choices.Add(FText::FromString(TEXT("확인")));
 		}
 
-		ClientEventBridge->ShowPersonalEvent(
+		EventComp->ShowPersonalEvent(
 			EventDef->ItemId,
 			EventDef->DisplayName,
 			EventDef->Description,
@@ -71,7 +86,7 @@ void UPersonalEventCursedSword::ExecuteEvent_Implementation(ACharacter* Instigat
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[PersonalEventTimeKnife] EventDef is missing, executing immediately."));
+		UE_LOG(LogTemp, Warning, TEXT("[PersonalEventCursedSword] EventDef is missing, executing immediately."));
 		OnEventResolved(InstigatorCharacter, true);
 	}
 }
