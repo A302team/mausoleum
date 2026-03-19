@@ -2,14 +2,31 @@
 
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
+#include "GameData/RewardTypes.h"
+#include "GameMode/A302GameMode.h"
+#include "GameMode/A302PlayerState.h"
+#include "GameFramework/PlayerController.h"
+#include "Room/RoomMembershipRegistry.h"
 #include "Room/RoomWorldOffset.h"
 #include "TimerManager.h"
 #include "UObject/UObjectGlobals.h"
+
+DEFINE_LOG_CATEGORY_STATIC(LogA302Phase, Log, All);
 
 void UA302ServerPhaseSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
     Super::Initialize(Collection);
     FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(this, &UA302ServerPhaseSubsystem::HandleMapLoaded);
+    UE_LOG(
+        LogA302Phase,
+        Log,
+        TEXT("Initialized. RequiredCounts={P0:%d,P1:%d,P2:%d} PollInterval=%.2f PollingLog=%s"),
+        Phase0RequiredItemCount,
+        Phase1RequiredClearObjectCount,
+        Phase2RequiredGroupEventCount,
+        PhasePollInterval,
+        bLogPhasePolling ? TEXT("true") : TEXT("false")
+    );
 }
 
 void UA302ServerPhaseSubsystem::Deinitialize()
@@ -29,7 +46,7 @@ bool UA302ServerPhaseSubsystem::StartRoomPhaseTimeline(const FString& RoomCode)
     const FString NormalizedRoomCode = A302RoomWorldOffset::NormalizeRoomCode(RoomCode);
     if (NormalizedRoomCode.IsEmpty())
     {
-        UE_LOG(LogTemp, Warning, TEXT("[A302ServerPhaseSubsystem] Cannot start room phase timeline with empty RoomCode."));
+        UE_LOG(LogA302Phase, Warning, TEXT("Cannot start room phase timeline with empty RoomCode."));
         return false;
     }
 
@@ -42,18 +59,22 @@ bool UA302ServerPhaseSubsystem::StartRoomPhaseTimeline(const FString& RoomCode)
     RoomState.CurrentPhase = EGamePhase::Phase0;
     RoomState.MatchStartServerTime = static_cast<float>(CurrentServerTime);
     RoomState.PhaseChangedServerTime = static_cast<float>(CurrentServerTime);
+    RoomState.Phase0ItemCount = 0;
+    RoomState.Phase1ClearObjectCount = 0;
+    RoomState.Phase2GroupEventCount = 0;
     RoomState.bFinished = false;
 
     EnsurePhaseTimer();
     OnRoomPhaseChanged.Broadcast(NormalizedRoomCode, RoomState.CurrentPhase);
 
     UE_LOG(
-        LogTemp,
+        LogA302Phase,
         Log,
-        TEXT("[A302ServerPhaseSubsystem] %s room phase timeline. room=%s start=%.2f"),
+        TEXT("%s room phase timeline. room=%s start=%.2f progress=%s"),
         bRestartingExistingRoom ? TEXT("Restarted") : TEXT("Started"),
         *NormalizedRoomCode,
-        CurrentServerTime
+        CurrentServerTime,
+        *BuildRoomProgressSummary(RoomState)
     );
 
     return true;
@@ -70,6 +91,7 @@ bool UA302ServerPhaseSubsystem::StopRoomPhaseTimeline(const FString& RoomCode)
     const bool bRemoved = RoomPhaseStates.Remove(NormalizedRoomCode) > 0;
     if (!bRemoved)
     {
+        UE_LOG(LogA302Phase, Verbose, TEXT("Stop ignored. room=%s was not active."), *NormalizedRoomCode);
         return false;
     }
 
@@ -81,7 +103,7 @@ bool UA302ServerPhaseSubsystem::StopRoomPhaseTimeline(const FString& RoomCode)
         }
     }
 
-    UE_LOG(LogTemp, Log, TEXT("[A302ServerPhaseSubsystem] Stopped room timeline. room=%s"), *NormalizedRoomCode);
+    UE_LOG(LogA302Phase, Log, TEXT("Stopped room timeline. room=%s"), *NormalizedRoomCode);
     return true;
 }
 
@@ -106,6 +128,76 @@ bool UA302ServerPhaseSubsystem::IsRoomPhaseActive(const FString& RoomCode) const
     }
 
     return false;
+}
+
+void UA302ServerPhaseSubsystem::NotifyRoomRewardResolved(const FString& RoomCode, ERewardCategory RewardCategory)
+{
+    const FString NormalizedRoomCode = A302RoomWorldOffset::NormalizeRoomCode(RoomCode);
+    FA302RoomPhaseState* RoomState = RoomPhaseStates.Find(NormalizedRoomCode);
+    if (!RoomState || RoomState->bFinished)
+    {
+        UE_LOG(
+            LogA302Phase,
+            Verbose,
+            TEXT("Reward ignored. room=%s state=%s"),
+            *NormalizedRoomCode,
+            RoomState ? TEXT("finished") : TEXT("missing")
+        );
+        return;
+    }
+
+    bool bCounted = false;
+    switch (RoomState->CurrentPhase)
+    {
+    case EGamePhase::Phase0:
+        if (RewardCategory == ERewardCategory::BasicItem)
+        {
+            ++RoomState->Phase0ItemCount;
+            bCounted = true;
+        }
+        break;
+    case EGamePhase::Phase1:
+        if (RewardCategory != ERewardCategory::GroupEvent)
+        {
+            ++RoomState->Phase1ClearObjectCount;
+            bCounted = true;
+        }
+        break;
+    case EGamePhase::Phase2:
+        if (RewardCategory == ERewardCategory::GroupEvent)
+        {
+            ++RoomState->Phase2GroupEventCount;
+            bCounted = true;
+        }
+        break;
+    default:
+        break;
+    }
+
+    if (bCounted)
+    {
+        UE_LOG(
+            LogA302Phase,
+            Log,
+            TEXT("Reward counted. room=%s phase=%s category=%s progress=%s"),
+            *NormalizedRoomCode,
+            ToString(RoomState->CurrentPhase),
+            ToString(RewardCategory),
+            *BuildRoomProgressSummary(*RoomState)
+        );
+    }
+    else
+    {
+        UE_LOG(
+            LogA302Phase,
+            Verbose,
+            TEXT("Reward skipped by phase rule. room=%s phase=%s category=%s progress=%s"),
+            *NormalizedRoomCode,
+            ToString(RoomState->CurrentPhase),
+            ToString(RewardCategory),
+            *BuildRoomProgressSummary(*RoomState)
+        );
+    }
 }
 
 void UA302ServerPhaseSubsystem::HandleMapLoaded(UWorld* LoadedWorld)
@@ -138,6 +230,13 @@ void UA302ServerPhaseSubsystem::EvaluateRoomPhases()
     RoomPhaseStates.GetKeys(RoomCodes);
     for (const FString& RoomCode : RoomCodes)
     {
+        if (bLogPhasePolling)
+        {
+            if (const FA302RoomPhaseState* RoomState = RoomPhaseStates.Find(RoomCode))
+            {
+                UE_LOG(LogA302Phase, Verbose, TEXT("Polling room=%s progress=%s"), *RoomCode, *BuildRoomProgressSummary(*RoomState));
+            }
+        }
         UpdateRoomPhase(RoomCode, CurrentServerTime);
     }
 
@@ -155,7 +254,7 @@ void UA302ServerPhaseSubsystem::EnsurePhaseTimer()
     UWorld* World = ResolveWorld();
     if (!World)
     {
-        UE_LOG(LogTemp, Verbose, TEXT("[A302ServerPhaseSubsystem] Waiting for world before arming room timer."));
+        UE_LOG(LogA302Phase, Verbose, TEXT("Waiting for world before arming room timer."));
         return;
     }
 
@@ -169,6 +268,7 @@ void UA302ServerPhaseSubsystem::EnsurePhaseTimer()
             SafePollInterval,
             true
         );
+        UE_LOG(LogA302Phase, Log, TEXT("Phase timer armed. interval=%.2f"), SafePollInterval);
     }
 }
 
@@ -181,11 +281,46 @@ void UA302ServerPhaseSubsystem::UpdateRoomPhase(const FString& RoomCode, double 
         return;
     }
 
-    const double ElapsedSeconds = FMath::Max(0.0, CurrentServerTime - RoomState->MatchStartServerTime);
-    const EGamePhase NewPhase = ResolvePhase(ElapsedSeconds);
-    if (RoomState->CurrentPhase == NewPhase)
+    const EGamePhase PreviousPhase = RoomState->CurrentPhase;
+    const EGamePhase NewPhase = ResolvePhase(*RoomState);
+    if (PreviousPhase == NewPhase)
     {
         return;
+    }
+
+    FString TransitionReason = TEXT("rule satisfied");
+    if (PreviousPhase == EGamePhase::Phase0 && NewPhase == EGamePhase::Phase1)
+    {
+        TransitionReason = FString::Printf(
+            TEXT("Phase0 item count reached (%d/%d)"),
+            RoomState->Phase0ItemCount,
+            FMath::Max(0, Phase0RequiredItemCount)
+        );
+    }
+    else if (PreviousPhase == EGamePhase::Phase1 && NewPhase == EGamePhase::Phase2)
+    {
+        TransitionReason = FString::Printf(
+            TEXT("Phase1 clear object count reached (%d/%d)"),
+            RoomState->Phase1ClearObjectCount,
+            FMath::Max(0, Phase1RequiredClearObjectCount)
+        );
+    }
+    else if (PreviousPhase == EGamePhase::Phase2 && NewPhase == EGamePhase::Ended)
+    {
+        const int32 RequiredGroupEvents = FMath::Max(0, Phase2RequiredGroupEventCount);
+        const int32 AliveCount = CountAlivePlayersInRoom(RoomState->RoomCode);
+        if (RequiredGroupEvents > 0 && RoomState->Phase2GroupEventCount >= RequiredGroupEvents)
+        {
+            TransitionReason = FString::Printf(
+                TEXT("Phase2 group event count reached (%d/%d)"),
+                RoomState->Phase2GroupEventCount,
+                RequiredGroupEvents
+            );
+        }
+        else
+        {
+            TransitionReason = FString::Printf(TEXT("Last survivor condition met (alive=%d)"), AliveCount);
+        }
     }
 
     RoomState->CurrentPhase = NewPhase;
@@ -193,13 +328,15 @@ void UA302ServerPhaseSubsystem::UpdateRoomPhase(const FString& RoomCode, double 
     RoomState->bFinished = (NewPhase == EGamePhase::Ended);
 
     UE_LOG(
-        LogTemp,
+        LogA302Phase,
         Log,
-        TEXT("[A302ServerPhaseSubsystem] Room=%s phase changed to %s at %.2f (elapsed %.2f)"),
+        TEXT("Room=%s phase changed %s -> %s at %.2f reason=%s progress=%s"),
         *NormalizedRoomCode,
+        ToString(PreviousPhase),
         ToString(NewPhase),
         CurrentServerTime,
-        ElapsedSeconds
+        *TransitionReason,
+        *BuildRoomProgressSummary(*RoomState)
     );
 
     OnRoomPhaseChanged.Broadcast(NormalizedRoomCode, NewPhase);
@@ -224,28 +361,99 @@ UWorld* UA302ServerPhaseSubsystem::ResolveWorld() const
     return GameInstance ? GameInstance->GetWorld() : nullptr;
 }
 
-EGamePhase UA302ServerPhaseSubsystem::ResolvePhase(double ElapsedSeconds) const
+EGamePhase UA302ServerPhaseSubsystem::ResolvePhase(const FA302RoomPhaseState& RoomState) const
 {
-    const double Phase0End = FMath::Max(0.0f, Phase0Duration);
-    const double Phase1End = Phase0End + FMath::Max(0.0f, Phase1Duration);
-    const double Phase2End = Phase1End + FMath::Max(0.0f, Phase2Duration);
-
-    if (ElapsedSeconds < Phase0End)
+    switch (RoomState.CurrentPhase)
     {
+    case EGamePhase::Phase0:
+    {
+        const int32 RequiredItemCount = FMath::Max(0, Phase0RequiredItemCount);
+        if (RequiredItemCount <= 0 || RoomState.Phase0ItemCount >= RequiredItemCount)
+        {
+            return EGamePhase::Phase1;
+        }
         return EGamePhase::Phase0;
     }
-
-    if (ElapsedSeconds < Phase1End)
+    case EGamePhase::Phase1:
     {
+        const int32 RequiredClearCount = FMath::Max(0, Phase1RequiredClearObjectCount);
+        if (RequiredClearCount <= 0 || RoomState.Phase1ClearObjectCount >= RequiredClearCount)
+        {
+            return EGamePhase::Phase2;
+        }
         return EGamePhase::Phase1;
     }
-
-    if (ElapsedSeconds < Phase2End)
+    case EGamePhase::Phase2:
     {
+        const int32 RequiredGroupEvents = FMath::Max(0, Phase2RequiredGroupEventCount);
+        const bool bGroupEventsCleared = RequiredGroupEvents > 0 && RoomState.Phase2GroupEventCount >= RequiredGroupEvents;
+        const bool bLastSurvivor = CountAlivePlayersInRoom(RoomState.RoomCode) <= 1;
+        if (bGroupEventsCleared || bLastSurvivor)
+        {
+            return EGamePhase::Ended;
+        }
         return EGamePhase::Phase2;
     }
+    case EGamePhase::Ended:
+    default:
+        return RoomState.CurrentPhase;
+    }
+}
 
-    return EGamePhase::Ended;
+int32 UA302ServerPhaseSubsystem::CountAlivePlayersInRoom(const FString& RoomCode) const
+{
+    UWorld* World = ResolveWorld();
+    if (!World)
+    {
+        return 0;
+    }
+
+    const AA302GameMode* GameMode = Cast<AA302GameMode>(World->GetAuthGameMode());
+    if (!GameMode)
+    {
+        return 0;
+    }
+
+    URoomMembershipRegistry* Registry = GameMode->GetRoomMembershipRegistry();
+    if (!Registry)
+    {
+        return 0;
+    }
+
+    TArray<APlayerController*> Players;
+    Registry->GatherPlayersInRoom(World, RoomCode, Players);
+
+    int32 AliveCount = 0;
+    for (APlayerController* PlayerController : Players)
+    {
+        const AA302PlayerState* PlayerState = PlayerController ? PlayerController->GetPlayerState<AA302PlayerState>() : nullptr;
+        if (!PlayerState)
+        {
+            continue;
+        }
+
+        if (PlayerState->bIsAlive && !PlayerState->bIsEscaped)
+        {
+            ++AliveCount;
+        }
+    }
+
+    return AliveCount;
+}
+
+FString UA302ServerPhaseSubsystem::BuildRoomProgressSummary(const FA302RoomPhaseState& RoomState) const
+{
+    return FString::Printf(
+        TEXT("phase=%s p0=%d/%d p1=%d/%d p2=%d/%d alive=%d"),
+        ToString(RoomState.CurrentPhase),
+        RoomState.Phase0ItemCount,
+        FMath::Max(0, Phase0RequiredItemCount),
+        RoomState.Phase1ClearObjectCount,
+        FMath::Max(0, Phase1RequiredClearObjectCount),
+        RoomState.Phase2GroupEventCount,
+        FMath::Max(0, Phase2RequiredGroupEventCount),
+        CountAlivePlayersInRoom(RoomState.RoomCode)
+    );
 }
 
 const TCHAR* UA302ServerPhaseSubsystem::ToString(EGamePhase Phase)
@@ -262,5 +470,20 @@ const TCHAR* UA302ServerPhaseSubsystem::ToString(EGamePhase Phase)
         return TEXT("Ended");
     default:
         return TEXT("Unknown");
+    }
+}
+
+const TCHAR* UA302ServerPhaseSubsystem::ToString(ERewardCategory RewardCategory)
+{
+    switch (RewardCategory)
+    {
+    case ERewardCategory::BasicItem:
+        return TEXT("BasicItem");
+    case ERewardCategory::PersonalEvent:
+        return TEXT("PersonalEvent");
+    case ERewardCategory::GroupEvent:
+        return TEXT("GroupEvent");
+    default:
+        return TEXT("UnknownReward");
     }
 }
