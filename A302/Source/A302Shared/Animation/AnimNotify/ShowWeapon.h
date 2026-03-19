@@ -5,7 +5,7 @@
 #include "ShowWeapon.generated.h"
 
 UCLASS()
-class A302CLIENT_API UShowWeapon : public UAnimNotify
+class A302SHARED_API UShowWeapon : public UAnimNotify
 {
     GENERATED_BODY()
 

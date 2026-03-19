@@ -12,7 +12,9 @@ public class A302 : ModuleRules
 	
 		PublicDependencyModuleNames.AddRange(new string[] { 
 			"Core",
-			"CoreUObject"
+			"CoreUObject",
+			"Engine",
+			"A302Shared"
 		});
 
 		// Uncomment if you are using Slate UI
