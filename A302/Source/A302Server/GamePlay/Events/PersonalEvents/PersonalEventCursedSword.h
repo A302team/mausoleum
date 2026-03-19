@@ -24,11 +24,11 @@ public:
 	virtual void BeginDestroy() override;
 
 private:
-	bool TryGrantKnifeToPreferredSlot(ACharacter* InstigatorCharacter, UItemDefinition* GrantedKnifeDefinition, int32& OutAddedSlotIndex) const;
+	bool TryGrantCursedSwordToPreferredSlot(ACharacter* InstigatorCharacter, UItemDefinition* GrantedCursedSwordDefinition, int32& OutAddedSlotIndex) const;
 	void HandleCountdownTick();
 	void RefreshTimerUI() const;
 	void StopCountdown(bool bHideTimer);
-	UItemDefinition* ResolveGrantedKnifeDefinition(const URewardDefinition* SourceRewardDefinition, const UPersonalEventCursedSwordDefinition* EventDefinition) const;
+	UItemDefinition* ResolveGrantedCursedSwordDefinition(const URewardDefinition* SourceRewardDefinition, const UPersonalEventCursedSwordDefinition* EventDefinition) const;
 
 	UPROPERTY()
 	TObjectPtr<ACharacter> OwnerCharacter = nullptr;

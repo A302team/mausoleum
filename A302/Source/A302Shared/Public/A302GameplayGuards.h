@@ -8,8 +8,24 @@
 
 namespace A302GameplayGuards
 {
+	inline bool IsStandaloneLocalExecution(const UObject* WorldContextObject)
+	{
+		if (!WorldContextObject)
+		{
+			return false;
+		}
+
+		const UWorld* World = WorldContextObject->GetWorld();
+		return World && World->GetNetMode() == NM_Standalone;
+	}
+
 	inline bool IsGameplayEnabledPlayer(const APlayerState* PlayerState)
 	{
+		if (IsStandaloneLocalExecution(PlayerState))
+		{
+			return true;
+		}
+
 		return A302RoomScope::IsPlayerGameplayEnabled(PlayerState);
 	}
 
@@ -23,6 +39,11 @@ namespace A302GameplayGuards
 		if (!InstigatorCharacter || !TargetCharacter)
 		{
 			return false;
+		}
+
+		if (IsStandaloneLocalExecution(InstigatorCharacter) || IsStandaloneLocalExecution(TargetCharacter))
+		{
+			return true;
 		}
 
 		return A302RoomScope::ArePlayersInSameActiveLogicalRoom(

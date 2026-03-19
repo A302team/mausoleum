@@ -7,7 +7,7 @@
 #include "GamePlay/Items/BaseItem.h"
 #include "GamePlay/Items/ItemKnife.h"
 #include "GamePlay/Items/ItemShield.h"
-#include "GamePlay/Items/ItemTimeKnife.h"
+#include "GamePlay/Items/ItemCursedSword.h"
 #include "Interface/UsableItem.h"
 
 UItemManagerComponent::UItemManagerComponent()
@@ -94,8 +94,8 @@ bool UItemManagerComponent::AddItemToSlot(int32 SlotIndex, UItemDefinition* Item
 	}
 
 	UClass* LogicClass = ItemDefinition->ResolveRewardLogicClass();
-	const bool bIsTimedKnifeLogic = LogicClass && LogicClass->IsChildOf(UItemTimeKnife::StaticClass());
-	if (ItemDefinition->RewardCategory != ERewardCategory::BasicItem && !bIsTimedKnifeLogic)
+	const bool bIsCursedSwordLogic = LogicClass && LogicClass->IsChildOf(UItemCursedSword::StaticClass());
+	if (ItemDefinition->RewardCategory != ERewardCategory::BasicItem && !bIsCursedSwordLogic)
 	{
 		return false;
 	}
@@ -240,17 +240,22 @@ bool UItemManagerComponent::TryUseItemAtSlot(
 
 	FItemTargetData TargetData;
 	UClass* LogicClass = ItemDefinition->ResolveRewardLogicClass();
-	const bool bNeedsTarget =
+	const bool bRequiresTargetActor =
 		ItemDefinition->Payload.UseMode == EItemUseMode::Targeted ||
 		(LogicClass && LogicClass->IsChildOf(UItemKnife::StaticClass()));
+	const bool bSupportsOptionalTarget = ItemDefinition->Payload.UseMode == EItemUseMode::SelfOrTargeted;
 
-	if (bNeedsTarget)
+	if (bRequiresTargetActor || bSupportsOptionalTarget)
 	{
 		if (!ItemTargetingComponent && GetOwner())
 		{
 			ItemTargetingComponent = GetOwner()->FindComponentByClass<UItemTargetingComponent>();
 		}
-		if (!ItemTargetingComponent || !ItemTargetingComponent->TryBuildTargetDataForUse(ItemDefinition, TargetData, true))
+		if (!ItemTargetingComponent)
+		{
+			return false;
+		}
+		if (!ItemTargetingComponent->TryBuildTargetDataForUse(ItemDefinition, TargetData, bRequiresTargetActor))
 		{
 			UE_LOG(
 				LogTemp,
