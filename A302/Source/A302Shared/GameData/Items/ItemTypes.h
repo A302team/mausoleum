@@ -10,6 +10,7 @@ enum class EItemUseMode : uint8
 {
     Targeted UMETA(DisplayName = "Targeted"),
     SelfCast UMETA(DisplayName = "SelfCast"),
+    SelfOrTargeted UMETA(DisplayName = "SelfOrTargeted"),
 };
 
 USTRUCT(BlueprintType)
