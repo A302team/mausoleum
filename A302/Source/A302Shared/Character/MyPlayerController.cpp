@@ -90,19 +90,62 @@ void AMyPlayerController::BeginPlay()
 
 	EnsureLocalVoiceComponent();
 
-	if (!IsInGameMap())
+#if !UE_SERVER
+	if (IsLocalController() && IsInGameMap())
 	{
-		return;
-	}
-
-	if (AHUD* GameHUD = GetHUD())
-	{
-		if (UFunction* InitFunc = GameHUD->FindFunction(TEXT("InitializeClientInGameWidgets")))
+		UE_LOG(LogTemp, Warning, TEXT("[UI/Debug] BeginPlay - IsLocal: 1, IsInGame: 1, Map: %s"), *GetWorld()->GetMapName());
+		
+		FString HUDPath = TEXT("/Game/WorkSpace/UI/BP_A302GameHUD.BP_A302GameHUD_C");
+		UClass* InGameHUDClass = LoadClass<AHUD>(nullptr, *HUDPath);
+		if (InGameHUDClass)
 		{
-			GameHUD->ProcessEvent(InitFunc, nullptr);
+			ClientSetHUD(InGameHUDClass);
+			UE_LOG(LogTemp, Warning, TEXT("[UI/Debug] Successfully loaded and set HUD class: %s"), *HUDPath);
+		
+			FTimerHandle HUDInitTimer;
+			GetWorldTimerManager().SetTimer(HUDInitTimer, [this]()
+			{
+				if (AHUD* CurrentHUD = GetHUD())
+				{
+					UE_LOG(LogTemp, Warning, TEXT("[UI/Debug] Current HUD Instance: %s"), *CurrentHUD->GetName());
+					if (UFunction* Func = CurrentHUD->FindFunction(TEXT("InitializeClientInGameWidgets")))
+					{
+						UE_LOG(LogTemp, Warning, TEXT("[UI/Debug] Found InitializeClientInGameWidgets function. Calling..."));
+						CurrentHUD->ProcessEvent(Func, nullptr);
+					}
+					else
+					{
+						UE_LOG(LogTemp, Error, TEXT("[UI/Debug] InitializeClientInGameWidgets function NOT FOUND on HUD: %s"), *GetNameSafe(CurrentHUD));
+					}
+				}
+				else
+				{
+					UE_LOG(LogTemp, Error, TEXT("[UI/Debug] HUD Instance is NULL after attempt to set it."));
+				}
+			}, 0.2f, false);
 		}
 	}
+#endif	
 }
+
+void AMyPlayerController::AcknowledgePossession(APawn* P)
+{
+	Super::AcknowledgePossession(P);
+
+#if !UE_SERVER
+	if (IsLocalController() && IsInGameMap())
+	{
+		if (AHUD* CurrentHUD = GetHUD())
+		{
+			if (UFunction* Func = CurrentHUD->FindFunction(TEXT("InitializeClientInGameWidgets")))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[UI/Debug] AcknowledgePossession - Refreshing HUD for new Pawn."));
+			}
+		}
+	}
+#endif
+}
+
 
 void AMyPlayerController::OnRep_Pawn()
 {
@@ -216,9 +259,7 @@ void AMyPlayerController::SetActivePersonalEvent(UBaseEvent* Event)
 void AMyPlayerController::SetActiveGroupEvent(UBaseGroupEvent* Event)
 {
 	if (PlayerEventComponent)
-	{
 		PlayerEventComponent->SetActiveGroupEvent(Event);
-	}
 }
 
 void AMyPlayerController::ShowPersonalEvent(FName EventID, const FText& Title, const FText& Description, const TArray<FText>& Choices)
