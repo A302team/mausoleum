@@ -19,6 +19,10 @@ Room* RoomManager::getRoom(const std::string& roomCode) {
     return (it != rooms.end()) ? &(it->second) : nullptr;
 }
 
+void RoomManager::removeRoom(const std::string& roomCode) {
+    rooms.erase(roomCode);
+}
+
 void RoomManager::removeRoomIfEmpty(const std::string& roomCode) {
     if (rooms.count(roomCode) && rooms.at(roomCode).isEmpty()) {
         rooms.erase(roomCode);

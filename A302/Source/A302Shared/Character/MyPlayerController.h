@@ -73,6 +73,7 @@ public:
 protected:
 	virtual void BeginPlay() override;
     virtual void OnRep_Pawn() override;
+	virtual void AcknowledgePossession(APawn* P) override;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UPlayerEventComponent> PlayerEventComponent;
