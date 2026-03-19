@@ -19,6 +19,7 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/GameUserSettings.h"
 #include "GameFramework/GameStateBase.h"
+#include "GameFramework/HUD.h"
 #include "GameFramework/PlayerState.h"
 #include "GameMode/A302PlayerState.h"
 #include "Kismet/GameplayStatics.h"
@@ -150,6 +151,10 @@ UPlayerHUDComponent::UPlayerHUDComponent()
 
 AMyPlayerController* UPlayerHUDComponent::GetOwnerController() const
 {
+	if (AHUD* OwningHUD = Cast<AHUD>(GetOwner()))
+	{
+		return Cast<AMyPlayerController>(OwningHUD->PlayerOwner);
+	}
 	return Cast<AMyPlayerController>(GetOwner());
 }
 
@@ -506,6 +511,9 @@ FString UPlayerHUDComponent::ResolvePlayerDisplayName(const APlayerState* Target
 
 void UPlayerHUDComponent::InitializeInGameHUD(TSubclassOf<UUserWidget> InQuickSlotBarClass, TSubclassOf<UUserWidget> InInGameSettingClass, TSubclassOf<UUserWidget> InInspectMaliceWidgetClass)
 {
+	UE_LOG(LogTemp, Warning, TEXT("[UI/Comp/Debug] InitializeInGameHUD called. QuickSlot: %s, Setting: %s, Inspect: %s"), 
+		*GetNameSafe(InQuickSlotBarClass.Get()), *GetNameSafe(InInGameSettingClass.Get()), *GetNameSafe(InInspectMaliceWidgetClass.Get()));
+
 	QuickSlotBarClass = InQuickSlotBarClass;
 	InGameSettingClass = InInGameSettingClass;
 	InspectMaliceWidgetClass = InInspectMaliceWidgetClass;

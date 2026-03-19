@@ -76,6 +76,30 @@ void BackendService::onDomainMessage(WebSocketType* ws, std::string_view type, c
         return;
     }
 
+    if (type == Backend::Protocol::REQ_FINISH_GAME) {
+        std::string roomCode = data.value(std::string(Backend::Protocol::KEY_ROOM_CODE), "");
+        if (!roomCode.empty() && roomManager) {
+            LOG_INFO("Backend", "[ROLE=DEDICATED] REQ_FINISH_GAME: clearing room " << roomCode);
+            roomManager->removeRoom(roomCode);
+        }
+        return;
+    }
+
+    if (type == Backend::Protocol::REQ_LOGOUT) {
+        std::string roomCode = data.value(std::string(Backend::Protocol::KEY_ROOM_CODE), "");
+        std::string playerName = data.value(std::string(Backend::Protocol::KEY_PLAYER_NAME), "");
+        
+        if (!roomCode.empty() && !playerName.empty() && roomManager) {
+            Room* room = roomManager->getRoom(roomCode);
+            if (room) {
+                LOG_INFO("Backend", "[ROLE=DEDICATED] REQ_LOGOUT: removing player " << playerName << " from room " << roomCode);
+                room->removePlayer(playerName);
+                roomManager->removeRoomIfEmpty(roomCode);
+            }
+        }
+        return;
+    }
+
     const bool bIsDedicated = dedicatedConnections.find(ws) != dedicatedConnections.end();
     LOG_INFO("Backend",
              "[ROLE=" << (bIsDedicated ? "DEDICATED" : "CLIENT") << "] type=" << std::string(type));

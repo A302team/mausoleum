@@ -25,6 +25,9 @@ public:
 	/** 게임 종료를 백엔드에 알립니다. */
 	void NotifyGameFinished(const FString& RoomCode);
 
+	/** 플레이어 로그아웃을 백엔드에 알립니다. (닉네임 점유 해제용) */
+	void NotifyPlayerLogout(const FString& PlayerName, const FString& RoomCode);
+
 private:
 	/** prepare_game 패킷 처리 */
 	void HandlePrepareGame(const TSharedPtr<FJsonObject>& Data);
