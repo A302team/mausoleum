@@ -1,16 +1,16 @@
 #include "GamePlay/Events/PersonalEvents/PersonalEventBizarreForge.h"
 #include "Character/Components/MaliceComponent.h"
-#include "Character/Components/ItemManagerComponent.h"
+#include "Character/Components/Inventory/ItemManagerComponent.h"
 #include "GameFramework/Character.h"
-#include "GameData/Events/PersonalEvents/PersonalEventBizarreForgeDefinition.h"
+#include "GameData/Events/PersonalEvents/Interactable/PersonalEventBizarreForgeDefinition.h"
 #include "GamePlay/Items/BaseItem.h"
 #include "GameData/Items/ItemDefinition.h"
-#include "Interface/A302ClientEventBridge.h"
+#include "Character/MyPlayerController.h"
 
 void UPersonalEventBizarreForge::ExecuteEvent_Implementation(ACharacter* InstigatorCharacter)
 {
     if (!InstigatorCharacter) return;
-    IA302ClientEventBridge* ClientEventBridge = Cast<IA302ClientEventBridge>(InstigatorCharacter->GetController());
+    AMyPlayerController* ClientEventBridge = Cast<AMyPlayerController>(InstigatorCharacter->GetController());
     if (!ClientEventBridge) return;
 
     ClientEventBridge->SetActivePersonalEvent(this);

@@ -4,7 +4,6 @@
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
 #include "Input/Reply.h"
-#include "UI/NicknameUiConstants.h"
 
 void UVoteClickableUserWidget::SetupCandidate(int32 InTargetPlayerId, const FString& InPlayerName)
 {
@@ -12,7 +11,8 @@ void UVoteClickableUserWidget::SetupCandidate(int32 InTargetPlayerId, const FStr
 
 	if (VoteUserName)
 	{
-		const FString ClampedPlayerName = InPlayerName.Len() > A302UI::MaxNicknameUiLen ? InPlayerName.Left(A302UI::MaxNicknameUiLen) : InPlayerName;
+		constexpr int32 MaxNicknameUiLen = 7;
+		const FString ClampedPlayerName = InPlayerName.Len() > MaxNicknameUiLen ? InPlayerName.Left(MaxNicknameUiLen) : InPlayerName;
 		VoteUserName->SetText(FText::FromString(ClampedPlayerName));
 	}
 

@@ -1,10 +1,14 @@
 #include "Animation/AnimNotify/ShowWeapon.h"
-#include "Interface/A302CharacterBridge.h"
+#include "Character/MyCharacter.h"
+#include "Character/Components/Combat/EquipmentComponent.h"
 
 void UShowWeapon::Notify(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation)
 {
-    if (IA302CharacterBridge* CharacterBridge = Cast<IA302CharacterBridge>(MeshComp->GetOwner()))
+    if (AMyCharacter* CharacterBridge = Cast<AMyCharacter>(MeshComp->GetOwner()))
     {
-        CharacterBridge->ShowWeapon();
+        if (UEquipmentComponent* EquipmentComp = CharacterBridge->GetEquipmentComponent())
+        {
+            EquipmentComp->ShowWeapon();
+        }
     }
 }

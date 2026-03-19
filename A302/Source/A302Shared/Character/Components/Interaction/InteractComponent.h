@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "InputActionValue.h"
 #include "InteractComponent.generated.h"
 
 UENUM(BlueprintType)
@@ -15,7 +16,7 @@ enum class EQTEDirection : uint8
 };
 
 class ACharacter;
-class IA302CharacterBridge;
+class AMyCharacter;
 class UUserWidget;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnQTEStarted, const TArray<EQTEDirection>&, TargetKeys);
@@ -36,13 +37,20 @@ public:
 	// Called from MyCharacter::OnInteract input binding.
 	
 	// 홀드 입력
+	void OnInteractHoldProgress(const FInputActionValue& Value);
 	bool HandleInteractHoldProgress(float DeltaTime); // 누르는 중 (Hold 게이지용)
 	void HandleInteractHoldComplete();  // 완료 (결과 처리)
+	void OnInteractHoldCanceled(const FInputActionValue& Value);
 	void HandleInteractHoldCanceled();  // 취소 (초기화)
 	
 	// QTE
+	void OnQTEInteractStarted();
 	void HandleInteractQTEStarted();
+	void OnQTEInput(const FVector2D& InputVector);
 	bool ReceiveQTEInput(EQTEDirection InputDir);
+	void SetQTEInputMode(bool bIsQTE);
+	
+	void InteractionCompleteResult();
 
 	// Read by quick-slot flow right after HandleInteractInput.
 	AActor* GetLastInteractedActor() const { return LastInteractedActor; }
@@ -57,13 +65,13 @@ public:
 	float InteractionDistance = 300.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
-	TSubclassOf<UUserWidget> InteractionWidgetClass;
+	TSoftClassPtr<UUserWidget> InteractionWidgetClass;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
-	TSubclassOf<UUserWidget> CrosshairWidgetClass;
+	TSoftClassPtr<UUserWidget> CrosshairWidgetClass;
     
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
-	TSubclassOf<UUserWidget> QTEWidgetClass;
+	TSoftClassPtr<UUserWidget> QTEWidgetClass;
     
 	// 디버그 드로우 토글
 	UPROPERTY(EditAnywhere, Category = "Interaction|Debug")
@@ -81,7 +89,7 @@ public:
 private:
 	bool TryInitializeLocalUIWidgets();
 	ACharacter* GetOwnerCharacter() const;
-	IA302CharacterBridge* GetOwnerCharacterBridge() const;
+	AMyCharacter* GetOwnerCharacterBridge() const;
 	void CheckForInteractables();
 	void ToggleHighlight(AActor* TargetActor, bool bIsOn) const;
 

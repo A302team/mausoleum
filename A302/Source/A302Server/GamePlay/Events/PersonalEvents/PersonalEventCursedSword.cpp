@@ -1,15 +1,15 @@
 #include "GamePlay/Events/PersonalEvents/PersonalEventCursedSword.h"
 
-#include "Character/Components/ItemManagerComponent.h"
-#include "GameData/Events/PersonalEvents/PersonalEventCursedSwordDefinition.h"
+#include "Character/Components/Inventory/ItemManagerComponent.h"
+#include "GameData/Events/PersonalEvents/Equipment/PersonalEventCursedSwordDefinition.h"
 #include "GameData/Events/PersonalEvents/PersonalEventDefinition.h"
 #include "GameData/Items/ItemDefinition.h"
 #include "GameData/RewardDefinition.h"
 #include "GamePlay/Items/BaseItem.h"
 #include "GamePlay/Items/ItemTimeKnife.h"
 #include "Engine/World.h"
-#include "Interface/A302CharacterBridge.h"
-#include "Interface/A302ClientEventBridge.h"
+#include "Character/MyCharacter.h"
+#include "Character/MyPlayerController.h"
 
 namespace
 {
@@ -25,7 +25,7 @@ void UPersonalEventCursedSword::ExecuteEvent_Implementation(ACharacter* Instigat
 
 	OwnerCharacter = InstigatorCharacter;
 
-	IA302ClientEventBridge* ClientEventBridge = Cast<IA302ClientEventBridge>(InstigatorCharacter->GetController());
+	AMyPlayerController* ClientEventBridge = Cast<AMyPlayerController>(InstigatorCharacter->GetController());
 	if (!ClientEventBridge)
 	{
 		return;
@@ -114,7 +114,7 @@ void UPersonalEventCursedSword::OnEventResolved(ACharacter* InstigatorCharacter,
 	GrantedSlotIndex = AddedSlotIndex;
 	bIsActive = true;
 
-	if (IA302CharacterBridge* CharacterBridge = Cast<IA302CharacterBridge>(InstigatorCharacter))
+	if (AMyCharacter* CharacterBridge = Cast<AMyCharacter>(InstigatorCharacter))
 	{
 		CharacterBridge->RegisterTimedKillEvent(this);
 	}
@@ -188,7 +188,7 @@ void UPersonalEventCursedSword::HandleCountdownTick()
 
 	UE_LOG(LogTemp, Warning, TEXT("[PersonalEventTimeKnife] Time expired."));
 	StopCountdown(true);
-	if (IA302CharacterBridge* CharacterBridge = Cast<IA302CharacterBridge>(Character))
+	if (AMyCharacter* CharacterBridge = Cast<AMyCharacter>(Character))
 	{
 		CharacterBridge->ForceDeathByPersonalEvent();
 	}
@@ -202,7 +202,7 @@ void UPersonalEventCursedSword::RefreshTimerUI() const
 		return;
 	}
 
-	if (IA302ClientEventBridge* ClientEventBridge = Cast<IA302ClientEventBridge>(Character->GetController()))
+	if (AMyPlayerController* ClientEventBridge = Cast<AMyPlayerController>(Character->GetController()))
 	{
 		ClientEventBridge->UpdateItemTimer(RemainingSeconds);
 		ClientEventBridge->SetItemTimerVisibleForClient(true);
@@ -219,7 +219,7 @@ void UPersonalEventCursedSword::StopCountdown(bool bHideTimer)
 	ACharacter* Character = OwnerCharacter.Get();
 	if (Character)
 	{
-		if (IA302CharacterBridge* CharacterBridge = Cast<IA302CharacterBridge>(Character))
+		if (AMyCharacter* CharacterBridge = Cast<AMyCharacter>(Character))
 		{
 			CharacterBridge->ClearTimedKillEvent(this);
 		}
@@ -235,7 +235,7 @@ void UPersonalEventCursedSword::StopCountdown(bool bHideTimer)
 
 		if (bHideTimer)
 		{
-			if (IA302ClientEventBridge* ClientEventBridge = Cast<IA302ClientEventBridge>(Character->GetController()))
+			if (AMyPlayerController* ClientEventBridge = Cast<AMyPlayerController>(Character->GetController()))
 			{
 				ClientEventBridge->SetItemTimerVisibleForClient(false);
 			}

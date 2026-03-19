@@ -1,8 +1,8 @@
-#include "Character/Components/PlayerHUDComponent.h"
+#include "UI/PlayerHUDComponent.h"
 
 #include "Character/Components/PlayerEventComponent.h"
 #include "Character/Components/MaliceComponent.h"
-#include "Character/Components/QuickSlotComponent.h"
+#include "Character/Components/Inventory/QuickSlotComponent.h"
 #include "Character/MyPlayerController.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/Button.h"

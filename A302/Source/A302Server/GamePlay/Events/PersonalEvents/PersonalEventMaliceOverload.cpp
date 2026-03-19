@@ -2,8 +2,8 @@
 
 #include "Character/Components/MaliceComponent.h"
 #include "GameFramework/PlayerState.h"
-#include "Interface/A302CharacterBridge.h"
-#include "Interface/A302ClientEventBridge.h"
+#include "Character/MyCharacter.h"
+#include "Character/MyPlayerController.h"
 
 void UPersonalEventMaliceOverload::ExecuteEvent_Implementation(ACharacter* InstigatorCharacter)
 {
@@ -12,7 +12,7 @@ void UPersonalEventMaliceOverload::ExecuteEvent_Implementation(ACharacter* Insti
 		return;
 	}
 
-	IA302ClientEventBridge* ClientEventBridge = Cast<IA302ClientEventBridge>(InstigatorCharacter->GetController());
+	AMyPlayerController* ClientEventBridge = Cast<AMyPlayerController>(InstigatorCharacter->GetController());
 	if (!ClientEventBridge)
 	{
 		return;
@@ -62,11 +62,11 @@ void UPersonalEventMaliceOverload::OnEventResolvedMulti(ACharacter* InstigatorCh
 			: GetNameSafe(InstigatorCharacter);
 		const int32 CurrentMalice = FMath::Max(0, MaliceComponent->MaliceCount);
 
-		if (IA302CharacterBridge* CharacterBridge = Cast<IA302CharacterBridge>(InstigatorCharacter))
+		if (AMyCharacter* CharacterBridge = Cast<AMyCharacter>(InstigatorCharacter))
 		{
 			CharacterBridge->BroadcastPublicMaliceAnnouncement(PlayerName, CurrentMalice);
 		}
-		else if (IA302ClientEventBridge* ClientEventBridge = Cast<IA302ClientEventBridge>(InstigatorCharacter->GetController()))
+		else if (AMyPlayerController* ClientEventBridge = Cast<AMyPlayerController>(InstigatorCharacter->GetController()))
 		{
 			ClientEventBridge->ShowPublicMaliceAnnouncement(PlayerName, CurrentMalice);
 		}

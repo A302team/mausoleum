@@ -1,11 +1,7 @@
 #include "Character/MyPlayerController.h"
 
 #include "Character/Components/PlayerEventComponent.h"
-#include "Character/Components/PlayerHUDComponent.h"
-#include "Blueprint/UserWidget.h"
-#include "Components/ActorComponent.h"
-#include "Components/TextBlock.h"
-#include "UI/PersonalEventWidget.h"
+// UI Widget 헤더들은 AA302GameHUD에서 관리합니다.
 #include "EnhancedInputSubsystems.h"
 #include "GameMode/A302PlayerState.h"
 #include "GameFramework/Pawn.h"
@@ -13,6 +9,7 @@
 #include "InputMappingContext.h"
 #include "UObject/ConstructorHelpers.h"
 #include "A302RuntimeGuards.h"
+#include "GameFramework/HUD.h"
 
 namespace
 {
@@ -61,53 +58,14 @@ void AMyPlayerController::Server_RegisterPlayerDisplayName_Implementation(const 
 		return;
 	}
 
-	PlayerState->SetPlayerName(TrimmedName.Left(32));
+	PlayerState->SetPlayerName(TrimmedName.Left(20));
 }
 
 AMyPlayerController::AMyPlayerController()
 {
 	PlayerEventComponent = CreateDefaultSubobject<UPlayerEventComponent>(TEXT("PlayerEventComponent"));
-	PlayerHUDComponent = CreateDefaultSubobject<UPlayerHUDComponent>(TEXT("PlayerHUDComponent"));
 
-	if (!QuickSlotBarClass)
-	{
-		QuickSlotBarClass = LoadClass<UUserWidget>(nullptr, TEXT("/Game/WorkSpace/UI/WBP_HUD2.WBP_HUD2_C"));
-	}
-
-	if (!InGameSettingClass)
-	{
-		InGameSettingClass = LoadClass<UUserWidget>(nullptr, TEXT("/Game/WorkSpace/UI/WBP_InGameSetting.WBP_InGameSetting_C"));
-		if (!InGameSettingClass)
-		{
-			InGameSettingClass = LoadClass<UUserWidget>(nullptr, TEXT("/Game/WorkSpace/UI/WBP_InGameSetting2.WBP_InGameSetting2_C"));
-		}
-	}
-
-	if (!PersonalEventWidgetClass)
-	{
-		if (UClass* LoadedPersonalEventClass = LoadClass<UUserWidget>(nullptr, TEXT("/Game/WorkSpace/UI/WBP_PersonalEvent.WBP_PersonalEvent_C")))
-		{
-			PersonalEventWidgetClass = LoadedPersonalEventClass;
-		}
-	}
-
-	static ConstructorHelpers::FClassFinder<UUserWidget> InspectMaliceWidgetBPClass(TEXT("/Game/WorkSpace/UI/PersonalEvent/WBP_SelectUser"));
-	if (InspectMaliceWidgetBPClass.Succeeded())
-	{
-		InspectMaliceWidgetClass = InspectMaliceWidgetBPClass.Class;
-	}
-
-	static ConstructorHelpers::FClassFinder<UUserWidget> GroupEventVoteWidgetBPClass(TEXT("/Game/WorkSpace/UI/GroupEvent/WBP_GroupEventVote"));
-	if (GroupEventVoteWidgetBPClass.Succeeded())
-	{
-		GroupEventVoteWidgetClass = GroupEventVoteWidgetBPClass.Class;
-	}
-
-	static ConstructorHelpers::FClassFinder<UUserWidget> TitleCardWidgetBPClass(TEXT("/Game/WorkSpace/UI/WBP_TitleCard"));
-	if (TitleCardWidgetBPClass.Succeeded())
-	{
-		TitleCardWidgetClass = TitleCardWidgetBPClass.Class;
-	}
+	// UI Widget 초기화 내용들은 AA302GameHUD로 이동되어 제거되었습니다.
 }
 
 void AMyPlayerController::BeginPlay()
@@ -137,7 +95,13 @@ void AMyPlayerController::BeginPlay()
 		return;
 	}
 
-	InitializeClientInGameWidgets();
+	if (AHUD* GameHUD = GetHUD())
+	{
+		if (UFunction* InitFunc = GameHUD->FindFunction(TEXT("InitializeClientInGameWidgets")))
+		{
+			GameHUD->ProcessEvent(InitFunc, nullptr);
+		}
+	}
 }
 
 void AMyPlayerController::OnRep_Pawn()
@@ -151,149 +115,93 @@ bool AMyPlayerController::IsInGameMap() const
 	return A302RuntimeGuards::IsInGameWorld(this);
 }
 
-void AMyPlayerController::InitializeClientInGameWidgets()
-{
-	// Redirect fallback 대신 현재 실제 위젯 경로를 직접 사용한다.
-	if (UClass* LoadedQuickSlotClass = LoadClass<UUserWidget>(nullptr, TEXT("/Game/WorkSpace/UI/WBP_HUD2.WBP_HUD2_C")))
-	{
-		QuickSlotBarClass = LoadedQuickSlotClass;
-	}
-
-	if (UClass* LoadedInGameSettingClass = LoadClass<UUserWidget>(nullptr, TEXT("/Game/WorkSpace/UI/WBP_InGameSetting.WBP_InGameSetting_C")))
-	{
-		InGameSettingClass = LoadedInGameSettingClass;
-	}
-
-	if (UClass* LoadedPersonalEventClass = LoadClass<UUserWidget>(nullptr, TEXT("/Game/WorkSpace/UI/WBP_PersonalEvent.WBP_PersonalEvent_C")))
-	{
-		PersonalEventWidgetClass = LoadedPersonalEventClass;
-	}
-
-	UE_LOG(
-		LogTemp,
-		Log,
-		TEXT("[MyPlayerController] InitializeClientInGameWidgets. controller=%s quickSlot=%s inGameSetting=%s personalEvent=%s"),
-		*GetNameSafe(this),
-		*GetNameSafe(QuickSlotBarClass.Get()),
-		*GetNameSafe(InGameSettingClass.Get()),
-		*GetNameSafe(PersonalEventWidgetClass.Get())
-	);
-
-	InitializeChatWidget();
-
-	if (PlayerHUDComponent)
-	{
-		PlayerHUDComponent->InitializeInGameHUD(QuickSlotBarClass, InGameSettingClass, InspectMaliceWidgetClass);
-		PlayerHUDComponent->RefreshQuickSlotBinding();
-	}
-}
-
-void AMyPlayerController::InitializeChatWidget()
-{
-	if (ChatWidgetInstance)
-	{
-		return;
-	}
-
-	if (!ChatWidgetClass)
-	{
-		return;
-	}
-
-	ChatWidgetInstance = CreateWidget<UUserWidget>(this, ChatWidgetClass);
-	if (!ChatWidgetInstance)
-	{
-		return;
-	}
-
-	ChatWidgetInstance->AddToViewport();
-}
+// InitializeClientInGameWidgets, InitializeChatWidget은 AA302GameHUD로 이관되어 제거되었습니다.
 
 void AMyPlayerController::ToggleInGameSettingMenu()
 {
-	if (PlayerHUDComponent)
+	if (AHUD* GameHUD = GetHUD())
 	{
-		PlayerHUDComponent->ToggleInGameSettingMenu();
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("ToggleInGameSettingMenu")))
+		{
+			GameHUD->ProcessEvent(Func, nullptr);
+		}
 	}
 }
 
 bool AMyPlayerController::IsInGameSettingMenuOpen() const
 {
-	return PlayerHUDComponent ? PlayerHUDComponent->IsInGameSettingMenuOpen() : false;
+	if (AHUD* GameHUD = GetHUD())
+	{
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("IsInGameSettingMenuOpen")))
+		{
+			bool bResult = false;
+			GameHUD->ProcessEvent(Func, &bResult);
+			return bResult;
+		}
+	}
+	return false;
 }
 
 float AMyPlayerController::GetMouseSensitivityMultiplier() const
 {
-	return PlayerHUDComponent ? PlayerHUDComponent->GetMouseSensitivityMultiplier() : 1.0f;
-}
-
-void AMyPlayerController::HideTitleCard()
-{
-	if (TitleCardWidgetInstance)
+	if (AHUD* GameHUD = GetHUD())
 	{
-		TitleCardWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("GetMouseSensitivityMultiplier")))
+		{
+			float Result = 1.0f;
+			GameHUD->ProcessEvent(Func, &Result);
+			return Result;
+		}
 	}
+	return 1.0f;
 }
 
 void AMyPlayerController::Client_HideTitleCard_Implementation()
 {
-	HideTitleCard();
+	if (AHUD* GameHUD = GetHUD())
+	{
+		if (UFunction* HideFunc = GameHUD->FindFunction(TEXT("HideTitleCard")))
+		{
+			GameHUD->ProcessEvent(HideFunc, nullptr);
+		}
+	}
+}
+
+void AMyPlayerController::Client_ReceiveSystemMessage_Implementation(const FString& SystemMessage)
+{
+	UE_LOG(LogTemp, Warning, TEXT("[SystemMessage]: %s"), *SystemMessage);
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, SystemMessage);
+	}
 }
 
 void AMyPlayerController::Client_ShowTitleCard_Implementation(const FText& Title, const FText& Context, float DisplaySeconds)
 {
-	if (!TitleCardWidgetClass)
+	if (AHUD* GameHUD = GetHUD())
 	{
-		return;
-	}
-
-	if (!TitleCardWidgetInstance)
-	{
-		TitleCardWidgetInstance = CreateWidget<UUserWidget>(this, TitleCardWidgetClass);
-	}
-	if (!TitleCardWidgetInstance)
-	{
-		return;
-	}
-
-	if (UTextBlock* TitleText = Cast<UTextBlock>(TitleCardWidgetInstance->GetWidgetFromName(TEXT("EventTitle"))))
-	{
-		TitleText->SetText(Title);
-	}
-
-	if (UTextBlock* ContextText = Cast<UTextBlock>(TitleCardWidgetInstance->GetWidgetFromName(TEXT("EventContext"))))
-	{
-		ContextText->SetText(Context);
-	}
-
-	if (!TitleCardWidgetInstance->IsInViewport())
-	{
-		TitleCardWidgetInstance->AddToViewport(140);
-	}
-
-	TitleCardWidgetInstance->SetVisibility(ESlateVisibility::HitTestInvisible);
-
-	if (UWorld* World = GetWorld())
-	{
-		World->GetTimerManager().ClearTimer(TitleCardHideTimerHandle);
-		if (DisplaySeconds > 0.0f)
+		if (UFunction* ShowFunc = GameHUD->FindFunction(TEXT("ShowTitleCard")))
 		{
-			World->GetTimerManager().SetTimer(
-				TitleCardHideTimerHandle,
-				this,
-				&AMyPlayerController::HideTitleCard,
-				FMath::Max(0.5f, DisplaySeconds),
-				false
-			);
+			struct FShowCardParams { FText InTitle; FText InContext; float InDisplaySeconds; };
+			FShowCardParams Params;
+			Params.InTitle = Title;
+			Params.InContext = Context;
+			Params.InDisplaySeconds = DisplaySeconds;
+			GameHUD->ProcessEvent(ShowFunc, &Params);
 		}
 	}
 }
 
 void AMyPlayerController::ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount)
 {
-	if (PlayerHUDComponent)
+	if (AHUD* GameHUD = GetHUD())
 	{
-		PlayerHUDComponent->ShowPublicMaliceAnnouncement(PlayerName, MaliceCount);
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("ShowPublicMaliceAnnouncement")))
+		{
+			struct FParams { FString InName; int32 InCount; };
+			FParams Params { PlayerName, MaliceCount };
+			GameHUD->ProcessEvent(Func, &Params);
+		}
 	}
 }
 
@@ -323,9 +231,12 @@ void AMyPlayerController::ShowPersonalEvent(FName EventID, const FText& Title, c
 
 void AMyPlayerController::ShowInspectMaliceSelectionWidget()
 {
-	if (PlayerHUDComponent)
+	if (AHUD* GameHUD = GetHUD())
 	{
-		PlayerHUDComponent->ShowInspectMaliceSelectionWidget();
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("ShowInspectMaliceSelectionWidget")))
+		{
+			GameHUD->ProcessEvent(Func, nullptr);
+		}
 	}
 }
 
@@ -355,33 +266,53 @@ void AMyPlayerController::ApplyConfiscationToLocalInventory()
 
 void AMyPlayerController::UpdateShieldCount(int32 ShieldCount)
 {
-	if (PlayerHUDComponent)
+	if (AHUD* GameHUD = GetHUD())
 	{
-		PlayerHUDComponent->UpdateShieldCountText(ShieldCount);
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("UpdateShieldCountText")))
+		{
+			struct FParams { int32 Count; };
+			FParams Params { ShieldCount };
+			GameHUD->ProcessEvent(Func, &Params);
+		}
 	}
 }
 
 void AMyPlayerController::UpdateMaliceCount(int32 MaliceCount)
 {
-	if (PlayerHUDComponent)
+	if (AHUD* GameHUD = GetHUD())
 	{
-		PlayerHUDComponent->UpdateMaliceCountText(MaliceCount);
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("UpdateMaliceCountText")))
+		{
+			struct FParams { int32 Count; };
+			FParams Params { MaliceCount };
+			GameHUD->ProcessEvent(Func, &Params);
+		}
 	}
 }
 
 void AMyPlayerController::UpdateItemTimer(float RemainingSeconds)
 {
-	if (PlayerHUDComponent)
+	if (AHUD* GameHUD = GetHUD())
 	{
-		PlayerHUDComponent->UpdateItemTimerText(RemainingSeconds);
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("UpdateItemTimerText")))
+		{
+			struct FParams { float Seconds; };
+			FParams Params { RemainingSeconds };
+			GameHUD->ProcessEvent(Func, &Params);
+		}
 	}
 }
 
 void AMyPlayerController::SetItemTimerVisibleForClient(bool bVisible)
 {
-	if (PlayerHUDComponent)
+	if (AHUD* GameHUD = GetHUD())
 	{
-		PlayerHUDComponent->SetItemTimerVisible(bVisible);
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("SetItemTimerVisible")))
+		{
+			struct FParams { bool bVis; };
+			FParams Params { bVisible };
+			GameHUD->ProcessEvent(Func, &Params);
+		}
 	}
 }
 
@@ -460,4 +391,9 @@ void AMyPlayerController::EnsureLocalVoiceComponent()
 void AMyPlayerController::Client_ShowInspectMaliceSelectionWidget_Implementation()
 {
 	ShowInspectMaliceSelectionWidget();
+}
+
+void AMyPlayerController::Client_ShowPublicMaliceAnnouncement_Implementation(const FString& PlayerName, int32 MaliceCount)
+{
+	ShowPublicMaliceAnnouncement(PlayerName, MaliceCount);
 }

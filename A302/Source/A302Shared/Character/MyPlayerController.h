@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
-#include "Interface/A302ClientEventBridge.h"
 #include "TimerManager.h"
 #include "MyPlayerController.generated.h"
 
@@ -20,42 +19,35 @@ class UBaseGroupEvent;
 class UInputMappingContext;
 class UPersonalEventWidget;
 class UPlayerEventComponent;
-class UPlayerHUDComponent;
 class UTextBlock;
 class UUserWidget;
+class UBasePersonalEvent;
 
 UCLASS()
-class A302SHARED_API AMyPlayerController : public APlayerController, public IA302ClientEventBridge
+class A302SHARED_API AMyPlayerController : public APlayerController
 {
 	GENERATED_BODY()
 
 public:
 	AMyPlayerController();
-	virtual void ToggleInGameSettingMenu() override;
+	virtual void ToggleInGameSettingMenu();
 	bool IsInGameSettingMenuOpen() const;
 	float GetMouseSensitivityMultiplier() const;
-	virtual void ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount) override;
-	virtual void SetActivePersonalEvent(UBaseEvent* Event) override;
-	virtual void SetActiveGroupEvent(UBaseGroupEvent* Event) override;
-	virtual void ShowPersonalEvent(FName EventID, const FText& Title, const FText& Description, const TArray<FText>& Choices) override;
-	virtual void ShowInspectMaliceSelectionWidget() override;
-	virtual void OpenGroupEventVote(FName EventID, const FText& EventTitle, const FText& EventDescription, float VoteDuration) override;
-	virtual void FinishGroupEventVote(FName EventID, const FText& ResultText) override;
-	virtual void ApplyConfiscationToLocalInventory() override;
-	virtual void UpdateShieldCount(int32 ShieldCount) override;
-	virtual void UpdateMaliceCount(int32 MaliceCount) override;
-	virtual void UpdateItemTimer(float RemainingSeconds) override;
-	virtual void SetItemTimerVisibleForClient(bool bVisible) override;
-	virtual void ToggleVoiceChatCapture() override;
+	virtual void ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount);
+	virtual void SetActivePersonalEvent(UBaseEvent* Event);
+	virtual void SetActiveGroupEvent(UBaseGroupEvent* Event);
+	virtual void ShowPersonalEvent(FName EventID, const FText& Title, const FText& Description, const TArray<FText>& Choices);
+	virtual void ShowInspectMaliceSelectionWidget();
+	virtual void OpenGroupEventVote(FName EventID, const FText& EventTitle, const FText& EventDescription, float VoteDuration);
+	virtual void FinishGroupEventVote(FName EventID, const FText& ResultText);
+	virtual void ApplyConfiscationToLocalInventory();
+	virtual void UpdateShieldCount(int32 ShieldCount);
+	virtual void UpdateMaliceCount(int32 MaliceCount);
+	virtual void UpdateItemTimer(float RemainingSeconds);
+	virtual void SetItemTimerVisibleForClient(bool bVisible);
+	virtual void ToggleVoiceChatCapture();
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI|Event")
-	TSubclassOf<UPersonalEventWidget> PersonalEventWidgetClass;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI|Event")
-	TSubclassOf<UUserWidget> InspectMaliceWidgetClass;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI|Event")
-	TSubclassOf<UUserWidget> GroupEventVoteWidgetClass;
+	// UI 위젯 속성은 모두 AA302GameHUD로 이동되었습니다.
 
 	UFUNCTION(Client, Reliable)
 	void Client_ShowInspectMaliceSelectionWidget();
@@ -66,14 +58,17 @@ public:
 	UFUNCTION(Client, Reliable)
 	void Client_HideTitleCard();
 
+	UFUNCTION(Client, Reliable)
+	void Client_ReceiveSystemMessage(const FString& SystemMessage);
+
+	UFUNCTION(Client, Reliable)
+	void Client_ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount);
+
 	UFUNCTION(Server, Reliable)
 	void Server_RegisterPlayerDisplayName(const FString& DesiredName);
 
 	UFUNCTION(BlueprintCallable, Category = "Event")
 	UPlayerEventComponent* GetPlayerEventComponent() const { return PlayerEventComponent; }
-
-	UFUNCTION(BlueprintCallable, Category = "UI")
-	UPlayerHUDComponent* GetPlayerHUDComponent() const { return PlayerHUDComponent; }
 
 protected:
 	virtual void BeginPlay() override;
@@ -82,27 +77,6 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UPlayerEventComponent> PlayerEventComponent;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	TObjectPtr<UPlayerHUDComponent> PlayerHUDComponent;
-
-	UPROPERTY(EditDefaultsOnly, Category = "UI")
-	TSubclassOf<UUserWidget> QuickSlotBarClass;
-
-	UPROPERTY(EditDefaultsOnly, Category = "UI")
-	TSubclassOf<UUserWidget> ChatWidgetClass;
-
-	UPROPERTY()
-	TObjectPtr<UUserWidget> ChatWidgetInstance;
-
-	UPROPERTY(EditDefaultsOnly, Category = "UI")
-	TSubclassOf<UUserWidget> InGameSettingClass;
-
-	UPROPERTY(EditDefaultsOnly, Category = "UI|Event")
-	TSubclassOf<UUserWidget> TitleCardWidgetClass;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UUserWidget> TitleCardWidgetInstance;
-
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	UInputMappingContext* DefaultMappingContext;
 
@@ -110,11 +84,6 @@ protected:
 	int32 MappingPriority = 0;
 
 private:
-	void InitializeChatWidget();
-	void InitializeClientInGameWidgets();
-	void HideTitleCard();
 	bool IsInGameMap() const;
     void EnsureLocalVoiceComponent();
-
-	FTimerHandle TitleCardHideTimerHandle;
 };

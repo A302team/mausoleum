@@ -12,6 +12,8 @@
 #include "Network/A302NetworkEndpointConfig.h"
 #include "Character/MyCharacter.h"
 #include "Character/MyPlayerController.h"
+#include "Subsystem/A302ServerPlayerSubsystem.h"
+#include "Network/A302ServerBackendRouter.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
@@ -58,11 +60,21 @@ AA302GameMode::AA302GameMode()
 void AA302GameMode::BeginPlay()
 {
     Super::BeginPlay();
+    if (GetNetMode() == NM_DedicatedServer)
+    {
+        HUDClass = nullptr;
+    }
     DefaultPawnClass = nullptr;
 
     if (!RoomMembershipRegistry)
     {
         RoomMembershipRegistry = NewObject<URoomMembershipRegistry>(this);
+    }
+
+    if (!BackendRouter)
+    {
+        BackendRouter = NewObject<UA302ServerBackendRouter>(this);
+        BackendRouter->Initialize(this);
     }
 
     EnsureSpawnManager();
@@ -116,81 +128,21 @@ void AA302GameMode::BeginPlay()
 void AA302GameMode::PostLogin(APlayerController *NewPlayer)
 {
     Super::PostLogin(NewPlayer);
-    if (RoomMembershipRegistry)
+    
+    if (UA302ServerPlayerSubsystem* PlayerSubsystem = GetWorld()->GetSubsystem<UA302ServerPlayerSubsystem>())
     {
-        RoomMembershipRegistry->AssignPlayerToRoom(NewPlayer);
+        PlayerSubsystem->HandlePlayerLogin(NewPlayer);
     }
-    UpdatePlayerGameplayFlag(NewPlayer, IsPlayerGameplayEnabled(NewPlayer));
-
-    UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] 플레이어 접속 - NetMode: %d"),
-           (int32)GetNetMode());
-
-    // DedicatedServer 또는 ListenServer에서만 스폰
-    if (GetNetMode() != NM_DedicatedServer && GetNetMode() != NM_ListenServer)
-    {
-        UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] 서버가 아니므로 스폰 안함"));
-        return;
-    }
-
-	if (!IsPlayerGameplayEnabled(NewPlayer))
-	{
-		const FString WaitingRoomCode = RoomMembershipRegistry
-			? RoomMembershipRegistry->GetPlayerRoomCode(NewPlayer)
-			: FString();
-        const FString NormalizedWaitingRoomCode = A302RoomScope::NormalizeRoomCode(WaitingRoomCode);
-
-		UE_LOG(
-			LogTemp,
-			Log,
-			TEXT("[GameMode/A302GameMode] Room not ready. keep controller waiting. player=%s room=%s active=%d ready=%d"),
-			*GetNameSafe(NewPlayer),
-			*WaitingRoomCode,
-			ActiveGameplayRooms.Contains(NormalizedWaitingRoomCode) ? 1 : 0,
-            ReadyGameplayRooms.Contains(NormalizedWaitingRoomCode) ? 1 : 0
-		);
-		return;
-	}
-
-    QueueSpawnPlayer(NewPlayer);
 }
 
 void AA302GameMode::Logout(AController *Exiting)
 {
-	FString LeavingRoomCode;
-    if (APlayerController* ExitingPC = Cast<APlayerController>(Exiting))
+    if (UA302ServerPlayerSubsystem* PlayerSubsystem = GetWorld()->GetSubsystem<UA302ServerPlayerSubsystem>())
     {
-        if (RoomMembershipRegistry)
-        {
-            LeavingRoomCode = RoomMembershipRegistry->GetPlayerRoomCode(ExitingPC);
-        }
-
-        if (RoomMembershipRegistry)
-        {
-            RoomMembershipRegistry->ClearPendingRoomCode(ExitingPC);
-        }
+        PlayerSubsystem->HandlePlayerLogout(Exiting);
     }
 
     Super::Logout(Exiting);
-
-	LeavingRoomCode = A302RoomScope::NormalizeRoomCode(LeavingRoomCode);
-	if (!LeavingRoomCode.IsEmpty() && RoomMembershipRegistry && GetWorld())
-    {
-        if (RoomMembershipRegistry->CountPlayersInRoom(GetWorld(), LeavingRoomCode) <= 0)
-        {
-            ActiveGameplayRooms.Remove(LeavingRoomCode);
-            ReadyGameplayRooms.Remove(LeavingRoomCode);
-            if (PhaseSubsystem)
-            {
-                PhaseSubsystem->StopRoomPhaseTimeline(LeavingRoomCode);
-            }
-            if (RoomRuntimeSubsystem)
-            {
-                RoomRuntimeSubsystem->StopRoomRuntime(LeavingRoomCode);
-            }
-
-            UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] Room lifecycle cleared after last logout. room=%s"), *LeavingRoomCode);
-        }
-    }
 
     UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] 플레이어 퇴장"));
 }
@@ -221,30 +173,12 @@ bool AA302GameMode::EnsureSpawnManager()
 
 void AA302GameMode::HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer)
 {
-    if (!NewPlayer)
-    {
-        return;
-    }
-
-    if (GetNetMode() != NM_DedicatedServer && GetNetMode() != NM_ListenServer)
-    {
-        return;
-    }
-
     Super::HandleStartingNewPlayer_Implementation(NewPlayer);
 
-    if (RoomMembershipRegistry)
+    if (UA302ServerPlayerSubsystem* PlayerSubsystem = GetWorld()->GetSubsystem<UA302ServerPlayerSubsystem>())
     {
-        RoomMembershipRegistry->AssignPlayerToRoom(NewPlayer);
+        PlayerSubsystem->HandlePlayerLogin(NewPlayer);
     }
-    UpdatePlayerGameplayFlag(NewPlayer, IsPlayerGameplayEnabled(NewPlayer));
-
-    if (!IsPlayerGameplayEnabled(NewPlayer))
-    {
-        return;
-    }
-
-    QueueSpawnPlayer(NewPlayer);
 }
 
 APawn* AA302GameMode::SpawnDefaultPawnFor_Implementation(AController* NewPlayer, AActor* StartSpot)
@@ -283,9 +217,6 @@ bool AA302GameMode::TryHandlePersonalEventReward(ACharacter* InstigatorCharacter
 {
     if (!InstigatorCharacter || !A302GameplayGuards::IsGameplayEnabledCharacter(InstigatorCharacter))
     {
-        UE_LOG(LogTemp, Verbose, TEXT("[GameMode/A302GameMode] Ignore personal event reward before room gameplay start. player=%s room=%s"),
-            *GetNameSafe(InstigatorCharacter),
-            InstigatorCharacter->GetPlayerState<AA302PlayerState>() ? *InstigatorCharacter->GetPlayerState<AA302PlayerState>()->GetRoomCode() : TEXT("none"));
         return false;
     }
 
@@ -304,9 +235,6 @@ bool AA302GameMode::TryHandleGroupEventReward(ACharacter* InstigatorCharacter, A
 {
     if (!InstigatorCharacter || !A302GameplayGuards::IsGameplayEnabledCharacter(InstigatorCharacter))
     {
-        UE_LOG(LogTemp, Verbose, TEXT("[GameMode/A302GameMode] Ignore group event reward before room gameplay start. player=%s room=%s"),
-            *GetNameSafe(InstigatorCharacter),
-            InstigatorCharacter->GetPlayerState<AA302PlayerState>() ? *InstigatorCharacter->GetPlayerState<AA302PlayerState>()->GetRoomCode() : TEXT("none"));
         return false;
     }
 
@@ -321,71 +249,6 @@ bool AA302GameMode::TryHandleGroupEventReward(ACharacter* InstigatorCharacter, A
     return FA302ServerEventResolver::TryHandleGroupEventReward(InstigatorCharacter, InteractedActor, RewardDefinition);
 }
 
-void AA302GameMode::HandlePrepareGame(const TSharedPtr<FJsonObject>& Data)
-{
-    if (!BackendSubsystem)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[GameMode/A302GameMode] prepare_game ignored: BackendSubsystem is null"));
-        return;
-    }
-
-    if (!Data.IsValid())
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[GameMode/A302GameMode] prepare_game ignored: data is invalid"));
-        return;
-    }
-
-	FString RoomCode;
-	if (!Data->TryGetStringField(BackendProtocol::KeyRoomCode, RoomCode) || RoomCode.IsEmpty())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[GameMode/A302GameMode] prepare_game ignored: roomCode missing"));
-		return;
-	}
-	RoomCode = A302RoomScope::NormalizeRoomCode(RoomCode);
-
-	StartRoomGameplay(RoomCode);
-	const int32 PlayersInRoom = (RoomMembershipRegistry && GetWorld())
-		? RoomMembershipRegistry->CountPlayersInRoom(GetWorld(), RoomCode)
-		: 0;
-
-    const TSharedPtr<FJsonObject> AckData = MakeShared<FJsonObject>();
-    AckData->SetStringField(BackendProtocol::KeyRoomCode, RoomCode);
-    AckData->SetStringField(BackendProtocol::KeyServerId, BackendSubsystem->DedicatedServerId);
-    AckData->SetStringField(BackendProtocol::KeyGameHost, FA302NetworkEndpointConfig::GetGameServerHost());
-    AckData->SetNumberField(BackendProtocol::KeyGamePort, FA302NetworkEndpointConfig::GameServerPort);
-
-    const TSharedPtr<FJsonObject> AckMessage = MakeShared<FJsonObject>();
-    AckMessage->SetStringField(LobbyProtocol::KeyDomain, BackendProtocol::Domain);
-    AckMessage->SetStringField(LobbyProtocol::KeyType, BackendProtocol::ReqDedicatedReady);
-    AckMessage->SetObjectField(LobbyProtocol::KeyData, AckData);
-
-    FString Payload;
-    const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Payload);
-    if (!FJsonSerializer::Serialize(AckMessage.ToSharedRef(), Writer))
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[GameMode/A302GameMode] Failed to serialize dedicated_ready payload"));
-        return;
-    }
-
-    BackendSubsystem->SendPacket(Payload);
-
-    UE_LOG(
-        LogTemp,
-        Log,
-		TEXT("[GameMode/A302GameMode] prepare_game handled. room=%s ack=dedi_ready host=%s port=%d"),
-		*RoomCode,
-		*FA302NetworkEndpointConfig::GetGameServerHost(),
-		FA302NetworkEndpointConfig::GameServerPort
-	);
-	UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] room=%s current_players=%d"), *RoomCode, PlayersInRoom);
-
-    UE_LOG(
-        LogTemp,
-        Log,
-        TEXT("[GameMode/A302GameMode] Physical room partition mode active. Keep single world instance. room=%s"),
-        *RoomCode
-    );
-}
 
 void AA302GameMode::HandleRoomPhaseChanged(const FString& RoomCode, EGamePhase NewPhase)
 {
@@ -400,8 +263,16 @@ void AA302GameMode::HandleRoomPhaseChanged(const FString& RoomCode, EGamePhase N
         return;
     }
 
-	ActiveGameplayRooms.Remove(NormalizedRoomCode);
-    ReadyGameplayRooms.Remove(NormalizedRoomCode);
+    if (RoomRuntimeSubsystem)
+    {
+        RoomRuntimeSubsystem->StopRoomRuntime(NormalizedRoomCode);
+    }
+
+	if (BackendRouter)
+	{
+		BackendRouter->NotifyGameFinished(NormalizedRoomCode);
+	}
+
 	if (!RoomMembershipRegistry || !GetWorld())
 	{
 		return;
@@ -409,76 +280,46 @@ void AA302GameMode::HandleRoomPhaseChanged(const FString& RoomCode, EGamePhase N
 
 	TArray<APlayerController*> RoomPlayers;
 	RoomMembershipRegistry->GatherPlayersInRoom(GetWorld(), NormalizedRoomCode, RoomPlayers);
+
+    const FString LobbyMapURL = TEXT("/Game/PersonalWorkSpace/sikk806/testLevel");
+
 	for (APlayerController* RoomPlayer : RoomPlayers)
 	{
-		UpdatePlayerGameplayFlag(RoomPlayer, false);
+		if (UA302ServerPlayerSubsystem* PlayerSubsystem = GetWorld()->GetSubsystem<UA302ServerPlayerSubsystem>())
+		{
+			PlayerSubsystem->UpdatePlayerGameplayFlag(RoomPlayer, false);
+		}
+
+        if (RoomPlayer)
+        {
+            UE_LOG(LogTemp, Log, TEXT("[A302GameMode] Returning player %s to lobby."), *RoomPlayer->GetName());
+            RoomPlayer->ClientTravel(LobbyMapURL, TRAVEL_Absolute);
+        }
 	}
 }
 
 void AA302GameMode::HandleRoomLevelReady(const FString& RoomCode)
 {
-	const FString NormalizedRoomCode = A302RoomScope::NormalizeRoomCode(RoomCode);
-	if (NormalizedRoomCode.IsEmpty() || !ActiveGameplayRooms.Contains(NormalizedRoomCode))
-	{
-		return;
-	}
-
-    ReadyGameplayRooms.Add(NormalizedRoomCode);
-	SpawnPlayersInRoom(NormalizedRoomCode);
+    SpawnPlayersInRoom(RoomCode);
 }
 
 bool AA302GameMode::IsRoomGameplayActive(const FString& RoomCode) const
 {
-	const FString NormalizedRoomCode = A302RoomScope::NormalizeRoomCode(RoomCode);
-	if (NormalizedRoomCode.IsEmpty() || !ActiveGameplayRooms.Contains(NormalizedRoomCode))
-	{
-		return false;
-	}
-
-	if (PhaseSubsystem)
-	{
-		return PhaseSubsystem->IsRoomPhaseActive(NormalizedRoomCode);
-	}
-
-	return true;
+    if (PhaseSubsystem)
+    {
+        return PhaseSubsystem->IsRoomPhaseActive(RoomCode);
+    }
+    return false;
 }
 
-bool AA302GameMode::IsPlayerGameplayEnabled(const APlayerController* PlayerController) const
-{
-    if (!RoomMembershipRegistry || !PlayerController)
-    {
-        return false;
-    }
-
-    const FString RoomCode = A302RoomScope::NormalizeRoomCode(RoomMembershipRegistry->GetPlayerRoomCode(PlayerController));
-    if (RoomCode.IsEmpty())
-    {
-        return false;
-    }
-
-    return IsRoomGameplayActive(RoomCode) && ReadyGameplayRooms.Contains(RoomCode);
-}
-
-void AA302GameMode::UpdatePlayerGameplayFlag(APlayerController* PlayerController, bool bEnabled) const
-{
-    if (!PlayerController)
-    {
-        return;
-    }
-
-    if (AA302PlayerState* A302PlayerState = PlayerController->GetPlayerState<AA302PlayerState>())
-    {
-        A302PlayerState->SetGameplayEnabled(bEnabled);
-    }
-}
 
 void AA302GameMode::SpawnPlayersInRoom(const FString& RoomCode)
 {
-	const FString NormalizedRoomCode = A302RoomScope::NormalizeRoomCode(RoomCode);
-	if (NormalizedRoomCode.IsEmpty() || !RoomMembershipRegistry || !ReadyGameplayRooms.Contains(NormalizedRoomCode))
-	{
-		return;
-	}
+    const FString NormalizedRoomCode = A302RoomScope::NormalizeRoomCode(RoomCode);
+    if (NormalizedRoomCode.IsEmpty() || !RoomMembershipRegistry)
+    {
+        return;
+    }
 
     UWorld* World = GetWorld();
     if (!World)
@@ -491,152 +332,44 @@ void AA302GameMode::SpawnPlayersInRoom(const FString& RoomCode)
 		RoomRuntimeSubsystem->TouchRoom(NormalizedRoomCode);
 	}
 
+    UA302ServerPlayerSubsystem* PlayerSubsystem = World->GetSubsystem<UA302ServerPlayerSubsystem>();
+    if (!PlayerSubsystem) return;
+
 	TArray<APlayerController*> RoomPlayers;
 	RoomMembershipRegistry->GatherPlayersInRoom(World, NormalizedRoomCode, RoomPlayers);
 	for (APlayerController* RoomPlayer : RoomPlayers)
 	{
-		UpdatePlayerGameplayFlag(RoomPlayer, true);
-		QueueSpawnPlayer(RoomPlayer);
+		PlayerSubsystem->UpdatePlayerGameplayFlag(RoomPlayer, true);
+		PlayerSubsystem->QueueSpawnPlayer(RoomPlayer);
 	}
 }
 
-void AA302GameMode::QueueSpawnPlayer(APlayerController* PlayerController)
-{
-    if (!PlayerController)
-    {
-        return;
-    }
-
-    if (!IsPlayerGameplayEnabled(PlayerController))
-    {
-        return;
-    }
-
-    FString PlayerRoomCode;
-    if (RoomMembershipRegistry)
-    {
-        PlayerRoomCode = RoomMembershipRegistry->GetPlayerRoomCode(PlayerController);
-    }
-
-    PlayerRoomCode = A302RoomScope::NormalizeRoomCode(PlayerRoomCode);
-    if (PlayerRoomCode.IsEmpty())
-    {
-        if (const AA302PlayerState* A302PlayerState = PlayerController->GetPlayerState<AA302PlayerState>())
-        {
-            PlayerRoomCode = A302RoomScope::NormalizeRoomCode(A302PlayerState->GetRoomCode());
-        }
-    }
-
-    if (!EnsureSpawnManager() || !SpawnManager)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[GameMode/A302GameMode] SpawnManager unavailable. queue skipped. room=%s"), *PlayerRoomCode);
-        return;
-    }
-
-    SpawnManager->QueueSpawnAndPossessPlayer(
-        PlayerController,
-        CharacterClass,
-        CurrentStage,
-        PlayerRoomCode,
-        ClientRoomStreamWarmupSeconds
-    );
-}
 
 void AA302GameMode::StartRoomGameplay(const FString& RoomCode)
 {
-	const FString NormalizedRoomCode = A302RoomScope::NormalizeRoomCode(RoomCode);
-	if (NormalizedRoomCode.IsEmpty())
-	{
-		return;
-	}
+    const FString NormalizedRoomCode = A302RoomScope::NormalizeRoomCode(RoomCode);
+    if (NormalizedRoomCode.IsEmpty())
+    {
+        return;
+    }
 
-	ActiveGameplayRooms.Add(NormalizedRoomCode);
-	if (PhaseSubsystem)
-	{
-		PhaseSubsystem->StartRoomPhaseTimeline(NormalizedRoomCode);
-	}
+    if (PhaseSubsystem)
+    {
+        PhaseSubsystem->StartRoomPhaseTimeline(NormalizedRoomCode);
+    }
 
-    bool bReadyToSpawn = true;
-	if (RoomRuntimeSubsystem)
-	{
-		bReadyToSpawn = RoomRuntimeSubsystem->PrepareRoom(NormalizedRoomCode);
-	}
-
-	if (bReadyToSpawn)
-	{
-        ReadyGameplayRooms.Add(NormalizedRoomCode);
-		SpawnPlayersInRoom(NormalizedRoomCode);
-	}
-	else
-	{
-        ReadyGameplayRooms.Remove(NormalizedRoomCode);
-		UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] Room level loading in progress. Spawn deferred. room=%s"), *NormalizedRoomCode);
-	}
+    if (RoomRuntimeSubsystem)
+    {
+        RoomRuntimeSubsystem->PrepareRoom(NormalizedRoomCode);
+    }
 }
+
 
 void AA302GameMode::OnMessageReceived(const FString &Message)
 {
-    TSharedPtr<FJsonObject> JsonObject;
-    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Message);
-    if (!FJsonSerializer::Deserialize(Reader, JsonObject))
-        return;
-
-    FString Type;
-    if (!JsonObject->TryGetStringField(LobbyProtocol::KeyType, Type))
+    if (BackendRouter)
     {
-        return;
-    }
-
-    const TSharedPtr<FJsonObject>* DataPtr = nullptr;
-    if (!JsonObject->TryGetObjectField(LobbyProtocol::KeyData, DataPtr) || DataPtr == nullptr || !DataPtr->IsValid())
-    {
-        return;
-    }
-    const TSharedPtr<FJsonObject> Data = *DataPtr;
-
-    FString Domain;
-    JsonObject->TryGetStringField(LobbyProtocol::KeyDomain, Domain);
-    if (Domain == BackendProtocol::Domain)
-    {
-        if (Type == BackendProtocol::ReqPrepareGame)
-        {
-            HandlePrepareGame(Data);
-            return;
-        }
-
-        UE_LOG(LogTemp, Verbose, TEXT("[GameMode/A302GameMode] Unknown backend packet type: %s"), *Type);
-        return;
-    }
-
-    if (Type == LobbyProtocol::ResChatMessage)
-    {
-        const FString MessageRoomCode = A302RoomScope::ExtractRoomCode(Data);
-        if (MessageRoomCode.IsEmpty())
-        {
-            UE_LOG(
-                LogTemp,
-                Verbose,
-                TEXT("[GameMode/A302GameMode] Ignore chat without roomCode. payload=%s"),
-                *Message
-            );
-            return;
-        }
-
-        if (!RoomMembershipRegistry || !GetWorld() || RoomMembershipRegistry->CountPlayersInRoom(GetWorld(), MessageRoomCode) <= 0)
-        {
-            UE_LOG(LogTemp, Verbose, TEXT("[GameMode/A302GameMode] Ignore chat for empty room. room=%s"), *MessageRoomCode);
-            return;
-        }
-
-        if (RoomRuntimeSubsystem)
-        {
-            RoomRuntimeSubsystem->TouchRoom(MessageRoomCode);
-        }
-
-        FString PlayerName = Data->GetStringField(LobbyProtocol::KeyPlayerName);
-        FString ChatMessage = Data->GetStringField(LobbyProtocol::KeyMessage);
-        UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] Chatting Log >> room=%s %s: %s"), *MessageRoomCode, *PlayerName, *ChatMessage);
-        OnInGameChatReceived.Broadcast(PlayerName, ChatMessage);
+        BackendRouter->HandleMessage(Message);
     }
 }
 

@@ -1,6 +1,6 @@
-#include "Character/Components/ItemManagerComponent.h"
+#include "Character/Components/Inventory/ItemManagerComponent.h"
 
-#include "Character/Components/ItemTargetingComponent.h"
+#include "Character/Components/Inventory/ItemTargetingComponent.h"
 #include "GameData/Items/ItemDefinition.h"
 #include "GameData/Items/ItemInstance.h"
 #include "GamePlay/Factories/ItemActionFactory.h"

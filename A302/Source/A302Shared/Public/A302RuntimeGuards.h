@@ -23,7 +23,8 @@ namespace A302RuntimeGuards
 
 	inline bool IsInGameWorld(const UWorld* World)
 	{
-		return MapNameContains(World, TEXT("MyTestLevel")) || MapNameContains(World, TEXT("MyMap"));
+		// 로비가 아닌 경우에만 인게임 월드로 판단하여 HUD 초기화 등을 허용합니다. (DSLevel 등 포함)
+		return World && !IsLobbyWorld(World);
 	}
 
 	inline bool IsInGameWorld(const UObject* WorldContextObject)

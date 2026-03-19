@@ -1,11 +1,12 @@
 #include "GamePlay/Events/PersonalEvents/PersonalEventDevilsEye.h"
 
-#include "Character/Components/ItemManagerComponent.h"
+#include "Character/Components/Inventory/ItemManagerComponent.h"
 #include "Character/MyCharacter.h"
 #include "Character/MyPlayerController.h"
-#include "GameData/Events/PersonalEvents/PersonalEventDevilsEyeDefinition.h"
+#include "GameData/Events/PersonalEvents/Status/PersonalEventDevilsEyeDefinition.h"
 #include "GameData/Items/ItemDefinition.h"
 #include "GamePlay/Items/BaseItem.h"
+#include "Character/Components/PlayerEventComponent.h"
 
 namespace
 {
@@ -16,7 +17,7 @@ namespace
 	const FText DevilsEyeConfirmChoice = FText::FromString(TEXT("확인"));
 }
 
-void UPersonalEventDevilsEye::ExecuteEvent_Implementation(AMyCharacter* InstigatorCharacter)
+void UPersonalEventDevilsEye::ExecuteEvent_Implementation(ACharacter* InstigatorCharacter)
 {
 	if (!InstigatorCharacter)
 	{
@@ -30,20 +31,22 @@ void UPersonalEventDevilsEye::ExecuteEvent_Implementation(AMyCharacter* Instigat
 		return;
 	}
 
-	PlayerController->ActivePersonalEvent = this;
-
 	TArray<FText> Choices;
 	Choices.Add(DevilsEyeConfirmChoice);
 
-	PlayerController->Client_ShowPersonalEvent(
-		EventID,
-		DevilsEyeTitle,
-		DevilsEyeDescription,
-		Choices
-	);
+	if (UPlayerEventComponent* EventComp = PlayerController->FindComponentByClass<UPlayerEventComponent>())
+	{
+		EventComp->SetActivePersonalEvent(this);
+		EventComp->ShowPersonalEvent(
+			EventID,
+			DevilsEyeTitle,
+			DevilsEyeDescription,
+			Choices
+		);
+	}
 }
 
-void UPersonalEventDevilsEye::OnEventResolved_Implementation(AMyCharacter* InstigatorCharacter, int32 ChoiceIndex)
+void UPersonalEventDevilsEye::OnEventResolvedMulti(ACharacter* InstigatorCharacter, int32 ChoiceIndex)
 {
 	(void)ChoiceIndex;
 

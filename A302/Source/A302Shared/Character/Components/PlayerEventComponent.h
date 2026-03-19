@@ -25,6 +25,14 @@ public:
 	void RequestResolvePersonalEvent(FName EventID, int32 ChoiceIndex);
 	void RequestSubmitGroupVote(FName EventID, int32 TargetPlayerId);
 
+	// Timed Kill Logic (Migrated from MyCharacter)
+	void NotifyKilledCharacter();
+	void NotifyTimedKnifeAttackSucceeded();
+	void RegisterTimedKillEvent(UObject* EventInstance);
+	void ClearTimedKillEvent(UObject* EventInstance);
+	void SetTimedKnifeAttackInProgress(bool bInProgress);
+	bool IsTimedKnifeAttackInProgress() const { return bTimedKnifeAttackInProgress; }
+
 	UFUNCTION(Client, Reliable)
 	void Client_ShowPersonalEvent(FName EventID, const FText& Title, const FText& Description, const TArray<FText>& Choices);
 
@@ -51,4 +59,15 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UBaseGroupEvent> ActiveGroupEvent;
+
+	UPROPERTY()
+	TObjectPtr<UObject> ActiveTimedKnifeEventObject = nullptr;
+
+	bool bTimedKnifeAttackInProgress = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|Timed", meta = (AllowPrivateAccess = "true"))
+	float TimedKnifeRemainingSeconds = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|Timed", meta = (AllowPrivateAccess = "true"))
+	FName ActiveTimedKnifeItemId = NAME_None;
 };

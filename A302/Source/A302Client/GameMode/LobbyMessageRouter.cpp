@@ -130,12 +130,12 @@ bool ULobbyMessageRouter::ShouldProcessRoomScopedMessage(const TSharedPtr<FJsonO
 
 void ULobbyMessageRouter::HandleMessage(const FString& Message)
 {
-	if (!GameInstance)
+	if (!GameInstance || !GameInstance->GetWorld())
 	{
 		return;
 	}
 
-	if (A302RuntimeGuards::IsDedicatedServerWorld(GameInstance->GetWorld()))
+	if (A302RuntimeGuards::IsDedicatedServerWorld(GameInstance))
 	{
 		return;
 	}
@@ -144,8 +144,11 @@ void ULobbyMessageRouter::HandleMessage(const FString& Message)
 	const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Message);
 	if (!FJsonSerializer::Deserialize(Reader, JsonObject) || !JsonObject.IsValid())
 	{
+		UE_LOG(LogTemp, Warning, TEXT("[LobbyMessageRouter] Failed to deserialize message: %s"), *Message);
 		return;
 	}
+
+	UE_LOG(LogTemp, Log, TEXT("[LobbyMessageRouter] Received Message: %s"), *Message);
 
 	FString Type;
 	if (!JsonObject->TryGetStringField(LobbyProtocol::KeyType, Type))
@@ -154,10 +157,7 @@ void ULobbyMessageRouter::HandleMessage(const FString& Message)
 	}
 
 	TSharedPtr<FJsonObject> Data;
-	if (!TryGetDataObject(JsonObject, Data))
-	{
-		return;
-	}
+	TryGetDataObject(JsonObject, Data); // 성공 여부와 상관없이 핸들러로 넘김
 
 	if (const FLobbyPacketHandler* Handler = PacketHandlers.Find(Type))
 	{
@@ -180,6 +180,7 @@ void ULobbyMessageRouter::HandleRoomCreated(const TSharedPtr<FJsonObject>& Data)
 	GameInstance->bIsHost = true;
 	GameInstance->OnRoomCreated.Broadcast(GameInstance->CurrentRoomCode);
 	GameInstance->ShowWaitingRoom(GameInstance->CurrentRoomCode);
+	GameInstance->OnPlayerEntered.Broadcast(GameInstance->MyPlayerName);
 }
 
 void ULobbyMessageRouter::HandleRoomJoined(const TSharedPtr<FJsonObject>& Data)
@@ -194,6 +195,31 @@ void ULobbyMessageRouter::HandleRoomJoined(const TSharedPtr<FJsonObject>& Data)
 	GameInstance->bIsHost = Data->GetBoolField(LobbyProtocol::KeyIsHost);
 	GameInstance->OnRoomJoined.Broadcast();
 	GameInstance->ShowWaitingRoom(GameInstance->CurrentRoomCode);
+	GameInstance->OnPlayerEntered.Broadcast(GameInstance->MyPlayerName);
+
+	// 기존 플레이어 목록 동기화
+	const TArray<TSharedPtr<FJsonValue>>* Players = nullptr;
+	if (Data->TryGetArrayField(TEXT("existingPlayers"), Players) || Data->TryGetArrayField(TEXT("players"), Players))
+	{
+		UE_LOG(LogTemp, Log, TEXT("[LobbyMessageRouter] Synchronizing %d existing players."), Players->Num());
+		for (const TSharedPtr<FJsonValue>& PlayerVal : *Players)
+		{
+			FString ExistingPlayerName;
+			if (PlayerVal->Type == EJson::String)
+			{
+				ExistingPlayerName = PlayerVal->AsString();
+			}
+			else if (PlayerVal->Type == EJson::Object)
+			{
+				PlayerVal->AsObject()->TryGetStringField(LobbyProtocol::KeyPlayerName, ExistingPlayerName);
+			}
+
+			if (!ExistingPlayerName.IsEmpty())
+			{
+				GameInstance->OnPlayerEntered.Broadcast(ExistingPlayerName);
+			}
+		}
+	}
 }
 
 void ULobbyMessageRouter::HandlePlayerEntered(const TSharedPtr<FJsonObject>& Data)
@@ -260,7 +286,7 @@ void ULobbyMessageRouter::HandleHostChanged(const TSharedPtr<FJsonObject>& Data)
 		return;
 	}
 
-	FString NewHostName;
+	FString NewHostName;	
 	if (!Data->TryGetStringField(LobbyProtocol::KeyPlayerName, NewHostName) || NewHostName.IsEmpty())
 	{
 		Data->TryGetStringField(TEXT("hostName"), NewHostName);
@@ -274,9 +300,12 @@ void ULobbyMessageRouter::HandleHostChanged(const TSharedPtr<FJsonObject>& Data)
 	if (GameInstance->MyPlayerName == NewHostName)
 	{
 		GameInstance->bIsHost = true;
-		if (GameInstance->WaitingRoomWidget)
+		if (UUserWidget* Widget = GameInstance->WaitingRoomWidget.Get())
 		{
-			GameInstance->WaitingRoomWidget->OnHostChanged();
+			if (UWaitingRoomWidget* WaitingRoom = Cast<UWaitingRoomWidget>(Widget))
+			{
+				WaitingRoom->OnHostChanged();
+			}
 		}
 	}
 }
@@ -347,6 +376,7 @@ void ULobbyMessageRouter::HandleNicknameAvailable(const TSharedPtr<FJsonObject>&
 {
 	if (GameInstance)
 	{
+		UE_LOG(LogTemp, Log, TEXT("[LobbyMessageRouter] HandleNicknameAvailable called. Broadcasting OnNicknameAvailable."));
 		GameInstance->OnNicknameAvailable.Broadcast();
 	}
 }

@@ -1,7 +1,7 @@
-#include "Character/Components/ItemTargetingComponent.h"
+#include "Character/Components/Inventory/ItemTargetingComponent.h"
 
-#include "Character/Components/ItemManagerComponent.h"
-#include "Character/Components/QuickSlotComponent.h"
+#include "Character/Components/Inventory/ItemManagerComponent.h"
+#include "Character/Components/Inventory/QuickSlotComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/OverlapResult.h"
 #include "Engine/World.h"

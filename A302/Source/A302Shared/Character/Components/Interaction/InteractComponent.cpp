@@ -1,4 +1,4 @@
-#include "Character/Components/InteractComponent.h"
+#include "Character/Components/Interaction/InteractComponent.h"
 #include "Blueprint/UserWidget.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/PlayerController.h"
@@ -6,7 +6,12 @@
 #include "DrawDebugHelpers.h"
 #include "Engine/Engine.h"
 #include "Interface/InteractableInterface.h"
-#include "Interface/A302CharacterBridge.h"
+#include "Character/MyCharacter.h"
+#include "Character/Components/Interaction/CharacterRewardComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "EnhancedInputSubsystems.h"
+#include "Interface/A302AnimationBridge.h"
+#include "Object/BaseInteractable.h"
 #include "A302RuntimeGuards.h"
 
 UInteractComponent::UInteractComponent()
@@ -48,37 +53,49 @@ bool UInteractComponent::TryInitializeLocalUIWidgets()
 		return false;
 	}
 
-	if (InteractionWidgetClass && !InteractionWidgetInstance)
+	if (!InteractionWidgetClass.IsNull() && !InteractionWidgetInstance)
 	{
-		InteractionWidgetInstance = CreateWidget<UUserWidget>(LocalPC, InteractionWidgetClass);
-		if (InteractionWidgetInstance)
+		UClass* LoadedClass = InteractionWidgetClass.LoadSynchronous();
+		if (LoadedClass)
 		{
-			InteractionWidgetInstance->AddToViewport(10);
-			InteractionWidgetInstance->SetVisibility(ESlateVisibility::Hidden);
+			InteractionWidgetInstance = CreateWidget<UUserWidget>(LocalPC, LoadedClass);
+			if (InteractionWidgetInstance)
+			{
+				InteractionWidgetInstance->AddToViewport(10);
+				InteractionWidgetInstance->SetVisibility(ESlateVisibility::Hidden);
+			}
 		}
 	}
 
-	if (CrosshairWidgetClass && !CrosshairWidgetInstance)
+	if (!CrosshairWidgetClass.IsNull() && !CrosshairWidgetInstance)
 	{
-		CrosshairWidgetInstance = CreateWidget<UUserWidget>(LocalPC, CrosshairWidgetClass);
-		if (CrosshairWidgetInstance)
+		UClass* LoadedClass = CrosshairWidgetClass.LoadSynchronous();
+		if (LoadedClass)
 		{
-			CrosshairWidgetInstance->AddToViewport(20);
+			CrosshairWidgetInstance = CreateWidget<UUserWidget>(LocalPC, LoadedClass);
+			if (CrosshairWidgetInstance)
+			{
+				CrosshairWidgetInstance->AddToViewport(20);
+			}
 		}
 	}
 
-	if (QTEWidgetClass && !QTEWidgetInstance)
+	if (!QTEWidgetClass.IsNull() && !QTEWidgetInstance)
 	{
-		QTEWidgetInstance = CreateWidget<UUserWidget>(LocalPC, QTEWidgetClass);
-		if (QTEWidgetInstance)
+		UClass* LoadedClass = QTEWidgetClass.LoadSynchronous();
+		if (LoadedClass)
 		{
-			QTEWidgetInstance->AddToViewport(50);
-			QTEWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
-			UE_LOG(LogTemp, Log, TEXT("[InteractComponent] QTE widget initialized for local player."));
+			QTEWidgetInstance = CreateWidget<UUserWidget>(LocalPC, LoadedClass);
+			if (QTEWidgetInstance)
+			{
+				QTEWidgetInstance->AddToViewport(50);
+				QTEWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+				UE_LOG(LogTemp, Log, TEXT("[InteractComponent] QTE widget initialized for local player."));
+			}
 		}
 		else
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[InteractComponent] Failed to create QTE widget for local player."));
+			UE_LOG(LogTemp, Warning, TEXT("[InteractComponent] Failed to load QTE widget class."));
 		}
 	}
 
@@ -103,9 +120,9 @@ ACharacter* UInteractComponent::GetOwnerCharacter() const
 	return CachedOwnerCharacter;
 }
 
-IA302CharacterBridge* UInteractComponent::GetOwnerCharacterBridge() const
+AMyCharacter* UInteractComponent::GetOwnerCharacterBridge() const
 {
-	return Cast<IA302CharacterBridge>(CachedOwnerCharacter.Get());
+	return Cast<AMyCharacter>(CachedOwnerCharacter.Get());
 }
 
 void UInteractComponent::CheckForInteractables()
@@ -228,6 +245,129 @@ void UInteractComponent::HandleInteractHoldCanceled()
 	InteractionProgressRatio = 0.0f;
 }
 
+void UInteractComponent::OnInteractHoldProgress(const FInputActionValue& Value)
+{
+	const float DeltaTime = GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.0f;
+	const bool bIsComplete = HandleInteractHoldProgress(DeltaTime);
+	if (bIsComplete)
+	{
+		InteractionCompleteResult();
+	}
+}
+
+void UInteractComponent::OnInteractHoldCanceled(const FInputActionValue& Value)
+{
+	HandleInteractHoldCanceled();
+}
+
+void UInteractComponent::OnQTEInteractStarted()
+{
+	HandleInteractQTEStarted();
+}
+
+void UInteractComponent::OnQTEInput(const FVector2D& InputVector)
+{
+	EQTEDirection FinalDir = EQTEDirection::None;
+
+	if (FMath::Abs(InputVector.X) > FMath::Abs(InputVector.Y))
+	{
+		FinalDir = (InputVector.X > 0) ? EQTEDirection::Right : EQTEDirection::Left;
+	}
+	else
+	{
+		FinalDir = (InputVector.Y > 0) ? EQTEDirection::Up : EQTEDirection::Down;
+	}
+
+	if (FinalDir != EQTEDirection::None)
+	{
+		if (ReceiveQTEInput(FinalDir))
+		{
+			InteractionCompleteResult();
+		}
+	}
+}
+
+void UInteractComponent::SetQTEInputMode(bool bIsQTE)
+{
+	ACharacter* OwnerCharacter = GetOwnerCharacter();
+	if (!OwnerCharacter) return;
+	
+	if (APlayerController* PC = Cast<APlayerController>(OwnerCharacter->GetController()))
+	{
+		PC->SetIgnoreMoveInput(bIsQTE);
+
+		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()))
+		{
+			if (AMyCharacter* CharacterBridge = GetOwnerCharacterBridge())
+			{
+				if (bIsQTE)
+				{
+					if (CharacterBridge->IMC_Default)
+					{
+						Subsystem->RemoveMappingContext(CharacterBridge->IMC_Default);
+					}
+					if (CharacterBridge->IMC_QTE)
+					{
+						Subsystem->AddMappingContext(CharacterBridge->IMC_QTE, 1);
+					}
+
+					if (CharacterBridge->GetCharacterMovement())
+					{
+						CharacterBridge->GetCharacterMovement()->StopMovementImmediately();
+					}
+				}
+				else
+				{
+					if (CharacterBridge->IMC_QTE)
+					{
+						Subsystem->RemoveMappingContext(CharacterBridge->IMC_QTE);
+					}
+					if (CharacterBridge->IMC_Default)
+					{
+						Subsystem->AddMappingContext(CharacterBridge->IMC_Default, 0);
+					}
+				}
+			}
+		}
+	}
+}
+
+void UInteractComponent::InteractionCompleteResult()
+{
+	ACharacter* OwnerCharacter = GetOwnerCharacter();
+	if (!OwnerCharacter) return;
+
+	if (!LastInteractedActor)
+	{
+		return;
+	}
+
+	if (IA302AnimationBridge* Anim = Cast<IA302AnimationBridge>(OwnerCharacter->GetMesh()->GetAnimInstance()))
+	{
+		Anim->PlayInteractAnimation();
+	}
+
+	ABaseInteractable* Interactable = Cast<ABaseInteractable>(LastInteractedActor);
+	if (!IsValid(Interactable))
+	{
+		return;
+	}
+
+	Interactable->OnInteractionSuccess(OwnerCharacter);
+
+	if (UCharacterRewardComponent* RewardComp = OwnerCharacter->FindComponentByClass<UCharacterRewardComponent>())
+	{
+		if (OwnerCharacter->HasAuthority())
+		{
+			RewardComp->ResolveInteractionRewardOnServer(Interactable);
+		}
+		else
+		{
+			RewardComp->Server_RequestInteractionReward(Interactable);
+		}
+	}
+}
+
 void UInteractComponent::HandleInteractQTEStarted()
 {
 	if (!LastInteractableActor) return;
@@ -259,10 +399,7 @@ void UInteractComponent::HandleInteractQTEStarted()
 			UE_LOG(LogTemp, Warning, TEXT("[QTE] %d개의 화살표 생성됨!"), QTECount);
             
 			// TODO: UI 위젯을 띄우고 생성된 TargetQTEKeys 전달하기
-			if (IA302CharacterBridge* CharacterBridge = GetOwnerCharacterBridge())
-			{
-				CharacterBridge->SetQTEInputMode(true); // IMC 교체 및 이동 제한 호출
-			}
+			SetQTEInputMode(true); // IMC 교체 및 이동 제한 호출
 		}
 	}
 }
@@ -302,10 +439,7 @@ void UInteractComponent::OnQTESuccess()
 		LastInteractedActor = LastInteractableActor;
 	}
     
-	if (IA302CharacterBridge* CharacterBridge = GetOwnerCharacterBridge())
-	{
-		CharacterBridge->SetQTEInputMode(false); // 조작권 복구
-	}
+	SetQTEInputMode(false); // 조작권 복구
 }
 
 void UInteractComponent::OnQTEFailure()
@@ -314,8 +448,5 @@ void UInteractComponent::OnQTEFailure()
 	bIsQTEActive = false;
 	OnQTEEnded.Broadcast(false);
     
-	if (IA302CharacterBridge* CharacterBridge = GetOwnerCharacterBridge())
-	{
-		CharacterBridge->SetQTEInputMode(false); // 조작권 복구
-	}
+	SetQTEInputMode(false); // 조작권 복구
 }

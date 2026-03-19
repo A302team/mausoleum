@@ -1,5 +1,5 @@
 #include "Animation/MyAnimInstance.h"
-#include "Character/Components/CombatStatusComponent.h"
+#include "Character/Components/Combat/CombatStatusComponent.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 

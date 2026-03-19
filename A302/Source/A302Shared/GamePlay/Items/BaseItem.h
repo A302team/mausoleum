@@ -26,10 +26,10 @@ public:
     UFUNCTION(BlueprintCallable, Category="Item")
     const UItemDefinition* GetDefinition() const;
     
-    virtual void OnItemAcquired(class AMyCharacter* OwnerCharacter) const {}
-    virtual void OnItemUsed(class AMyCharacter* OwnerCharacter) const {}
+    virtual void OnItemAcquired(class ACharacter* OwnerCharacter) const {}
+    virtual void OnItemUsed(class ACharacter* OwnerCharacter) const {}
     virtual bool ResolveServerTargetedUse(
-        class AMyCharacter* OwnerCharacter,
+        class ACharacter* OwnerCharacter,
         AActor* TargetActor,
         FString& OutSystemMessage
     ) const

@@ -7,7 +7,7 @@
 class UItemDefinition;
 
 UCLASS(BlueprintType)
-class A302_API UPersonalEventDevilsEyeDefinition : public UPersonalEventDefinition
+class A302SHARED_API UPersonalEventDevilsEyeDefinition : public UPersonalEventDefinition
 {
 	GENERATED_BODY()
 

@@ -132,6 +132,7 @@ void RoomHandler::handleCheckNickname(WebSocketType *ws, const json &data)
     if (checkNameAndSendErrorIfTaken(ws, playerName))
         return;
 
+    LOG_INFO("Lobby", "Sending nickname_available to " << playerName);
     ws->send(json({{std::string(KEY_TYPE), RES_NICKNAME_AVAILABLE},
                    {std::string(KEY_DATA), {{std::string(KEY_PLAYER_NAME), playerName}}}})
                  .dump(),
