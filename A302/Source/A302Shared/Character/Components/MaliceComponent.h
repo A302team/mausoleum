@@ -37,6 +37,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Malice")
 	void ConsumeMalice(int32 Count);
 
+	UFUNCTION(BlueprintCallable, Category="Malice")
+	void SetRawMalice(int32 NewRawMalice);
+
 	int32 GetMaliceCount() const { return FMath::Max(0, MaliceCount); }
 
 	UFUNCTION(BlueprintCallable, Category = "Malice")

@@ -32,8 +32,14 @@ void UPersonalEventDevilsEye::ExecuteEvent_Implementation(ACharacter* Instigator
 	}
 
 	TArray<FText> Choices;
-	Choices.Add(DevilsEyeConfirmChoice);
+	Choices.Add(FText::FromString(TEXT("확인")));
 
+	PlayerController->Client_ShowPersonalEvent(
+		EventID,
+		FText::FromString(TEXT("악마의 눈동자")),
+		FText::FromString(TEXT("눈동자의 형상을 한 붉은 수정구를 얻었습니다. 수정구를 사용하여 타인의 내면을 들여다볼 수 있을 것 같습니다.")),
+		Choices
+	);
 	if (UPlayerEventComponent* EventComp = PlayerController->FindComponentByClass<UPlayerEventComponent>())
 	{
 		EventComp->SetActivePersonalEvent(this);
