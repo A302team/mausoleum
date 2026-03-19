@@ -11,11 +11,18 @@
 #include "Kismet/GameplayStatics.h"
 #include "UI/ChatWidget.h"
 #include "Blueprint/UserWidget.h"
+#include "UObject/ConstructorHelpers.h"
 #include "Network/LobbyConstants.h"
 
 AA302GameMode::AA302GameMode()
 {
     DefaultPawnClass = nullptr;
+    static ConstructorHelpers::FClassFinder<UUserWidget> HUDWidgetBPClass(TEXT("/Game/WorkSpace/UI/WBP_HUD2"));
+    if (HUDWidgetBPClass.Succeeded())
+    {
+        HUDWidgetClass = HUDWidgetBPClass.Class;
+    }
+
     // C++에서 StaticClass로 덮어씌우면 블루프린트로 설정한 입력 맵핑 등이 모두 날아갑니다.
     // 블루프린트 게임모드(BP_A302GameMode)에서 PlayerControllerClass 등을 직접 세팅해주세요.
 }

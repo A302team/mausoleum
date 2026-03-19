@@ -1,5 +1,6 @@
 #include "GamePlay/Items/ItemTimeKnife.h"
 
+#include "Animation/MyAnimInstance.h"
 #include "Character/MyCharacter.h"
 
 bool UItemTimeKnife::Use_Implementation(ACharacter* Instigator, const FItemTargetData& TargetData)
@@ -8,12 +9,6 @@ bool UItemTimeKnife::Use_Implementation(ACharacter* Instigator, const FItemTarge
 	if (MyCharacter)
 	{
 		MyCharacter->SetTimedKnifeAttackInProgress(true);
-
-		// TimeKnifeActor 장착 (애니메이션에서 위치 참조용)
-        if (MyCharacter->TimeKnifeActorClass)
-        {
-            MyCharacter->EquipWeapon(MyCharacter->TimeKnifeActorClass);
-        }
 	}
 
 	const bool bUsed = Super::Use_Implementation(Instigator, TargetData);
@@ -29,4 +24,23 @@ bool UItemTimeKnife::Use_Implementation(ACharacter* Instigator, const FItemTarge
 	}
 
 	return bUsed;
+}
+
+void UItemTimeKnife::PlayUsePresentation(ACharacter* Instigator)
+{
+	AMyCharacter* MyCharacter = Cast<AMyCharacter>(Instigator);
+	if (!MyCharacter)
+	{
+		return;
+	}
+
+	if (MyCharacter->TimeKnifeActorClass)
+	{
+		MyCharacter->EquipWeapon(MyCharacter->TimeKnifeActorClass);
+	}
+
+	if (UMyAnimInstance* Anim = Cast<UMyAnimInstance>(MyCharacter->GetMesh()->GetAnimInstance()))
+	{
+		Anim->PlayTimeKnifeMontage();
+	}
 }

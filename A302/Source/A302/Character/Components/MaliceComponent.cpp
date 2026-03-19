@@ -41,3 +41,14 @@ void UMaliceComponent::ConsumeMalice(int32 Count)
 	MaliceCount = FMath::Max(0, MaliceCount - Count);
 	OnMaliceChanged.Broadcast(MaliceCount);
 }
+
+void UMaliceComponent::SetRawMalice(int32 NewRawMalice)
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority())
+	{
+		return;
+	}
+
+	MaliceCount = FMath::Max(0, NewRawMalice + ItemizeMalice);
+	OnMaliceChanged.Broadcast(MaliceCount);
+}

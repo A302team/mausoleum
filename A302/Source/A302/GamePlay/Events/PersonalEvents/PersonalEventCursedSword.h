@@ -16,12 +16,14 @@ class A302_API UPersonalEventCursedSword : public UBasePersonalEvent
 
 public:
 	virtual void ExecuteEvent_Implementation(AMyCharacter* InstigatorCharacter) override;
-	virtual void OnEventResolved(AMyCharacter* InstigatorCharacter, bool bIsConfirmed) override;
+	virtual void OnEventResolved_Implementation(AMyCharacter* InstigatorCharacter, int32 ChoiceIndex) override;
 	void NotifyKillConfirmed();
 	void CancelCountdown();
 	virtual void BeginDestroy() override;
 
 private:
+	bool BeginCursedSwordFlow(AMyCharacter* InstigatorCharacter);
+	bool TryGrantKnifeToPreferredSlot(AMyCharacter* InstigatorCharacter, UItemDefinition* GrantedKnifeDefinition, int32& OutAddedSlotIndex) const;
 	void HandleCountdownTick();
 	void RefreshTimerUI() const;
 	void StopCountdown(bool bHideTimer);
@@ -31,6 +33,7 @@ private:
 	TObjectPtr<AMyCharacter> OwnerCharacter = nullptr;
 
 	FName GrantedItemId = NAME_None;
+	int32 GrantedSlotIndex = INDEX_NONE;
 	float RemainingSeconds = 0.0f;
 	bool bIsActive = false;
 	FTimerHandle CountdownTimerHandle;

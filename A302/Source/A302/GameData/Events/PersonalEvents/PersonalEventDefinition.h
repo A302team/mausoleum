@@ -14,9 +14,4 @@ public:
     {
         RewardCategory = ERewardCategory::PersonalEvent;
     }
-    
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "PersonalEvent")
-    bool bIsCancelable = true;
 };
-
-

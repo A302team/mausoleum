@@ -11,7 +11,7 @@ class A302_API UPersonalEventBizarreForge : public UBasePersonalEvent
 
 public:
 	virtual void ExecuteEvent_Implementation(class AMyCharacter* InstigatorCharacter) override;
-	virtual void OnEventResolvedMulti(class AMyCharacter* InstigatorCharacter, int32 ChoiceIndex) override;
+	virtual void OnEventResolved_Implementation(class AMyCharacter* InstigatorCharacter, int32 ChoiceIndex) override;
 
 private:
 	bool bIsMaliceZeroBranch = false;
