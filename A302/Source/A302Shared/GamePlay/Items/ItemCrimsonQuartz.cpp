@@ -2,8 +2,8 @@
 
 #include "Character/Components/MaliceComponent.h"
 #include "Character/MyCharacter.h"
-#include "Character/Components/Interaction/CharacterRewardComponent.h"
 #include "GameData/Items/ItemInstance.h"
+#include "A302GameplayGuards.h"
 
 FString UItemCrimsonQuartz::BuildInspectionMessage(int32 RawMaliceCount)
 {
@@ -53,11 +53,6 @@ bool UItemCrimsonQuartz::Use_Implementation(ACharacter* Instigator, const FItemT
 		return false;
 	}
 
-	if (UCharacterRewardComponent* RewardComponent = OwnerCharacter->FindComponentByClass<UCharacterRewardComponent>())
-	{
-		RewardComponent->Server_RequestTargetedItemUse(const_cast<UItemDefinition*>(ItemDefinition), TargetCharacter);
-	}
-
 	if (UItemInstance* Inst = GetInstance())
 	{
 		Inst->Consume(1);
@@ -74,7 +69,12 @@ bool UItemCrimsonQuartz::ResolveServerTargetedUse(
 ) const
 {
 	const AMyCharacter* TargetCharacter = Cast<AMyCharacter>(TargetActor);
-	if (!OwnerCharacter || !TargetCharacter || TargetCharacter == OwnerCharacter)
+	if (!OwnerCharacter || !OwnerCharacter->HasAuthority() || !TargetCharacter || TargetCharacter == OwnerCharacter)
+	{
+		return false;
+	}
+
+	if (!A302GameplayGuards::CanInstigatorAffectTargetActor(OwnerCharacter, TargetCharacter))
 	{
 		return false;
 	}

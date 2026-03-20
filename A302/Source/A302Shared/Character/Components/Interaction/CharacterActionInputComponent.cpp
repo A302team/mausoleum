@@ -3,6 +3,8 @@
 #include "Character/MyPlayerController.h"
 #include "Character/Components/Combat/CharacterHealthComponent.h"
 #include "Character/Components/Inventory/QuickSlotComponent.h"
+#include "Character/Components/Inventory/ItemTargetingComponent.h"
+#include "Character/Components/Interaction/CharacterRewardComponent.h"
 #include "Character/Components/Interaction/InteractComponent.h"
 #include "Character/Components/Combat/EquipmentComponent.h"
 #include "Interface/A302AnimationBridge.h"
@@ -173,6 +175,31 @@ void UCharacterActionInputComponent::OnAttack(const FInputActionValue& Value)
 	
 	if (QuickSlotComp->TryUseSelectedItem(UsedItemDefinition, UsedSlotIndex))
 	{
+		// In network sessions, targeted item effects must also be resolved on server.
+		// Local use keeps immediate presentation/inventory feedback.
+		if (!OwnerCharacter->HasAuthority() && UsedItemDefinition)
+		{
+			const bool bNeedsServerTargetUse =
+				UsedItemDefinition->Payload.UseMode == EItemUseMode::Targeted ||
+				UsedItemDefinition->Payload.UseMode == EItemUseMode::SelfOrTargeted;
+
+			if (bNeedsServerTargetUse)
+			{
+				if (UItemTargetingComponent* TargetingComponent = OwnerCharacter->FindComponentByClass<UItemTargetingComponent>())
+				{
+					FItemTargetData TargetData;
+					const bool bForceTargetActor = UsedItemDefinition->Payload.UseMode == EItemUseMode::Targeted;
+					if (TargetingComponent->TryBuildTargetDataForUse(UsedItemDefinition, TargetData, bForceTargetActor))
+					{
+						if (UCharacterRewardComponent* RewardComponent = OwnerCharacter->FindComponentByClass<UCharacterRewardComponent>())
+						{
+							RewardComponent->Server_RequestTargetedItemUse(UsedItemDefinition, TargetData.TargetActor);
+						}
+					}
+				}
+			}
+		}
+
 		OwnerCharacter->BP_OnPrimaryItemUsed(UsedItemDefinition, UsedSlotIndex + 1);
 
 		UClass* UsedLogicClass = UsedItemDefinition ? UsedItemDefinition->ResolveRewardLogicClass() : nullptr;

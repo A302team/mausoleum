@@ -13,6 +13,7 @@ class A302SHARED_API UItemKnife : public UBaseItem, public IUsableItem
 public:
     virtual bool CanUse_Implementation(ACharacter* Instigator, const FItemTargetData& TargetData) const override;
     virtual bool Use_Implementation(ACharacter* Instigator, const FItemTargetData& TargetData) override;
+    virtual bool ResolveServerTargetedUse(ACharacter* OwnerCharacter, AActor* TargetActor, FString& OutSystemMessage) const override;
 
 protected:
     virtual void PlayUsePresentation(ACharacter* Instigator);

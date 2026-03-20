@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "Net/UnrealNetwork.h"
 #include "CombatStatusComponent.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnShieldChanged, int32, NewCount);
@@ -13,8 +14,9 @@ class A302SHARED_API UCombatStatusComponent : public UActorComponent
 
 public:
     UCombatStatusComponent();
+    virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-    UPROPERTY(BlueprintReadOnly, Category="Combat")
+    UPROPERTY(ReplicatedUsing = OnRep_ShieldBlockCount, BlueprintReadOnly, Category="Combat")
     int32 ShieldBlockCount = 0;
 
     UPROPERTY(BlueprintAssignable, Category="Combat")
@@ -25,4 +27,8 @@ public:
 
     UFUNCTION(BlueprintCallable, Category="Combat")
     bool TryConsumeShieldToBlock();
+
+private:
+    UFUNCTION()
+    void OnRep_ShieldBlockCount();
 };

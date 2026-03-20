@@ -4,6 +4,7 @@
 #include "Character/MyCharacter.h"
 #include "GameData/Items/ItemDefinition.h"
 #include "GameData/Items/ItemInstance.h"
+#include "A302GameplayGuards.h"
 
 bool UItemOminousMirror::CanUse_Implementation(ACharacter* Instigator, const FItemTargetData& TargetData) const
 {
@@ -55,7 +56,12 @@ bool UItemOminousMirror::ResolveServerTargetedUse(
 
 	AMyCharacter* OwnerCharacter = Cast<AMyCharacter>(InOwnerCharacter);
 	AMyCharacter* TargetCharacter = Cast<AMyCharacter>(TargetActor);
-	if (!OwnerCharacter || !TargetCharacter || TargetCharacter == OwnerCharacter)
+	if (!OwnerCharacter || !OwnerCharacter->HasAuthority() || !TargetCharacter || TargetCharacter == OwnerCharacter)
+	{
+		return false;
+	}
+
+	if (!A302GameplayGuards::CanInstigatorAffectTargetActor(OwnerCharacter, TargetCharacter))
 	{
 		return false;
 	}
