@@ -11,9 +11,13 @@
 #include "UObject/ConstructorHelpers.h"
 #include "A302RuntimeGuards.h"
 #include "GameFramework/HUD.h"
+#include "Room/RoomScopeRules.h"
+#include "Engine/World.h"
 
 namespace
 {
+	constexpr int32 MaxVoiceRoomCodeRetryCount = 8;
+
 	UClass* LoadClientVoiceComponentClass()
 	{
 		static TWeakObjectPtr<UClass> CachedClass;
@@ -44,6 +48,51 @@ namespace
 
 		return nullptr;
 	}
+
+	bool IsLocalPieSession(const APlayerController* PlayerController)
+	{
+#if WITH_EDITOR
+		if (!PlayerController)
+		{
+			return false;
+		}
+
+		const UWorld* World = PlayerController->GetWorld();
+		return World && World->WorldType == EWorldType::PIE && World->GetNetMode() != NM_DedicatedServer;
+#else
+		return false;
+#endif
+	}
+
+	FString BuildLocalPieRoomCode(const APlayerController* PlayerController)
+	{
+		const UWorld* World = PlayerController ? PlayerController->GetWorld() : nullptr;
+		if (!World)
+		{
+			return FString();
+		}
+
+		FString SafeMapName = World->GetMapName();
+		if (SafeMapName.StartsWith(TEXT("UEDPIE_")))
+		{
+			const int32 PrefixLen = 7;
+			const int32 UnderscoreIndex = SafeMapName.Find(TEXT("_"), ESearchCase::IgnoreCase, ESearchDir::FromStart, PrefixLen);
+			if (UnderscoreIndex != INDEX_NONE)
+			{
+				SafeMapName = SafeMapName.Mid(UnderscoreIndex + 1);
+			}
+		}
+
+		for (TCHAR& Ch : SafeMapName)
+		{
+			if (!FChar::IsAlnum(Ch))
+			{
+				Ch = TEXT('_');
+			}
+		}
+
+		return A302RoomScope::NormalizeRoomCode(FString::Printf(TEXT("PIE_LOCAL_%s"), *SafeMapName));
+	}
 }
 
 void AMyPlayerController::Server_RegisterPlayerDisplayName_Implementation(const FString& DesiredName)
@@ -72,6 +121,29 @@ AMyPlayerController::AMyPlayerController()
 void AMyPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
+
+	if (HasAuthority() && IsLocalPieSession(this))
+	{
+		if (AA302PlayerState* A302PS = GetPlayerState<AA302PlayerState>())
+		{
+			const FString CurrentRoomCode = A302RoomScope::NormalizeRoomCode(A302PS->GetRoomCode());
+			if (CurrentRoomCode.IsEmpty() || CurrentRoomCode == TEXT("DEFAULT"))
+			{
+				const FString FallbackRoomCode = BuildLocalPieRoomCode(this);
+				if (!FallbackRoomCode.IsEmpty())
+				{
+					A302PS->SetRoomCode(FallbackRoomCode);
+					UE_LOG(LogTemp, Log, TEXT("[RoomFallback] PIE local room code assigned. controller=%s room=%s"), *GetNameSafe(this), *FallbackRoomCode);
+				}
+			}
+
+			if (!A302PS->bGameplayEnabled)
+			{
+				A302PS->SetGameplayEnabled(true);
+				UE_LOG(LogTemp, Log, TEXT("[RoomFallback] PIE gameplay enabled forced. controller=%s"), *GetNameSafe(this));
+			}
+		}
+	}
 
 	if (!A302RuntimeGuards::ShouldInitializeLocalControllerUI(this))
 	{
@@ -326,6 +398,31 @@ void AMyPlayerController::ShowInspectMaliceSelectionWidget()
 	}
 }
 
+void AMyPlayerController::ShowInspectMaliceSelectionWidgetWithConfig(float SelectionTimeoutSeconds, float ResultDisplaySeconds)
+{
+	if (AHUD* GameHUD = GetHUD())
+	{
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("ShowInspectMaliceSelectionWidgetWithConfig")))
+		{
+			struct FParams
+			{
+				float InSelectionTimeoutSeconds;
+				float InResultDisplaySeconds;
+			};
+
+			FParams Params
+			{
+				SelectionTimeoutSeconds,
+				ResultDisplaySeconds
+			};
+			GameHUD->ProcessEvent(Func, &Params);
+			return;
+		}
+	}
+
+	ShowInspectMaliceSelectionWidget();
+}
+
 void AMyPlayerController::OpenGroupEventVote(FName EventID, const FText& EventTitle, const FText& EventDescription, float VoteDuration)
 {
 	if (PlayerEventComponent)
@@ -471,12 +568,43 @@ void AMyPlayerController::EnsureLocalVoiceComponent()
 			Params.InRoomCode = RoomCode;
 			VoiceComponent->ProcessEvent(SetRoomCodeFunction, &Params);
 		}
+
+		if (RoomCode.IsEmpty())
+		{
+			if (UWorld* World = GetWorld())
+			{
+				if (VoiceRoomCodeRetryCount < MaxVoiceRoomCodeRetryCount)
+				{
+					++VoiceRoomCodeRetryCount;
+					World->GetTimerManager().SetTimer(
+						VoiceRoomCodeRetryTimerHandle,
+						this,
+						&AMyPlayerController::EnsureLocalVoiceComponent,
+						0.5f,
+						false
+					);
+				}
+			}
+		}
+		else
+		{
+			VoiceRoomCodeRetryCount = 0;
+			if (UWorld* World = GetWorld())
+			{
+				World->GetTimerManager().ClearTimer(VoiceRoomCodeRetryTimerHandle);
+			}
+		}
 	}
 }
 
 void AMyPlayerController::Client_ShowInspectMaliceSelectionWidget_Implementation()
 {
 	ShowInspectMaliceSelectionWidget();
+}
+
+void AMyPlayerController::Client_ShowInspectMaliceSelectionWidgetWithConfig_Implementation(float SelectionTimeoutSeconds, float ResultDisplaySeconds)
+{
+	ShowInspectMaliceSelectionWidgetWithConfig(SelectionTimeoutSeconds, ResultDisplaySeconds);
 }
 
 void AMyPlayerController::Client_ShowPublicMaliceAnnouncement_Implementation(const FString& PlayerName, int32 MaliceCount)

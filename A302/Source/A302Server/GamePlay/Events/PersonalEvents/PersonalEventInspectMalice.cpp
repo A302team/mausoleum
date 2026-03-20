@@ -2,6 +2,7 @@
 
 #include "Character/MyPlayerController.h"
 #include "Character/Components/PlayerEventComponent.h"
+#include "GameData/Events/PersonalEvents/Malice/PersonalEventInspectMaliceDefinition.h"
 
 void UPersonalEventInspectMalice::ExecuteEvent_Implementation(ACharacter* InstigatorCharacter)
 {
@@ -24,7 +25,16 @@ void UPersonalEventInspectMalice::ExecuteEvent_Implementation(ACharacter* Instig
 		return;
 	}
 
+	float SelectionTimeoutSeconds = 10.0f;
+	float ResultDisplaySeconds = 3.0f;
+
+	if (const UPersonalEventInspectMaliceDefinition* InspectDef = Cast<UPersonalEventInspectMaliceDefinition>(GetRewardDefinition()))
+	{
+		SelectionTimeoutSeconds = FMath::Max(0.1f, InspectDef->Payload.SelectionTimeoutSeconds);
+		ResultDisplaySeconds = FMath::Max(0.1f, InspectDef->Payload.ResultDisplaySeconds);
+	}
+
 	UE_LOG(LogTemp, Log, TEXT("[PersonalEventInspectMalice] Requesting inspect malice selection UI on owning client."));
-	EventComp->ShowInspectMaliceSelectionWidget();
+	EventComp->ShowInspectMaliceSelectionWidgetWithConfig(SelectionTimeoutSeconds, ResultDisplaySeconds);
 	OnEventResolved(InstigatorCharacter, true);
 }
