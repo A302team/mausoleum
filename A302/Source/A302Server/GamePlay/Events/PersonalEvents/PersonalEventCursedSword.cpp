@@ -11,6 +11,7 @@
 #include "Character/MyCharacter.h"
 #include "Character/MyPlayerController.h"
 #include "Character/Components/PlayerEventComponent.h"
+#include "Character/Components/Interaction/CharacterRewardComponent.h"
 
 namespace
 {
@@ -40,7 +41,7 @@ namespace
 
 void UPersonalEventCursedSword::ExecuteEvent_Implementation(ACharacter* InstigatorCharacter)
 {
-	if (!InstigatorCharacter)
+	if (!InstigatorCharacter || !InstigatorCharacter->HasAuthority())
 	{
 		return;
 	}
@@ -136,6 +137,11 @@ void UPersonalEventCursedSword::OnEventResolved(ACharacter* InstigatorCharacter,
 				BaseItemLogic->OnItemAcquired(InstigatorCharacter);
 			}
 		}
+	}
+
+	if (UCharacterRewardComponent* RewardComponent = InstigatorCharacter->FindComponentByClass<UCharacterRewardComponent>())
+	{
+		RewardComponent->Client_GrantInteractionReward(GrantedCursedSwordDefinition);
 	}
 
 	GrantedItemId = GrantedCursedSwordDefinition->ItemId;

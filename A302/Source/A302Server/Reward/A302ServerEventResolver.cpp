@@ -20,6 +20,11 @@ bool FA302ServerEventResolver::TryHandlePersonalEventReward(
 		return false;
 	}
 
+	if (!InstigatorCharacter->HasAuthority())
+	{
+		return false;
+	}
+
 	UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass();
 	if (!LogicClass || !LogicClass->IsChildOf(UBasePersonalEvent::StaticClass()))
 	{
