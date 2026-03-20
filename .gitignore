@@ -12,3 +12,5 @@ Server/GameServer/vcpkg_installed/
 Server/GameServer/build/
 Artifacts/**
 J14A302T.pem
+
+build

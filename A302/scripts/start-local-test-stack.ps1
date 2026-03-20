@@ -206,7 +206,10 @@ $ProjectName = "A302"
 $UProject = Join-Path $ProjectRoot "A302.uproject"
 $RunUATBat = Join-Path $EngineRoot "Engine\Build\BatchFiles\RunUAT.bat"
 $StopScript = Join-Path $PSScriptRoot "stop-local-test-stack.ps1"
-$LobbyExe = (Resolve-Path (Join-Path $ProjectRoot "..\Server\build\Server.exe")).Path
+$LobbyExe = (Resolve-Path (Join-Path $ProjectRoot "..\Server\GameServer\build\Release\Server.exe") -ErrorAction SilentlyContinue).Path
+if (-not $LobbyExe) {
+    $LobbyExe = Join-Path $ProjectRoot "..\Server\GameServer\build\Release\Server.exe"
+}
 
 if (-not (Test-Path $UProject)) {
     throw "A302.uproject not found: $UProject"

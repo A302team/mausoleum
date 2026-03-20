@@ -9,6 +9,19 @@
 #include "Manager/SpawnManager.h"
 #include "GameFramework/PlayerController.h"
 #include "Character/MyCharacter.h"
+#include "Engine/World.h"
+
+namespace
+{
+    bool IsLocalPieSession(const UWorld* World)
+    {
+#if WITH_EDITOR
+        return World && World->WorldType == EWorldType::PIE && World->GetNetMode() != NM_DedicatedServer;
+#else
+        return false;
+#endif
+    }
+}
 
 void UA302ServerPlayerSubsystem::HandlePlayerLogin(APlayerController* NewPlayer)
 {
@@ -82,6 +95,11 @@ bool UA302ServerPlayerSubsystem::IsPlayerGameplayEnabled(const APlayerController
     const FString RoomCode = A302RoomScope::NormalizeRoomCode(Registry->GetPlayerRoomCode(PlayerController));
     if (RoomCode.IsEmpty()) return false;
 
+    if (IsLocalPieSession(GetWorld()) && RoomCode.StartsWith(TEXT("PIE_LOCAL_")))
+    {
+        return true;
+    }
+
     // GameMode의 공개 메서드를 통해 룸 상태 확인
     return GM->IsRoomGameplayActive(RoomCode) && 
            GetWorld()->GetGameInstance()->GetSubsystem<UA302RoomRuntimeSubsystem>() && 
@@ -124,7 +142,7 @@ void UA302ServerPlayerSubsystem::QueueSpawnPlayer(APlayerController* PlayerContr
             GM->CharacterClass,
             1, // Default Stage
             PlayerRoomCode,
-            1.0f // Default Warmup
+            3.0f // 레벨 스트리밍 후 물리 콜리전 초기화 대기 (1.0f → 3.0f)
         );
     }
 }

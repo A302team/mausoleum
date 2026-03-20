@@ -12,9 +12,9 @@ class A302SHARED_API FA302NetworkEndpointConfig
 {
 public:
 	// Change these presets in code when switching environments.
-	static constexpr EA302AddressPreset LobbyAddressPreset = EA302AddressPreset::Local;
-	static constexpr EA302AddressPreset BackendAddressPreset = EA302AddressPreset::Local;
-	static constexpr EA302AddressPreset GameServerAddressPreset = EA302AddressPreset::Local;
+	static constexpr EA302AddressPreset LobbyAddressPreset = EA302AddressPreset::PublicEc2;
+	static constexpr EA302AddressPreset BackendAddressPreset = EA302AddressPreset::PublicEc2;
+	static constexpr EA302AddressPreset GameServerAddressPreset = EA302AddressPreset::PublicEc2;
 
 	static constexpr int32 LobbyPort = 8001;
 	static constexpr int32 VoicePort = 48100;

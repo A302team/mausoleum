@@ -21,15 +21,25 @@ namespace A302RuntimeGuards
 		return MapNameContains(World, TEXT("testLevel"));
 	}
 
+	inline bool IsLoadingWorld(const UWorld* World)
+	{
+		return MapNameContains(World, TEXT("Loading_Level"));
+	}
+
 	inline bool IsInGameWorld(const UWorld* World)
 	{
-		// 로비가 아닌 경우에만 인게임 월드로 판단하여 HUD 초기화 등을 허용합니다. (DSLevel 등 포함)
-		return World && !IsLobbyWorld(World);
+		// 로비/로딩 전용 월드를 제외한 경우에만 인게임 월드로 판단합니다. (DSLevel 등 포함)
+		return World && !IsLobbyWorld(World) && !IsLoadingWorld(World);
 	}
 
 	inline bool IsInGameWorld(const UObject* WorldContextObject)
 	{
 		return WorldContextObject ? IsInGameWorld(WorldContextObject->GetWorld()) : false;
+	}
+
+	inline bool IsLoadingWorld(const UObject* WorldContextObject)
+	{
+		return WorldContextObject ? IsLoadingWorld(WorldContextObject->GetWorld()) : false;
 	}
 
 	inline bool IsDedicatedServerWorld(const UObject* WorldContextObject)
