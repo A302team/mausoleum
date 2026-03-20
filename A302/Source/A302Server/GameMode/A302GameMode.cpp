@@ -274,6 +274,32 @@ bool AA302GameMode::TryHandleGroupEventReward(ACharacter* InstigatorCharacter, A
     return FA302ServerEventResolver::TryHandleGroupEventReward(InstigatorCharacter, InteractedActor, RewardDefinition);
 }
 
+void AA302GameMode::NotifyInteractionRewardResolved(
+    ACharacter* InstigatorCharacter,
+    const URewardDefinition* RewardDefinition,
+    ERewardCategory EffectiveCategory
+)
+{
+    if (!InstigatorCharacter || !RewardDefinition || !PhaseSubsystem)
+    {
+        return;
+    }
+
+    const AA302PlayerState* InstigatorState = InstigatorCharacter->GetPlayerState<AA302PlayerState>();
+    if (!InstigatorState)
+    {
+        return;
+    }
+
+    const FString RoomCode = A302RoomScope::NormalizeRoomCode(InstigatorState->GetRoomCode());
+    if (RoomCode.IsEmpty())
+    {
+        return;
+    }
+
+    PhaseSubsystem->NotifyRoomRewardResolved(RoomCode, EffectiveCategory);
+}
+
 
 void AA302GameMode::HandleRoomPhaseChanged(const FString& RoomCode, EGamePhase NewPhase)
 {
@@ -365,7 +391,7 @@ void AA302GameMode::SpawnPlayersInRoom(const FString& RoomCode)
 	for (APlayerController* RoomPlayer : RoomPlayers)
 	{
 		PlayerSubsystem->UpdatePlayerGameplayFlag(RoomPlayer, true);
-		PlayerSubsystem->QueueSpawnPlayer(RoomPlayer);
+		PlayerSubsystem->QueueSpawnPlayer(RoomPlayer, true);
 	}
 }
 
@@ -397,4 +423,3 @@ void AA302GameMode::OnMessageReceived(const FString &Message)
         BackendRouter->HandleMessage(Message);
     }
 }
-

@@ -46,6 +46,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Health")
 	bool IsDead() const;
 
+	UFUNCTION(BlueprintPure, Category = "Interaction", meta = (DisplayName = "Get Interaction Progress Ratio"))
+	float GetInteractionProgressRatio() const;
+
+	UFUNCTION(BlueprintPure, Category = "Interaction", meta = (DisplayName = "Get Interaction Component"))
+	UInteractComponent* GetInteractionComponentCompat() const;
+
 	UFUNCTION(BlueprintCallable, Category = "Equipment")
 	UEquipmentComponent* GetEquipmentComponent() const { return EquipmentComponent; }
 
@@ -145,6 +151,14 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction|QTE", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<class UInteractComponent> InteractionComponent = nullptr;
+
+	// Legacy BP compatibility aliases kept during module/refactor migration.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction|QTE", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<class UInteractComponent> InteractComp = nullptr;
+
+	// Legacy BP compatibility aliases kept during module/refactor migration.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction|QTE", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<class UInteractComponent> InteractionQuickSlotComponent = nullptr;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<class UCharacterActionInputComponent> CharacterActionInputComponent = nullptr;

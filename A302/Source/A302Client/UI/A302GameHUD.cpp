@@ -29,10 +29,13 @@ AA302GameHUD::AA302GameHUD()
 		}
 	}
 
-	static ConstructorHelpers::FClassFinder<UPersonalEventWidget> PersonalEventWidgetBPClass(TEXT("/Game/WorkSpace/UI/WBP_PersonalEvent.WBP_PersonalEvent_C"));
-	if (PersonalEventWidgetBPClass.Succeeded())
+	if (UClass* LoadedPersonalEventClass = LoadClass<UPersonalEventWidget>(
+		nullptr,
+		TEXT("/Game/WorkSpace/UI/WBP_PersonalEvent.WBP_PersonalEvent_C"),
+		nullptr,
+		LOAD_NoWarn))
 	{
-		PersonalEventWidgetClass = PersonalEventWidgetBPClass.Class;
+		PersonalEventWidgetClass = LoadedPersonalEventClass;
 	}
 
 	static ConstructorHelpers::FClassFinder<UUserWidget> InspectMaliceWidgetBPClass(TEXT("/Game/WorkSpace/UI/PersonalEvent/WBP_SelectUser"));

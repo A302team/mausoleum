@@ -7,6 +7,7 @@
 class AActor;
 class ACharacter;
 class URewardDefinition;
+enum class ERewardCategory : uint8;
 
 UINTERFACE(MinimalAPI)
 class UA302ServerRewardBridge : public UInterface
@@ -21,4 +22,5 @@ class A302SHARED_API IA302ServerRewardBridge
 public:
 	virtual bool TryHandlePersonalEventReward(ACharacter* InstigatorCharacter, AActor* InteractedActor, const URewardDefinition* RewardDefinition) = 0;
 	virtual bool TryHandleGroupEventReward(ACharacter* InstigatorCharacter, AActor* InteractedActor, const URewardDefinition* RewardDefinition) = 0;
+	virtual void NotifyInteractionRewardResolved(ACharacter* InstigatorCharacter, const URewardDefinition* RewardDefinition, ERewardCategory EffectiveCategory) = 0;
 };

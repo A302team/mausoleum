@@ -32,7 +32,7 @@ public:
 	void UpdatePlayerGameplayFlag(APlayerController* PlayerController, bool bEnabled);
 
 	/** 플레이어를 스폰 큐에 등록 */
-	void QueueSpawnPlayer(APlayerController* PlayerController);
+	void QueueSpawnPlayer(APlayerController* PlayerController, bool bForceSpawn = false);
 
 private:
     UFUNCTION()
