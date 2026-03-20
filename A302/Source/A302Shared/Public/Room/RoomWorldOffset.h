@@ -5,8 +5,9 @@
 
 namespace A302RoomWorldOffset
 {
-	inline constexpr int32 DefaultRoomSlotCount = 4096;
-	inline constexpr double DefaultOffsetStepX = 200000.0;
+	// Keep room offsets in a safer range for local/dedicated tests while preserving room separation.
+	inline constexpr int32 DefaultRoomSlotCount = 128;
+	inline constexpr double DefaultOffsetStepX = 50000.0;
 
 	inline FString NormalizeRoomCode(const FString& RoomCode)
 	{
