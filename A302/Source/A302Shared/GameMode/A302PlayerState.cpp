@@ -4,6 +4,7 @@
 #include "GameMode/A302PlayerState.h"
 #include "Net/UnrealNetwork.h"
 #include "Room/RoomWorldOffset.h"
+#include "Character/MyCharacter.h"
 
 AA302PlayerState::AA302PlayerState()
 {
@@ -27,6 +28,17 @@ void AA302PlayerState::SetGameplayEnabled(bool bInGameplayEnabled)
     }
 
     bGameplayEnabled = bInGameplayEnabled;
+}
+
+void AA302PlayerState::OnRep_IsAlive()
+{
+    if (!bIsAlive)
+    {
+        if (AMyCharacter* OwningCharacter = Cast<AMyCharacter>(GetPawn()))
+        {
+            OwningCharacter->ForceDeathByPersonalEvent();
+        }
+    }
 }
 
 void AA302PlayerState::OnRep_RoomCode()

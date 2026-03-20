@@ -151,6 +151,14 @@ float AMyCharacter::TakeDamage(
 
 bool AMyCharacter::IsDead() const
 {
+	if (const AA302PlayerState* A302PlayerState = GetPlayerState<AA302PlayerState>())
+	{
+		if (!A302PlayerState->bIsAlive)
+		{
+			return true;
+		}
+	}
+
 	if (CharacterHealthComponent)
 	{
 		return CharacterHealthComponent->IsDead();
