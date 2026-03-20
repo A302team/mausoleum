@@ -43,6 +43,11 @@ void UPlayerEventComponent::ShowInspectMaliceSelectionWidget()
 	Client_ShowInspectMaliceSelectionWidget();
 }
 
+void UPlayerEventComponent::ShowInspectMaliceSelectionWidgetWithConfig(float SelectionTimeoutSeconds, float ResultDisplaySeconds)
+{
+	Client_ShowInspectMaliceSelectionWidgetWithConfig(SelectionTimeoutSeconds, ResultDisplaySeconds);
+}
+
 void UPlayerEventComponent::OpenGroupEventVote(FName EventID, const FText& EventTitle, const FText& EventDescription, float VoteDuration)
 {
 	Client_OpenGroupEventVote(EventID, EventTitle, EventDescription, VoteDuration);
@@ -139,6 +144,17 @@ void UPlayerEventComponent::Client_ShowInspectMaliceSelectionWidget_Implementati
 	}
 
 	OwnerController->Client_ShowInspectMaliceSelectionWidget();
+}
+
+void UPlayerEventComponent::Client_ShowInspectMaliceSelectionWidgetWithConfig_Implementation(float SelectionTimeoutSeconds, float ResultDisplaySeconds)
+{
+	AMyPlayerController* OwnerController = GetOwnerController();
+	if (!OwnerController)
+	{
+		return;
+	}
+
+	OwnerController->Client_ShowInspectMaliceSelectionWidgetWithConfig(SelectionTimeoutSeconds, ResultDisplaySeconds);
 }
 
 void UPlayerEventComponent::Client_OpenGroupEventVote_Implementation(FName EventID, const FText& EventTitle, const FText& EventDescription, float VoteDuration)
