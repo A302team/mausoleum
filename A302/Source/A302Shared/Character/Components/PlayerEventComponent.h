@@ -20,6 +20,7 @@ public:
 	void SetActiveGroupEvent(UBaseGroupEvent* Event);
 	void ShowPersonalEvent(FName EventID, const FText& Title, const FText& Description, const TArray<FText>& Choices);
 	void ShowInspectMaliceSelectionWidget();
+	void ShowInspectMaliceSelectionWidgetWithConfig(float SelectionTimeoutSeconds, float ResultDisplaySeconds);
 	void OpenGroupEventVote(FName EventID, const FText& EventTitle, const FText& EventDescription, float VoteDuration);
 	void FinishGroupEventVote(FName EventID, const FText& ResultText);
 	void ApplyConfiscationToLocalInventory();
@@ -39,6 +40,9 @@ public:
 
 	UFUNCTION(Client, Reliable)
 	void Client_ShowInspectMaliceSelectionWidget();
+
+	UFUNCTION(Client, Reliable)
+	void Client_ShowInspectMaliceSelectionWidgetWithConfig(float SelectionTimeoutSeconds, float ResultDisplaySeconds);
 
 	UFUNCTION(Client, Reliable)
 	void Client_OpenGroupEventVote(FName EventID, const FText& EventTitle, const FText& EventDescription, float VoteDuration);
