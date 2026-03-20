@@ -90,14 +90,17 @@ bool UItemKnife::Use_Implementation(ACharacter* Instigator, const FItemTargetDat
     AActor* Target = TargetData.TargetActor;
     AController* InstigatorController = Instigator ? Instigator->GetController() : nullptr;
 
-    const float Damage = 50.0f;
-    UGameplayStatics::ApplyDamage(
-        Target,
-        Damage,
-        InstigatorController,
-        Instigator,
-        nullptr
-    );
+    if (Instigator && Instigator->HasAuthority())
+    {
+        const float Damage = 50.0f;
+        UGameplayStatics::ApplyDamage(
+            Target,
+            Damage,
+            InstigatorController,
+            Instigator,
+            nullptr
+        );
+    }
 
     if (UItemInstance* Inst = GetInstance())
     {
@@ -108,6 +111,46 @@ bool UItemKnife::Use_Implementation(ACharacter* Instigator, const FItemTargetDat
     {
         OnItemUsed(MyCharacter);
     }
+
+    return true;
+}
+
+bool UItemKnife::ResolveServerTargetedUse(ACharacter* OwnerCharacter, AActor* TargetActor, FString& OutSystemMessage) const
+{
+    OutSystemMessage.Empty();
+
+    if (!OwnerCharacter || !OwnerCharacter->HasAuthority() || !TargetActor || TargetActor == OwnerCharacter)
+    {
+        return false;
+    }
+
+    if (!A302GameplayGuards::CanInstigatorAffectTargetActor(OwnerCharacter, TargetActor))
+    {
+        return false;
+    }
+
+    constexpr float DefaultAllowedRange = 200.0f;
+    const float InstigatorRadius = OwnerCharacter->GetSimpleCollisionRadius();
+    float TargetRadius = 0.0f;
+    if (const ACharacter* TargetCharacter = Cast<ACharacter>(TargetActor))
+    {
+        TargetRadius = TargetCharacter->GetSimpleCollisionRadius();
+    }
+
+    const float RawDistance = FVector::Dist(OwnerCharacter->GetActorLocation(), TargetActor->GetActorLocation());
+    const float EdgeDistance = FMath::Max(0.0f, RawDistance - InstigatorRadius - TargetRadius);
+    if (EdgeDistance > DefaultAllowedRange)
+    {
+        return false;
+    }
+
+    UGameplayStatics::ApplyDamage(
+        TargetActor,
+        50.0f,
+        OwnerCharacter->GetController(),
+        OwnerCharacter,
+        nullptr
+    );
 
     return true;
 }
