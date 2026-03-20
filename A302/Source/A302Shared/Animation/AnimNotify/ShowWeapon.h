@@ -2,8 +2,15 @@
 
 #include "CoreMinimal.h"
 #include "Animation/AnimNotifies/AnimNotify.h"
-#include "GamePlay/Actor/WeaponActor.h"
 #include "ShowWeapon.generated.h"
+
+UENUM(BlueprintType)
+enum class EWeaponType : uint8
+{
+    Knife,
+    CursedSword,
+    Shield
+};
 
 UCLASS()
 class A302SHARED_API UShowWeapon : public UAnimNotify
@@ -12,13 +19,9 @@ class A302SHARED_API UShowWeapon : public UAnimNotify
 
 public:
 
-    // 스폰할 무기
+    // 애니메이션에서 무기 선택
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Weapon")
-    TSubclassOf<AWeaponActor> WeaponClass;
-
-    // 붙일 소켓
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Weapon")
-    FName SocketName = "weapon_socket";
+    EWeaponType WeaponType = EWeaponType::Knife;
 
     virtual void Notify(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation) override;
 };
