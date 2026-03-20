@@ -141,7 +141,14 @@ void UPersonalEventCursedSword::OnEventResolved(ACharacter* InstigatorCharacter,
 
 	if (UCharacterRewardComponent* RewardComponent = InstigatorCharacter->FindComponentByClass<UCharacterRewardComponent>())
 	{
-		RewardComponent->Client_GrantInteractionReward(GrantedCursedSwordDefinition);
+		const bool bNeedsClientMirrorGrant =
+			!InstigatorCharacter->IsLocallyControlled() &&
+			Cast<AMyPlayerController>(InstigatorCharacter->GetController()) != nullptr;
+
+		if (bNeedsClientMirrorGrant)
+		{
+			RewardComponent->Client_GrantInteractionReward(GrantedCursedSwordDefinition);
+		}
 	}
 
 	GrantedItemId = GrantedCursedSwordDefinition->ItemId;
