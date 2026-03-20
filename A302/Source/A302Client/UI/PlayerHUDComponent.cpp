@@ -511,9 +511,6 @@ FString UPlayerHUDComponent::ResolvePlayerDisplayName(const APlayerState* Target
 
 void UPlayerHUDComponent::InitializeInGameHUD(TSubclassOf<UUserWidget> InQuickSlotBarClass, TSubclassOf<UUserWidget> InInGameSettingClass, TSubclassOf<UUserWidget> InInspectMaliceWidgetClass)
 {
-	UE_LOG(LogTemp, Warning, TEXT("[UI/Comp/Debug] InitializeInGameHUD called. QuickSlot: %s, Setting: %s, Inspect: %s"), 
-		*GetNameSafe(InQuickSlotBarClass.Get()), *GetNameSafe(InInGameSettingClass.Get()), *GetNameSafe(InInspectMaliceWidgetClass.Get()));
-
 	QuickSlotBarClass = InQuickSlotBarClass;
 	InGameSettingClass = InInGameSettingClass;
 	InspectMaliceWidgetClass = InInspectMaliceWidgetClass;
