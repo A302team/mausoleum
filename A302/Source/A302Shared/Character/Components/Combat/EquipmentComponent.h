@@ -23,7 +23,7 @@ protected:
 public:
 	// Weapon Actions
 	void EquipKnifeWeapon();
-	void EquipTimeKnifeWeapon();
+	void EquipCursedSwordWeapon();
 	void EquipShieldWeapon();
 	void PlayShieldBlockPresentation();
 
@@ -36,7 +36,7 @@ public:
 	TSubclassOf<AWeaponActor> KnifeActorClass;
 
 	UPROPERTY(EditAnywhere, Category="Weapon")
-	TSubclassOf<AWeaponActor> TimeKnifeActorClass;
+	TSubclassOf<AWeaponActor> CursedSwordActorClass;
 
 	UPROPERTY(EditAnywhere, Category="Weapon")
 	TSubclassOf<AWeaponActor> ShieldActorClass;
