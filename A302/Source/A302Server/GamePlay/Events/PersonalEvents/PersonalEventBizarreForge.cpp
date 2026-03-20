@@ -50,7 +50,7 @@ void UPersonalEventBizarreForge::ExecuteEvent_Implementation(ACharacter* Instiga
     }
 }
 
-void UPersonalEventBizarreForge::OnEventResolvedMulti(ACharacter* InstigatorCharacter, int32 ChoiceIndex)
+void UPersonalEventBizarreForge::OnEventResolved(ACharacter* InstigatorCharacter, int32 ChoiceIndex)
 {
     if (!InstigatorCharacter) return;
     UMaliceComponent* MaliceComp = InstigatorCharacter->FindComponentByClass<UMaliceComponent>();
