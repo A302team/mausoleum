@@ -46,6 +46,7 @@ public:
 	virtual void UpdateMaliceCount(int32 MaliceCount);
 	virtual void UpdateItemTimer(float RemainingSeconds);
 	virtual void SetItemTimerVisibleForClient(bool bVisible);
+	virtual void ShowResultScreen(const FText& Title, const FText& Description, float DisplaySeconds);
 	virtual void ToggleVoiceChatCapture();
 
 	// UI 위젯 속성은 모두 AA302GameHUD로 이동되었습니다.
@@ -67,6 +68,9 @@ public:
 
 	UFUNCTION(Client, Reliable)
 	void Client_ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount);
+
+	UFUNCTION(Client, Reliable)
+	void Client_ShowResultScreen(const FText& Title, const FText& Description, float DisplaySeconds);
 
 	UFUNCTION(Server, Reliable)
 	void Server_RegisterPlayerDisplayName(const FString& DesiredName);

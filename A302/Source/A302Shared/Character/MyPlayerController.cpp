@@ -499,6 +499,25 @@ void AMyPlayerController::SetItemTimerVisibleForClient(bool bVisible)
 	}
 }
 
+void AMyPlayerController::ShowResultScreen(const FText& Title, const FText& Description, float DisplaySeconds)
+{
+	if (AHUD* GameHUD = GetHUD())
+	{
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("ShowResultScreen")))
+		{
+			struct FParams
+			{
+				FText InTitle;
+				FText InDescription;
+				float InDisplaySeconds;
+			};
+
+			FParams Params { Title, Description, DisplaySeconds };
+			GameHUD->ProcessEvent(Func, &Params);
+		}
+	}
+}
+
 void AMyPlayerController::ToggleVoiceChatCapture()
 {
 	EnsureLocalVoiceComponent();
@@ -610,4 +629,9 @@ void AMyPlayerController::Client_ShowInspectMaliceSelectionWidgetWithConfig_Impl
 void AMyPlayerController::Client_ShowPublicMaliceAnnouncement_Implementation(const FString& PlayerName, int32 MaliceCount)
 {
 	ShowPublicMaliceAnnouncement(PlayerName, MaliceCount);
+}
+
+void AMyPlayerController::Client_ShowResultScreen_Implementation(const FText& Title, const FText& Description, float DisplaySeconds)
+{
+	ShowResultScreen(Title, Description, DisplaySeconds);
 }
