@@ -36,6 +36,54 @@ namespace
 
 		return FString();
 	}
+
+	bool IsLocalPieSession(const APlayerController* PlayerController)
+	{
+#if WITH_EDITOR
+		if (!PlayerController)
+		{
+			return false;
+		}
+
+		const UWorld* World = PlayerController->GetWorld();
+		return World && World->WorldType == EWorldType::PIE && World->GetNetMode() != NM_DedicatedServer;
+#else
+		return false;
+#endif
+	}
+
+	FString BuildLocalPieRoomCode(const APlayerController* PlayerController)
+	{
+		const UWorld* World = PlayerController ? PlayerController->GetWorld() : nullptr;
+		if (!World)
+		{
+			return FString();
+		}
+
+		FString SafeMapName = World->GetMapName();
+		int32 PieInstance = 0;
+		if (SafeMapName.StartsWith(TEXT("UEDPIE_")))
+		{
+			const int32 PrefixLen = 7; // "UEDPIE_"
+			const int32 UnderscoreIndex = SafeMapName.Find(TEXT("_"), ESearchCase::IgnoreCase, ESearchDir::FromStart, PrefixLen);
+			if (UnderscoreIndex != INDEX_NONE)
+			{
+				const FString PieInstanceToken = SafeMapName.Mid(PrefixLen, UnderscoreIndex - PrefixLen);
+				PieInstance = FMath::Max(0, FCString::Atoi(*PieInstanceToken));
+				SafeMapName = SafeMapName.Mid(UnderscoreIndex + 1);
+			}
+		}
+		for (TCHAR& Ch : SafeMapName)
+		{
+			if (!FChar::IsAlnum(Ch))
+			{
+				Ch = TEXT('_');
+			}
+		}
+
+		const FString GeneratedCode = FString::Printf(TEXT("PIE_LOCAL_%d_%s"), PieInstance, *SafeMapName);
+		return A302RoomScope::NormalizeRoomCode(GeneratedCode);
+	}
 }
 
 void URoomMembershipRegistry::RegisterPendingRoomCode(APlayerController* PlayerController, const FString& Options)
@@ -91,6 +139,15 @@ FString URoomMembershipRegistry::ResolveInitialRoomCode(APlayerController* Playe
 		}
 	}
 
+	if (IsLocalPieSession(PlayerController))
+	{
+		const FString GeneratedRoomCode = BuildLocalPieRoomCode(PlayerController);
+		if (!GeneratedRoomCode.IsEmpty())
+		{
+			return GeneratedRoomCode;
+		}
+	}
+
 	return A302RoomScope::NormalizeRoomCode(TEXT("default"));
 }
 
@@ -137,6 +194,17 @@ void URoomMembershipRegistry::AssignPlayerToRoom(APlayerController* PlayerContro
 		*GetNameSafe(PlayerController),
 		*AssignedRoomCode
 	);
+
+	if (IsLocalPieSession(PlayerController) && AssignedRoomCode.StartsWith(TEXT("PIE_LOCAL_")))
+	{
+		UE_LOG(
+			LogTemp,
+			Log,
+			TEXT("[RoomMembershipRegistry] Local PIE fallback room assigned. player=%s room=%s"),
+			*GetNameSafe(PlayerController),
+			*AssignedRoomCode
+		);
+	}
 
 	PendingRoomCodeByController.Remove(PlayerController);
 }

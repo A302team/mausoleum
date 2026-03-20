@@ -62,6 +62,9 @@ public:
 	void ShowInspectMaliceSelectionWidget();
 
 	UFUNCTION()
+	void ShowInspectMaliceSelectionWidgetWithConfig(float SelectionTimeoutSeconds, float ResultDisplaySeconds);
+
+	UFUNCTION()
 	void UpdateShieldCountText(int32 ShieldCount);
 
 	UFUNCTION()
