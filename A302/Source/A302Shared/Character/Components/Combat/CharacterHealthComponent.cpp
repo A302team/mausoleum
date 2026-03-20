@@ -38,6 +38,12 @@ float UCharacterHealthComponent::TakeDamage(float DamageAmount, const FDamageEve
 	AMyCharacter* OwnerCharacter = GetOwnerCharacter();
 	if (!OwnerCharacter) return 0.f;
 
+	// Damage resolution must be authoritative to avoid client-only death desync.
+	if (!OwnerCharacter->HasAuthority())
+	{
+		return 0.f;
+	}
+
 	if (bIsDead)
 	{
 		return 0.f;

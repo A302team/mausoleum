@@ -14,12 +14,12 @@
 
 namespace
 {
-	constexpr int32 PlayerHUDVoteSlotCount = 6;
-	constexpr int32 MaxNicknameUiLen = 7;
+	constexpr int32 GroupEventVoteSlotCount = 6;
+	constexpr int32 GroupEventMaxNicknameUiLen = 7;
 
-	FString ClampNicknameForUi(const FString& Name)
+	FString ClampGroupEventNicknameForUi(const FString& Name)
 	{
-		return Name.Len() > MaxNicknameUiLen ? Name.Left(MaxNicknameUiLen) : Name;
+		return Name.Len() > GroupEventMaxNicknameUiLen ? Name.Left(GroupEventMaxNicknameUiLen) : Name;
 	}
 }
 
@@ -62,7 +62,7 @@ void UGroupEventHUDComponent::InitializeGroupEventVoteWidget(TSubclassOf<UUserWi
 	GroupEventVoteTimerText = FindGroupEventVoteText(TEXT("VoteTimer"));
 
 	VoteUserSlotWidgets.Reset();
-	for (int32 SlotIndex = 0; SlotIndex < PlayerHUDVoteSlotCount; ++SlotIndex)
+	for (int32 SlotIndex = 0; SlotIndex < GroupEventVoteSlotCount; ++SlotIndex)
 	{
 		if (UVoteClickableUserWidget* VoteSlotWidget = FindVoteUserSlot(SlotIndex))
 		{
@@ -335,7 +335,7 @@ UTextBlock* UGroupEventHUDComponent::FindGroupEventVoteText(const FName& WidgetN
 
 UVoteClickableUserWidget* UGroupEventHUDComponent::FindVoteUserSlot(int32 SlotIndex) const
 {
-	if (!GroupEventVoteWidgetInstance || SlotIndex < 0 || SlotIndex >= PlayerHUDVoteSlotCount)
+	if (!GroupEventVoteWidgetInstance || SlotIndex < 0 || SlotIndex >= GroupEventVoteSlotCount)
 	{
 		return nullptr;
 	}
@@ -352,6 +352,6 @@ FString UGroupEventHUDComponent::ResolvePlayerDisplayName(const APlayerState* Ta
 	}
 
 	const FString PlayerName = TargetPlayerState->GetPlayerName();
-	return ClampNicknameForUi(PlayerName.IsEmpty() ? GetNameSafe(TargetPlayerState) : PlayerName);
+	return ClampGroupEventNicknameForUi(PlayerName.IsEmpty() ? GetNameSafe(TargetPlayerState) : PlayerName);
 }
 
