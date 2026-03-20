@@ -3,6 +3,7 @@
 #include "Character/Components/PlayerEventComponent.h"
 // UI Widget 헤더들은 AA302GameHUD에서 관리합니다.
 #include "EnhancedInputSubsystems.h"
+#include "GameMode/A302GameInstance.h"
 #include "GameMode/A302PlayerState.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerState.h"
@@ -91,39 +92,10 @@ void AMyPlayerController::BeginPlay()
 	EnsureLocalVoiceComponent();
 
 #if !UE_SERVER
-	if (IsLocalController() && IsInGameMap())
+	if (IsLocalController() && ShouldAttemptGameplayHUDInitialization())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[UI/Debug] BeginPlay - IsLocal: 1, IsInGame: 1, Map: %s"), *GetWorld()->GetMapName());
-		
-		FString HUDPath = TEXT("/Game/WorkSpace/UI/BP_A302GameHUD.BP_A302GameHUD_C");
-		UClass* InGameHUDClass = LoadClass<AHUD>(nullptr, *HUDPath);
-		if (InGameHUDClass)
-		{
-			ClientSetHUD(InGameHUDClass);
-			UE_LOG(LogTemp, Warning, TEXT("[UI/Debug] Successfully loaded and set HUD class: %s"), *HUDPath);
-		
-			FTimerHandle HUDInitTimer;
-			GetWorldTimerManager().SetTimer(HUDInitTimer, [this]()
-			{
-				if (AHUD* CurrentHUD = GetHUD())
-				{
-					UE_LOG(LogTemp, Warning, TEXT("[UI/Debug] Current HUD Instance: %s"), *CurrentHUD->GetName());
-					if (UFunction* Func = CurrentHUD->FindFunction(TEXT("InitializeClientInGameWidgets")))
-					{
-						UE_LOG(LogTemp, Warning, TEXT("[UI/Debug] Found InitializeClientInGameWidgets function. Calling..."));
-						CurrentHUD->ProcessEvent(Func, nullptr);
-					}
-					else
-					{
-						UE_LOG(LogTemp, Error, TEXT("[UI/Debug] InitializeClientInGameWidgets function NOT FOUND on HUD: %s"), *GetNameSafe(CurrentHUD));
-					}
-				}
-				else
-				{
-					UE_LOG(LogTemp, Error, TEXT("[UI/Debug] HUD Instance is NULL after attempt to set it."));
-				}
-			}, 0.2f, false);
-		}
+		bInGameHUDInitialized = false;
+		TryInitializeInGameHUD();
 	}
 #endif
 }
@@ -133,15 +105,9 @@ void AMyPlayerController::AcknowledgePossession(APawn* P)
 	Super::AcknowledgePossession(P);
 
 #if !UE_SERVER
-	if (IsLocalController() && IsInGameMap())
+	if (IsLocalController() && ShouldAttemptGameplayHUDInitialization())
 	{
-		if (AHUD* CurrentHUD = GetHUD())
-		{
-			if (UFunction* Func = CurrentHUD->FindFunction(TEXT("InitializeClientInGameWidgets")))
-			{
-				UE_LOG(LogTemp, Warning, TEXT("[UI/Debug] AcknowledgePossession - Refreshing HUD for new Pawn."));
-			}
-		}
+		TryInitializeInGameHUD();
 	}
 #endif
 }
@@ -153,9 +119,88 @@ void AMyPlayerController::OnRep_Pawn()
 	EnsureLocalVoiceComponent();
 }
 
-bool AMyPlayerController::IsInGameMap() const
+bool AMyPlayerController::ShouldAttemptGameplayHUDInitialization() const
 {
-	return A302RuntimeGuards::IsInGameWorld(this);
+	return !A302RuntimeGuards::IsLobbyWorld(GetWorld());
+}
+
+void AMyPlayerController::TryInitializeInGameHUD()
+{
+#if !UE_SERVER
+	if (!IsLocalController() || !ShouldAttemptGameplayHUDInitialization() || bInGameHUDInitialized)
+	{
+		return;
+	}
+
+	if (const UA302GameInstance* GameInstance = GetGameInstance<UA302GameInstance>())
+	{
+		if (!GameInstance->CanInitializeGameplayUI())
+		{
+			if (!GetWorldTimerManager().IsTimerActive(DeferredHUDInitTimerHandle))
+			{
+				GetWorldTimerManager().SetTimer(
+					DeferredHUDInitTimerHandle,
+					this,
+					&AMyPlayerController::PollDeferredHUDInitialization,
+					0.1f,
+					true
+				);
+			}
+			return;
+		}
+	}
+
+	const TCHAR* HUDPath = TEXT("/Game/WorkSpace/UI/BP_A302GameHUD.BP_A302GameHUD_C");
+	UClass* InGameHUDClass = LoadClass<AHUD>(nullptr, HUDPath);
+	if (!InGameHUDClass)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to load HUD class: %s"), HUDPath);
+		return;
+	}
+
+	ClientSetHUD(InGameHUDClass);
+
+	FTimerHandle HUDInitTimer;
+	GetWorldTimerManager().SetTimer(HUDInitTimer, [this]()
+	{
+		if (AHUD* CurrentHUD = GetHUD())
+		{
+			if (UFunction* Func = CurrentHUD->FindFunction(TEXT("InitializeClientInGameWidgets")))
+			{
+				CurrentHUD->ProcessEvent(Func, nullptr);
+				bInGameHUDInitialized = true;
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("InitializeClientInGameWidgets function not found on HUD: %s"), *GetNameSafe(CurrentHUD));
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("HUD instance is null after attempting to set it."));
+		}
+	}, 0.2f, false);
+#endif
+}
+
+void AMyPlayerController::PollDeferredHUDInitialization()
+{
+#if !UE_SERVER
+	if (!IsLocalController() || bInGameHUDInitialized)
+	{
+		GetWorldTimerManager().ClearTimer(DeferredHUDInitTimerHandle);
+		return;
+	}
+
+	const UA302GameInstance* GameInstance = GetGameInstance<UA302GameInstance>();
+	if (GameInstance && !GameInstance->CanInitializeGameplayUI())
+	{
+		return;
+	}
+
+	GetWorldTimerManager().ClearTimer(DeferredHUDInitTimerHandle);
+	TryInitializeInGameHUD();
+#endif
 }
 
 // InitializeClientInGameWidgets, InitializeChatWidget은 AA302GameHUD로 이관되어 제거되었습니다.
