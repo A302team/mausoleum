@@ -12,6 +12,7 @@
 #include "Network/A302NetworkEndpointConfig.h"
 #include "Character/MyCharacter.h"
 #include "Character/MyPlayerController.h"
+#include "Character/Components/MaliceComponent.h"
 #include "GameData/RewardDefinition.h"
 #include "Subsystem/A302ServerPlayerSubsystem.h"
 #include "Network/A302ServerBackendRouter.h"
@@ -26,6 +27,68 @@
 #include "Room/RoomWorldOffset.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
+
+namespace
+{
+    constexpr float ResultScreenDisplaySeconds = 5.0f;
+
+    FText BuildResultRoleText(const AA302PlayerState* PlayerState)
+    {
+        if (!PlayerState)
+        {
+            return NSLOCTEXT("A302GameMode", "UnknownRole", "알 수 없음");
+        }
+
+        return PlayerState->PlayerRole == EPlayerRole::Evil
+            ? NSLOCTEXT("A302GameMode", "RoleEvil", "악인")
+            : NSLOCTEXT("A302GameMode", "RoleInnocent", "선인");
+    }
+
+    FText BuildResultTitle(const AA302PlayerState* PlayerState, const AMyCharacter* Character)
+    {
+        const UMaliceComponent* MaliceComponent = Character ? Character->FindComponentByClass<UMaliceComponent>() : nullptr;
+        if (PlayerState && PlayerState->bIsEscaped)
+        {
+            return NSLOCTEXT("A302GameMode", "EscapedTitle", "탈출 성공");
+        }
+
+        if (MaliceComponent && MaliceComponent->bMaliceEnding)
+        {
+            return NSLOCTEXT("A302GameMode", "MaliceEndingTitle", "악인 엔딩");
+        }
+
+        if (MaliceComponent && MaliceComponent->bNiceEnding)
+        {
+            return NSLOCTEXT("A302GameMode", "NiceEndingTitle", "선인 엔딩");
+        }
+
+        if (PlayerState && !PlayerState->bIsAlive)
+        {
+            return NSLOCTEXT("A302GameMode", "EliminatedTitle", "사망");
+        }
+
+        return NSLOCTEXT("A302GameMode", "ResultTitle", "게임 결과");
+    }
+
+    FText BuildResultDescription(const AA302PlayerState* PlayerState, const AMyCharacter* Character)
+    {
+        const UMaliceComponent* MaliceComponent = Character ? Character->FindComponentByClass<UMaliceComponent>() : nullptr;
+        const FText RoleText = BuildResultRoleText(PlayerState);
+        const FText StatusText = PlayerState && PlayerState->bIsEscaped
+            ? NSLOCTEXT("A302GameMode", "StatusEscaped", "탈출함")
+            : (PlayerState && !PlayerState->bIsAlive
+                ? NSLOCTEXT("A302GameMode", "StatusDead", "사망함")
+                : NSLOCTEXT("A302GameMode", "StatusSurvived", "생존"));
+        const int32 MaliceCount = MaliceComponent ? MaliceComponent->GetMaliceCount() : 0;
+
+        return FText::Format(
+            NSLOCTEXT("A302GameMode", "ResultDescription", "역할: {0}\n상태: {1}\nMalice: {2}"),
+            RoleText,
+            StatusText,
+            FText::AsNumber(MaliceCount)
+        );
+    }
+}
 
 AA302GameMode::AA302GameMode()
 {
@@ -343,8 +406,32 @@ void AA302GameMode::HandleRoomPhaseChanged(const FString& RoomCode, EGamePhase N
 
         if (RoomPlayer)
         {
+            if (AMyPlayerController* MyPlayerController = Cast<AMyPlayerController>(RoomPlayer))
+            {
+                const AMyCharacter* MyCharacter = Cast<AMyCharacter>(MyPlayerController->GetPawn());
+                const AA302PlayerState* A302PlayerState = MyPlayerController->GetPlayerState<AA302PlayerState>();
+                MyPlayerController->Client_ShowResultScreen(
+                    BuildResultTitle(A302PlayerState, MyCharacter),
+                    BuildResultDescription(A302PlayerState, MyCharacter),
+                    ResultScreenDisplaySeconds
+                );
+            }
+
             UE_LOG(LogTemp, Log, TEXT("[A302GameMode] Returning player %s to lobby."), *RoomPlayer->GetName());
-            RoomPlayer->ClientTravel(LobbyMapURL, TRAVEL_Absolute);
+            FTimerHandle ReturnToLobbyTimerHandle;
+            TWeakObjectPtr<APlayerController> WeakRoomPlayer(RoomPlayer);
+            GetWorld()->GetTimerManager().SetTimer(
+                ReturnToLobbyTimerHandle,
+                FTimerDelegate::CreateLambda([WeakRoomPlayer, LobbyMapURL]()
+                {
+                    if (WeakRoomPlayer.IsValid())
+                    {
+                        WeakRoomPlayer->ClientTravel(LobbyMapURL, TRAVEL_Absolute);
+                    }
+                }),
+                ResultScreenDisplaySeconds,
+                false
+            );
         }
 	}
 }
