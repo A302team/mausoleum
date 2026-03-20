@@ -2,6 +2,7 @@
 #include "Voice/Profiling/VoiceProfiler.h"
 #include "Voice/Codec/VoiceCodec.h"
 #include "VoiceModule.h"
+#include "Async/Async.h"
 #include "Misc/Base64.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
@@ -98,6 +99,20 @@ bool UVoiceCaptureProcessor::ChangeMicrophone(const FString& DeviceName)
 
 void UVoiceCaptureProcessor::OnAudioDevicesObtained(const TArray<FAudioInputDeviceInfo>& AvailableDevices)
 {
+    if (!IsInGameThread())
+    {
+        TWeakObjectPtr<UVoiceCaptureProcessor> WeakThis(this);
+        TArray<FAudioInputDeviceInfo> DevicesCopy = AvailableDevices;
+        AsyncTask(ENamedThreads::GameThread, [WeakThis, DevicesCopy = MoveTemp(DevicesCopy)]() mutable
+        {
+            if (WeakThis.IsValid())
+            {
+                WeakThis->OnAudioDevicesObtained(DevicesCopy);
+            }
+        });
+        return;
+    }
+
     if (AvailableDevices.Num() > 0)
     {
         UE_LOG(LogVoiceChat, Log, TEXT("[VoiceCaptureProcessor] 감지된 마이크: '%s'"), *AvailableDevices[0].DeviceName);
