@@ -475,6 +475,12 @@ void AMyPlayerController::UpdateMaliceCount(int32 MaliceCount)
 
 void AMyPlayerController::UpdateItemTimer(float RemainingSeconds)
 {
+	if (HasAuthority() && !IsLocalController())
+	{
+		Client_UpdateItemTimer(RemainingSeconds);
+		return;
+	}
+
 	if (AHUD* GameHUD = GetHUD())
 	{
 		if (UFunction* Func = GameHUD->FindFunction(TEXT("UpdateItemTimerText")))
@@ -488,6 +494,12 @@ void AMyPlayerController::UpdateItemTimer(float RemainingSeconds)
 
 void AMyPlayerController::SetItemTimerVisibleForClient(bool bVisible)
 {
+	if (HasAuthority() && !IsLocalController())
+	{
+		Client_SetItemTimerVisible(bVisible);
+		return;
+	}
+
 	if (AHUD* GameHUD = GetHUD())
 	{
 		if (UFunction* Func = GameHUD->FindFunction(TEXT("SetItemTimerVisible")))
@@ -631,7 +643,18 @@ void AMyPlayerController::Client_ShowPublicMaliceAnnouncement_Implementation(con
 	ShowPublicMaliceAnnouncement(PlayerName, MaliceCount);
 }
 
+void AMyPlayerController::Client_UpdateItemTimer_Implementation(float RemainingSeconds)
+{
+	UpdateItemTimer(RemainingSeconds);
+}
+
+void AMyPlayerController::Client_SetItemTimerVisible_Implementation(bool bVisible)
+{
+	SetItemTimerVisibleForClient(bVisible);
+}
+
 void AMyPlayerController::Client_ShowResultScreen_Implementation(const FText& Title, const FText& Description, float DisplaySeconds)
 {
 	ShowResultScreen(Title, Description, DisplaySeconds);
 }
+
