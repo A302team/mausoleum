@@ -18,7 +18,7 @@ class A302SERVER_API UPersonalEventCursedSword : public UBasePersonalEvent, publ
 
 public:
 	virtual void ExecuteEvent_Implementation(ACharacter* InstigatorCharacter) override;
-	virtual void OnEventResolved(ACharacter* InstigatorCharacter, bool bIsConfirmed) override;
+	virtual void OnEventResolved(ACharacter* InstigatorCharacter, int32 ChoiceIndex) override;
 	void NotifyTimedKillConfirmed();
 	void CancelTimedKillCountdown();
 	virtual void BeginDestroy() override;

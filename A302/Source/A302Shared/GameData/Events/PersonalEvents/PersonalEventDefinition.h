@@ -7,14 +7,11 @@
 UCLASS(BlueprintType, Abstract)
 class A302SHARED_API UPersonalEventDefinition : public URewardDefinition
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 
 public:
-    UPersonalEventDefinition()
-    {
-        RewardCategory = ERewardCategory::PersonalEvent;
-    }
-
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "PersonalEvent")
-    bool bIsCancelable = true;
+	UPersonalEventDefinition()
+	{
+		RewardCategory = ERewardCategory::PersonalEvent;
+	}
 };

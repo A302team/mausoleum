@@ -51,7 +51,7 @@ void UPersonalEventDevilsEye::ExecuteEvent_Implementation(ACharacter* Instigator
 	);
 }
 
-void UPersonalEventDevilsEye::OnEventResolvedMulti(ACharacter* InstigatorCharacter, int32 ChoiceIndex)
+void UPersonalEventDevilsEye::OnEventResolved(ACharacter* InstigatorCharacter, int32 ChoiceIndex)
 {
 	(void)ChoiceIndex;
 
