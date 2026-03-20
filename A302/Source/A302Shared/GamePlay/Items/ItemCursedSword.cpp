@@ -34,7 +34,7 @@ void UItemCursedSword::PlayUsePresentation(ACharacter* Instigator)
 	AMyCharacter* CharacterBridge = Cast<AMyCharacter>(Instigator);
 	if (CharacterBridge && CharacterBridge->GetEquipmentComponent())
 	{
-		CharacterBridge->GetEquipmentComponent()->EquipTimeKnifeWeapon();
+		CharacterBridge->GetEquipmentComponent()->EquipCursedSwordWeapon();
 	}
 
 	if (!Instigator)

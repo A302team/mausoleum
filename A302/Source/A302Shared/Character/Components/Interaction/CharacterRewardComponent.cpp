@@ -140,7 +140,8 @@ bool UCharacterRewardComponent::HandleRewardPickup(AActor* InteractedActor, cons
 	}
 
 	ERewardCategory EffectiveCategory = RewardDefinition->RewardCategory;
-	if (UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass())
+	UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass();
+	if (LogicClass)
 	{
 		const bool bIsLegacyPersonalEventClass =
 			RewardDefinition->RewardCategory != ERewardCategory::BasicItem &&
