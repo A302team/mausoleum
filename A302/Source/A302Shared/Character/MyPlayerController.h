@@ -70,7 +70,14 @@ public:
 	void Client_ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount);
 
 	UFUNCTION(Client, Reliable)
+	void Client_UpdateItemTimer(float RemainingSeconds);
+
+	UFUNCTION(Client, Reliable)
+	void Client_SetItemTimerVisible(bool bVisible);
+
+	UFUNCTION(Client, Reliable)
 	void Client_ShowResultScreen(const FText& Title, const FText& Description, float DisplaySeconds);
+
 
 	UFUNCTION(Server, Reliable)
 	void Server_RegisterPlayerDisplayName(const FString& DesiredName);
