@@ -190,7 +190,7 @@ void UCharacterActionInputComponent::OnAttack(const FInputActionValue& Value)
 			
 			if (EquipmentComp)
 			{
-				bIsCursedSword ? EquipmentComp->EquipTimeKnifeWeapon() : EquipmentComp->EquipKnifeWeapon();
+				bIsCursedSword ? EquipmentComp->EquipCursedSwordWeapon() : EquipmentComp->EquipKnifeWeapon();
 			}
 
 			bIsCursedSword ? Anim->PlayTimeKnifeAnimation() : Anim->PlayAttackAnimation();
