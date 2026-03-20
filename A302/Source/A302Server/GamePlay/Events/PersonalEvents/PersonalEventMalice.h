@@ -11,4 +11,5 @@ class A302SERVER_API UPersonalEventMalice : public UBasePersonalEvent
 
 public:
 	virtual void ExecuteEvent_Implementation(ACharacter* InstigatorCharacter) override;
+	virtual void OnEventResolved(ACharacter* InstigatorCharacter, int32 ChoiceIndex) override;
 };

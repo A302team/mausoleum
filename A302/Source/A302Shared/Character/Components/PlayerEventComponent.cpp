@@ -235,11 +235,6 @@ void UPlayerEventComponent::Server_ResolvePersonalEvent_Implementation(FName Eve
 		return;
 	}
 
-	if (ChoiceIndex == 0)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[Event] %s 거절됨."), *EventID.ToString());
-	}
-
 	if (!ActivePersonalEvent)
 	{
 		return;
@@ -255,10 +250,9 @@ void UPlayerEventComponent::Server_ResolvePersonalEvent_Implementation(FName Eve
 
 		if (TargetEvent->EventID == EventID)
 		{
-			TargetEvent->OnEventResolvedMulti(ControlledCharacter, ChoiceIndex);
+			TargetEvent->OnEventResolved(ControlledCharacter, ChoiceIndex);
 		}
 	}
 
 	ActivePersonalEvent = nullptr;
 }
-

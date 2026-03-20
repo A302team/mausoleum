@@ -1,12 +1,47 @@
 #include "GamePlay/Events/PersonalEvents/PersonalEventMalice.h"
 
 #include "Character/Components/MaliceComponent.h"
+#include "Character/Components/PlayerEventComponent.h"
+#include "Character/MyPlayerController.h"
 #include "GameData/Events/PersonalEvents/Malice/PersonalEventMaliceDefinition.h"
 #include "GameData/RewardDefinition.h"
 
 void UPersonalEventMalice::ExecuteEvent_Implementation(ACharacter* InstigatorCharacter)
 {
 	if (!InstigatorCharacter || !InstigatorCharacter->HasAuthority())
+	{
+		return;
+	}
+
+	AMyPlayerController* PlayerController = Cast<AMyPlayerController>(InstigatorCharacter->GetController());
+	if (!PlayerController)
+	{
+		return;
+	}
+
+	UPlayerEventComponent* EventComp = PlayerController->GetPlayerEventComponent();
+	if (!EventComp)
+	{
+		return;
+	}
+
+	TArray<FText> Choices;
+	Choices.Add(FText::FromString(TEXT("확인")));
+
+	EventComp->SetActivePersonalEvent(this);
+	EventComp->ShowPersonalEvent(
+		EventID,
+		FText::FromString(TEXT("불의의 사고")),
+		FText::FromString(TEXT("조사 도중 모서리에 팔꿈치를 부딪쳤습니다! 짜증이 치밀어 오릅니다...")),
+		Choices
+	);
+}
+
+void UPersonalEventMalice::OnEventResolved(ACharacter* InstigatorCharacter, int32 ChoiceIndex)
+{
+	(void)ChoiceIndex;
+
+	if (!InstigatorCharacter)
 	{
 		return;
 	}
@@ -25,6 +60,5 @@ void UPersonalEventMalice::ExecuteEvent_Implementation(ACharacter* InstigatorCha
 		UE_LOG(LogTemp, Warning, TEXT("[PersonalEventMalice] MaliceComponent missing."));
 	}
 
-	OnEventResolved(InstigatorCharacter, true);
+	OnEventResolved_Implementation(InstigatorCharacter, true);
 }
-

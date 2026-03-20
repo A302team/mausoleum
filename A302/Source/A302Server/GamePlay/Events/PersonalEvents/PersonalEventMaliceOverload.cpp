@@ -48,7 +48,7 @@ void UPersonalEventMaliceOverload::ExecuteEvent_Implementation(ACharacter* Insti
 	);
 }
 
-void UPersonalEventMaliceOverload::OnEventResolvedMulti(ACharacter* InstigatorCharacter, int32 ChoiceIndex)
+void UPersonalEventMaliceOverload::OnEventResolved(ACharacter* InstigatorCharacter, int32 ChoiceIndex)
 {
 	if (ChoiceIndex != 0 || !InstigatorCharacter || !InstigatorCharacter->HasAuthority())
 	{
@@ -80,5 +80,5 @@ void UPersonalEventMaliceOverload::OnEventResolvedMulti(ACharacter* InstigatorCh
 		}
 	}
 
-	OnEventResolved(InstigatorCharacter, true);
+	OnEventResolved_Implementation(InstigatorCharacter, true);
 }

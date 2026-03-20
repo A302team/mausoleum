@@ -40,7 +40,7 @@ void UPersonalEventPurifyingFlame::ExecuteEvent_Implementation(ACharacter* Insti
 	);
 }
 
-void UPersonalEventPurifyingFlame::OnEventResolvedMulti(ACharacter* InstigatorCharacter, int32 ChoiceIndex)
+void UPersonalEventPurifyingFlame::OnEventResolved(ACharacter* InstigatorCharacter, int32 ChoiceIndex)
 {
 	(void)ChoiceIndex;
 
