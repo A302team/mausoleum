@@ -219,6 +219,14 @@ void AA302GameHUD::ShowInspectMaliceSelectionWidget()
 	if (PlayerHUDComponent) PlayerHUDComponent->ShowInspectMaliceSelectionWidget();
 }
 
+void AA302GameHUD::ShowInspectMaliceSelectionWidgetWithConfig(float SelectionTimeoutSeconds, float ResultDisplaySeconds)
+{
+	if (PlayerHUDComponent)
+	{
+		PlayerHUDComponent->ShowInspectMaliceSelectionWidgetWithConfig(SelectionTimeoutSeconds, ResultDisplaySeconds);
+	}
+}
+
 void AA302GameHUD::UpdateShieldCountText(int32 ShieldCount)
 {
 	if (PlayerHUDComponent) PlayerHUDComponent->UpdateShieldCountText(ShieldCount);
