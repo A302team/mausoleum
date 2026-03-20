@@ -1,10 +1,10 @@
 #include "GamePlay/Items/ItemSereneLantern.h"
 
-#include "Character/Components/Interaction/CharacterRewardComponent.h"
 #include "Character/Components/MaliceComponent.h"
 #include "Character/MyCharacter.h"
 #include "GameData/Items/ItemDefinition.h"
 #include "GameData/Items/ItemInstance.h"
+#include "A302GameplayGuards.h"
 
 bool UItemSereneLantern::CanUse_Implementation(ACharacter* Instigator, const FItemTargetData& TargetData) const
 {
@@ -38,11 +38,6 @@ bool UItemSereneLantern::Use_Implementation(ACharacter* Instigator, const FItemT
 		return false;
 	}
 
-	if (UCharacterRewardComponent* RewardComponent = OwnerCharacter->FindComponentByClass<UCharacterRewardComponent>())
-	{
-		RewardComponent->Server_RequestTargetedItemUse(const_cast<UItemDefinition*>(ItemDefinition), TargetCharacter);
-	}
-
 	if (UItemInstance* Inst = GetInstance())
 	{
 		Inst->Consume(1);
@@ -61,7 +56,22 @@ bool UItemSereneLantern::ResolveServerTargetedUse(
 	OutSystemMessage.Reset();
 
 	AMyCharacter* TargetCharacter = Cast<AMyCharacter>(TargetActor);
+	if (!TargetCharacter)
+	{
+		TargetCharacter = Cast<AMyCharacter>(OwnerCharacter);
+	}
+
 	if (!OwnerCharacter || !TargetCharacter)
+	{
+		return false;
+	}
+
+	if (!OwnerCharacter->HasAuthority())
+	{
+		return false;
+	}
+
+	if (TargetCharacter != OwnerCharacter && !A302GameplayGuards::CanInstigatorAffectTargetActor(OwnerCharacter, TargetCharacter))
 	{
 		return false;
 	}
