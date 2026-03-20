@@ -6,7 +6,7 @@
 
 void UPersonalEventMalice::ExecuteEvent_Implementation(ACharacter* InstigatorCharacter)
 {
-	if (!InstigatorCharacter)
+	if (!InstigatorCharacter || !InstigatorCharacter->HasAuthority())
 	{
 		return;
 	}

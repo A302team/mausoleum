@@ -4,8 +4,8 @@
 #include "Character/Components/Inventory/ItemManagerComponent.h"
 #include "Character/Components/Combat/CombatStatusComponent.h"
 #include "GameData/RewardDefinition.h"
+#include "GameData/Items/ItemInstance.h"
 #include "GameData/Items/ItemDefinition.h"
-#include "GameData/Events/PersonalEvents/Malice/PersonalEventInspectMaliceDefinition.h"
 #include "GameData/Events/PersonalEvents/Equipment/PersonalEventCursedSwordDefinition.h"
 #include "GamePlay/Items/BaseItem.h"
 #include "GamePlay/Items/ItemShield.h"
@@ -15,13 +15,14 @@
 #include "Object/BaseInteractable.h"
 #include "Interface/A302ServerRewardBridge.h"
 #include "A302GameplayGuards.h"
+#include "Engine/World.h"
 #include "GameFramework/GameModeBase.h"
 
 namespace
 {
 	bool TryExecutePersonalEventWithoutBridge(ACharacter* InstigatorCharacter, AActor* InteractedActor, const URewardDefinition* RewardDefinition)
 	{
-		if (!InstigatorCharacter || !RewardDefinition)
+		if (!InstigatorCharacter || !InstigatorCharacter->HasAuthority() || !RewardDefinition)
 		{
 			return false;
 		}
@@ -189,20 +190,7 @@ bool UCharacterRewardComponent::ShouldGrantRewardLocally(const URewardDefinition
 		return false;
 	}
 
-	if (RewardDefinition->RewardCategory == ERewardCategory::BasicItem)
-	{
-		return true;
-	}
-
-	UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass();
-	if (LogicClass && LogicClass->IsChildOf(UItemCursedSword::StaticClass()))
-	{
-		return true;
-	}
-
-	URewardDefinition* MutableRewardDefinition = const_cast<URewardDefinition*>(RewardDefinition);
-	return
-		Cast<UPersonalEventInspectMaliceDefinition>(MutableRewardDefinition) != nullptr;
+	return RewardDefinition->RewardCategory == ERewardCategory::BasicItem;
 }
 
 void UCharacterRewardComponent::ResolveInteractionRewardOnServer(ABaseInteractable* Interactable)
@@ -221,7 +209,15 @@ void UCharacterRewardComponent::ResolveInteractionRewardOnServer(ABaseInteractab
 	const URewardDefinition* RewardDefinition = Interactable->GetRewardDefinition();
 	if (RewardDefinition)
 	{
-		if (ShouldGrantRewardLocally(RewardDefinition))
+		if (RewardDefinition->RewardCategory == ERewardCategory::BasicItem)
+		{
+			const bool bServerGranted = HandleRewardPickup(Interactable, RewardDefinition);
+			if (bServerGranted && ShouldGrantRewardLocally(RewardDefinition))
+			{
+				Client_GrantInteractionReward(const_cast<URewardDefinition*>(RewardDefinition));
+			}
+		}
+		else if (ShouldGrantRewardLocally(RewardDefinition))
 		{
 			Client_GrantInteractionReward(const_cast<URewardDefinition*>(RewardDefinition));
 		}
@@ -268,7 +264,87 @@ void UCharacterRewardComponent::Server_RequestInteractionReward_Implementation(A
 void UCharacterRewardComponent::Server_RequestTargetedItemUse_Implementation(UItemDefinition* ItemDefinition, AActor* TargetActor)
 {
 	AMyCharacter* OwnerCharacter = GetOwnerCharacter();
-	if (!OwnerCharacter || !OwnerCharacter->HasAuthority() || !ItemDefinition || !IsValid(TargetActor))
+	if (!OwnerCharacter || !OwnerCharacter->HasAuthority() || !ItemDefinition)
+	{
+		return;
+	}
+
+	if (!A302GameplayGuards::IsGameplayEnabledCharacter(OwnerCharacter))
+	{
+		return;
+	}
+
+	const bool bRequiresTarget = ItemDefinition->Payload.UseMode == EItemUseMode::Targeted;
+	if (bRequiresTarget && !IsValid(TargetActor))
+	{
+		return;
+	}
+
+	if (TargetActor && !A302GameplayGuards::CanInstigatorAffectTargetActor(OwnerCharacter, TargetActor))
+	{
+		return;
+	}
+
+	if (TargetActor)
+	{
+		const float AllowedRange = FMath::Max(ItemDefinition->Payload.ItemUseRange, 50.0f);
+		const float InstigatorRadius = OwnerCharacter->GetSimpleCollisionRadius();
+		float TargetRadius = 0.0f;
+		if (const ACharacter* TargetCharacter = Cast<ACharacter>(TargetActor))
+		{
+			TargetRadius = TargetCharacter->GetSimpleCollisionRadius();
+		}
+
+		const float RawDistance = FVector::Dist(OwnerCharacter->GetActorLocation(), TargetActor->GetActorLocation());
+		const float EdgeDistance = FMath::Max(0.0f, RawDistance - InstigatorRadius - TargetRadius);
+		if (EdgeDistance > AllowedRange)
+		{
+			return;
+		}
+
+		if (ItemDefinition->Payload.bRequiresLineOfSight)
+		{
+			UWorld* World = OwnerCharacter->GetWorld();
+			if (!World)
+			{
+				return;
+			}
+
+			const FVector TraceStart = OwnerCharacter->GetPawnViewLocation();
+			const FVector TraceEnd = TargetActor->GetActorLocation();
+			FHitResult HitResult;
+			FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(ServerTargetedItemUseLOS), false, OwnerCharacter);
+			const bool bHit = World->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, ECC_Visibility, QueryParams);
+			if (bHit && HitResult.GetActor() != TargetActor)
+			{
+				return;
+			}
+		}
+	}
+
+	UItemManagerComponent* ItemManagerComponent = OwnerCharacter->FindComponentByClass<UItemManagerComponent>();
+	if (!ItemManagerComponent)
+	{
+		return;
+	}
+
+	int32 ServerSlotIndex = INDEX_NONE;
+	for (int32 SlotIndex = 0; SlotIndex < ItemManagerComponent->GetSlotCount(); ++SlotIndex)
+	{
+		const UItemDefinition* ServerItemDefinition = ItemManagerComponent->GetItemDefinitionAtSlot(SlotIndex);
+		if (!ServerItemDefinition)
+		{
+			continue;
+		}
+
+		if (ServerItemDefinition == ItemDefinition || ServerItemDefinition->ItemId == ItemDefinition->ItemId)
+		{
+			ServerSlotIndex = SlotIndex;
+			break;
+		}
+	}
+
+	if (ServerSlotIndex == INDEX_NONE)
 	{
 		return;
 	}
@@ -290,6 +366,17 @@ void UCharacterRewardComponent::Server_RequestTargetedItemUse_Implementation(UIt
 	{
 		return;
 	}
+
+	if (UItemInstance* ServerItemInstance = ItemManagerComponent->GetItemInstanceAtSlot(ServerSlotIndex))
+	{
+		ServerItemInstance->Consume(1);
+		if (ServerItemInstance->IsEmpty())
+		{
+			ItemManagerComponent->RemoveItemFromSlot(ServerSlotIndex);
+		}
+	}
+
+	ItemLogic->OnItemUsed(OwnerCharacter);
 
 	if (!SystemMessage.IsEmpty())
 	{
