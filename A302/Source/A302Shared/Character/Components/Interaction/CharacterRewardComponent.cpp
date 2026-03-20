@@ -241,9 +241,6 @@ void UCharacterRewardComponent::ResolveInteractionRewardOnServer(ABaseInteractab
 			!OwnerCharacter->IsLocallyControlled() &&
 			Cast<AMyPlayerController>(OwnerCharacter->GetController()) != nullptr;
 
-		const ERewardCategory EffectiveCategory = ResolveEffectiveRewardCategory(RewardDefinition);
-		bool bRewardHandled = false;
-
 		if (RewardDefinition->RewardCategory == ERewardCategory::BasicItem)
 		{
 			const bool bServerGranted = HandleRewardPickup(Interactable, RewardDefinition);
