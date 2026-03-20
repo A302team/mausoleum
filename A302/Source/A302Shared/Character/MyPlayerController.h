@@ -38,6 +38,7 @@ public:
 	virtual void SetActiveGroupEvent(UBaseGroupEvent* Event);
 	virtual void ShowPersonalEvent(FName EventID, const FText& Title, const FText& Description, const TArray<FText>& Choices);
 	virtual void ShowInspectMaliceSelectionWidget();
+	virtual void ShowInspectMaliceSelectionWidgetWithConfig(float SelectionTimeoutSeconds, float ResultDisplaySeconds);
 	virtual void OpenGroupEventVote(FName EventID, const FText& EventTitle, const FText& EventDescription, float VoteDuration);
 	virtual void FinishGroupEventVote(FName EventID, const FText& ResultText);
 	virtual void ApplyConfiscationToLocalInventory();
@@ -51,6 +52,9 @@ public:
 
 	UFUNCTION(Client, Reliable)
 	void Client_ShowInspectMaliceSelectionWidget();
+
+	UFUNCTION(Client, Reliable)
+	void Client_ShowInspectMaliceSelectionWidgetWithConfig(float SelectionTimeoutSeconds, float ResultDisplaySeconds);
 
 	UFUNCTION(Client, Reliable)
 	void Client_ShowTitleCard(const FText& Title, const FText& Context, float DisplaySeconds);
@@ -87,4 +91,7 @@ protected:
 private:
 	bool IsInGameMap() const;
     void EnsureLocalVoiceComponent();
+
+	FTimerHandle VoiceRoomCodeRetryTimerHandle;
+	int32 VoiceRoomCodeRetryCount = 0;
 };
