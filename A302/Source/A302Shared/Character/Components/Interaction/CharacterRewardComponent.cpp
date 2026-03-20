@@ -235,6 +235,8 @@ void UCharacterRewardComponent::ResolveInteractionRewardOnServer(ABaseInteractab
 	const URewardDefinition* RewardDefinition = Interactable->GetRewardDefinition();
 	if (RewardDefinition)
 	{
+		bool bRewardHandled = false;
+		const ERewardCategory EffectiveCategory = ResolveEffectiveRewardCategory(RewardDefinition);
 		const bool bNeedsClientMirrorGrant =
 			!OwnerCharacter->IsLocallyControlled() &&
 			Cast<AMyPlayerController>(OwnerCharacter->GetController()) != nullptr;
@@ -245,6 +247,7 @@ void UCharacterRewardComponent::ResolveInteractionRewardOnServer(ABaseInteractab
 		if (RewardDefinition->RewardCategory == ERewardCategory::BasicItem)
 		{
 			const bool bServerGranted = HandleRewardPickup(Interactable, RewardDefinition);
+			bRewardHandled = bServerGranted;
 			if (bServerGranted && bNeedsClientMirrorGrant && ShouldGrantRewardLocally(RewardDefinition))
 			{
 				Client_GrantInteractionReward(const_cast<URewardDefinition*>(RewardDefinition));

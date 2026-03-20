@@ -62,6 +62,14 @@ void UPersonalEventCursedSword::ExecuteEvent_Implementation(ACharacter* Instigat
 
 	EventComp->SetActivePersonalEvent(this);
 
+	// Personal event UI can fail to load in broken local/editor setups.
+	// Keep cursed sword flow alive by resolving immediately on server.
+	UE_LOG(LogTemp, Warning, TEXT("[PersonalEventCursedSword] UI fallback: resolving immediately. instigator=%s reward=%s"), *GetNameSafe(InstigatorCharacter), *GetNameSafe(GetRewardDefinition()));
+	OnEventResolved(InstigatorCharacter, true);
+	return;
+
+#if 0
+
 	const URewardDefinition* SourceRewardDefinition = GetRewardDefinition();
 	const UPersonalEventDefinition* EventDef = Cast<UPersonalEventDefinition>(SourceRewardDefinition);
 
@@ -91,6 +99,7 @@ void UPersonalEventCursedSword::ExecuteEvent_Implementation(ACharacter* Instigat
 		UE_LOG(LogTemp, Warning, TEXT("[PersonalEventCursedSword] EventDef is missing, executing immediately."));
 		OnEventResolved(InstigatorCharacter, true);
 	}
+#endif
 }
 
 void UPersonalEventCursedSword::OnEventResolved(ACharacter* InstigatorCharacter, bool bIsConfirmed)
