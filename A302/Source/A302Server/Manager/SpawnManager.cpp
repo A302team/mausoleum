@@ -85,6 +85,13 @@ void ASpawnManager::QueueSpawnAndPossessPlayer(APlayerController* PlayerControll
             {
                 if (!A302PlayerState->bGameplayEnabled)
                 {
+                    UE_LOG(
+                        LogTemp,
+                        Warning,
+                        TEXT("[SpawnManager] Deferred spawn canceled: gameplay disabled. controller=%s room=%s"),
+                        *GetNameSafe(DeferredPlayer),
+                        *A302PlayerState->GetRoomCode()
+                    );
                     return;
                 }
             }
@@ -186,130 +193,58 @@ bool ASpawnManager::SpawnAndPossessPlayer(APlayerController* PlayerController, T
 
 FTransform ASpawnManager::GetRandomPlayerSpawnTransform(int32 StageNum, const FString& RoomCode) const
 {
-    // 1. 월드에 배치된 모든 SpawnArea 찾기
-    TArray<AActor*> AllAreas;
-    UGameplayStatics::GetAllActorsOfClass(GetWorld(), ASpawnArea::StaticClass(), AllAreas);
+    // 레벨에 배치된 ASpawnArea 중 해당 룸 공간에 있는 것을 탐색합니다.
+    TArray<AActor*> FoundActors;
+    UGameplayStatics::GetAllActorsOfClass(GetWorld(), ASpawnArea::StaticClass(), FoundActors);
 
-    // 2. Stage 우선순위: exact(StageNum) -> fallback(Stage 0) -> any stage
-    TArray<ASpawnArea*> AllSpawnAreas;
-    TArray<ASpawnArea*> ExactStageAreas;
-    TArray<ASpawnArea*> FallbackStageAreas;
-    for (AActor* Actor : AllAreas)
+    // 룸 범위 내의 SpawnArea 중 스테이지가 맞는 것 필터링
+    TArray<ASpawnArea*> ValidAreas;
+    for (AActor* Actor : FoundActors)
     {
-        if (ASpawnArea* Area = Cast<ASpawnArea>(Actor))
+        if (ASpawnArea* SpawnArea = Cast<ASpawnArea>(Actor))
         {
-            AllSpawnAreas.Add(Area);
-            if (Area->TargetStage == StageNum)
+            const bool bInRoom = IsSpawnAreaInRoomSpace(SpawnArea, RoomCode);
+            const bool bStageMatch = (SpawnArea->TargetStage == 0 || SpawnArea->TargetStage == StageNum);
+            if (bInRoom && bStageMatch)
             {
-                ExactStageAreas.Add(Area);
-            }
-            else if (Area->TargetStage == 0)
-            {
-                FallbackStageAreas.Add(Area);
+                ValidAreas.Add(SpawnArea);
             }
         }
     }
 
-    const TArray<ASpawnArea*>* SelectedStageAreas = nullptr;
-    const TCHAR* StageSelectMode = TEXT("exact");
-    if (ExactStageAreas.Num() > 0)
+    if (ValidAreas.Num() > 0)
     {
-        SelectedStageAreas = &ExactStageAreas;
-    }
-    else if (FallbackStageAreas.Num() > 0)
-    {
-        SelectedStageAreas = &FallbackStageAreas;
-        StageSelectMode = TEXT("stage0_fallback");
-    }
-    else if (AllSpawnAreas.Num() > 0)
-    {
-        SelectedStageAreas = &AllSpawnAreas;
-        StageSelectMode = TEXT("any_stage_fallback");
-    }
+        // 유효한 SpawnArea 중 랜덤 하나 선택 → 영역 내 랜덤 위치 반환
+        const int32 RandomIndex = FMath::RandRange(0, ValidAreas.Num() - 1);
+        const ASpawnArea* SelectedArea = ValidAreas[RandomIndex];
+        const FVector SpawnLocation = SelectedArea->GetRandomPointInBox();
 
-    // 영역이 하나도 배치되지 않았다면 기본값 반환 (방어적 코드)
-    if (!SelectedStageAreas)
-    {
-        const FVector RoomOffset = GetRoomOffset(RoomCode);
         UE_LOG(
             LogTemp,
-            Error,
-            TEXT("[SpawnManager] SpawnArea missing entirely. stage=%d room=%s total=%d. use safe fallback above room."),
-            StageNum,
-            RoomCode.IsEmpty() ? TEXT("none") : *RoomCode,
-            AllAreas.Num()
-        );
-        return FTransform(FRotator::ZeroRotator, RoomOffset + FVector(0.0, 0.0, 3000.0));
-    }
-
-    if (!FCString::Strcmp(StageSelectMode, TEXT("exact")))
-    {
-        UE_LOG(LogTemp, Verbose, TEXT("[SpawnManager] stage select exact. stage=%d room=%s count=%d"), StageNum, *RoomCode, SelectedStageAreas->Num());
-    }
-    else
-    {
-        UE_LOG(
-            LogTemp,
-            Warning,
-            TEXT("[SpawnManager] stage select fallback mode=%s requestedStage=%d room=%s count=%d"),
-            StageSelectMode,
-            StageNum,
+            Log,
+            TEXT("[SpawnManager] SpawnArea found. area=%s location=(%.0f, %.0f, %.0f) room=%s stage=%d"),
+            *GetNameSafe(SelectedArea),
+            SpawnLocation.X, SpawnLocation.Y, SpawnLocation.Z,
             *RoomCode,
-            SelectedStageAreas->Num()
+            StageNum
         );
+
+        return FTransform(FRotator::ZeroRotator, SpawnLocation);
     }
 
-    TArray<ASpawnArea*> RoomScopedAreas;
-    for (ASpawnArea* Area : *SelectedStageAreas)
-    {
-        if (IsSpawnAreaInRoomSpace(Area, RoomCode))
-        {
-            RoomScopedAreas.Add(Area);
-        }
-    }
-
-    const bool bUseLegacyOffset = (RoomScopedAreas.Num() == 0);
-    const TArray<ASpawnArea*>& CandidateAreas = bUseLegacyOffset ? *SelectedStageAreas : RoomScopedAreas;
+    // SpawnArea를 찾지 못한 경우 룸 오프셋 원점 위로 fallback
     const FVector RoomOffset = GetRoomOffset(RoomCode);
+    const FVector FallbackLoc = RoomOffset + FVector(0.f, 0.f, 500.f);
+
     UE_LOG(
         LogTemp,
-        Verbose,
-        TEXT("[SpawnManager] room=%s stage=%d mode=%s offset=(%.0f, %.0f, %.0f)"),
-        RoomCode.IsEmpty() ? TEXT("none") : *RoomCode,
+        Warning,
+        TEXT("[SpawnManager] No SpawnArea found for room=%s stage=%d. Falling back to room origin (%.0f, %.0f, %.0f). Place BP_SpawnActor in the level."),
+        *RoomCode,
         StageNum,
-        bUseLegacyOffset ? TEXT("legacy_offset") : TEXT("instanced_level"),
-        RoomOffset.X,
-        RoomOffset.Y,
-        RoomOffset.Z
+        FallbackLoc.X, FallbackLoc.Y, FallbackLoc.Z
     );
 
-    // 3. 무작위 영역에서 충돌 없는(안전한) 좌표 찾기 시도 (최대 20번)
-    int32 MaxAttempts = 20;
-    for (int32 i = 0; i < MaxAttempts; ++i)
-    {
-        // 유효한 영역 중 하나를 무작위로 선택
-        ASpawnArea* SelectedArea = CandidateAreas[FMath::RandRange(0, CandidateAreas.Num() - 1)];
-        FVector CandidateLoc = SelectedArea->GetRandomPointInBox();
-        if (bUseLegacyOffset)
-        {
-            CandidateLoc += RoomOffset;
-        }
-
-        // 다른 플레이어와 겹치지 않는다면 최종 확정
-        if (IsLocationSafe(CandidateLoc))
-        {
-            FRotator RandomRot(0.f, FMath::RandRange(0.f, 360.f), 0.f); // 시선 방향은 무작위
-            return FTransform(RandomRot, CandidateLoc);
-        }
-    }
-
-    // 20번 시도에도 꽉 차서 실패했다면, 그냥 첫 번째 영역의 무작위 위치로 강제 스폰
-    UE_LOG(LogTemp, Warning, TEXT("[SpawnManager] 안전한 빈 공간을 찾지 못했습니다. 강제 스폰을 진행합니다."));
-    FVector FallbackLoc = CandidateAreas[0]->GetRandomPointInBox();
-    if (bUseLegacyOffset)
-    {
-        FallbackLoc += RoomOffset;
-    }
     return FTransform(FRotator::ZeroRotator, FallbackLoc);
 }
 
@@ -346,4 +281,3 @@ bool ASpawnManager::IsSpawnAreaInRoomSpace(const ASpawnArea* SpawnArea, const FS
     const double AcceptRangeX = A302RoomWorldOffset::DefaultOffsetStepX * 0.45;
     return DistanceX <= AcceptRangeX;
 }
-

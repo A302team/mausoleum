@@ -1,6 +1,6 @@
 param(
-    [string]$EngineRoot = "C:\UnrealEngine",
-    [string]$Map = "/Game/PersonalWorkSpace/wjtmd28/MyMap",
+    [string]$EngineRoot = "",
+    [string]$Map = "/Game/PersonalWorkSpace/wjtmd28/Loading_Level",
     [int]$GamePort = 47777,
     [switch]$SkipLobby,
     [switch]$SkipGameServer,
@@ -31,6 +31,89 @@ function Resolve-StagedServerExe {
     )
 
     return $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+}
+
+function Resolve-EngineRoot {
+    param(
+        [string]$RequestedEngineRoot,
+        [Parameter(Mandatory = $true)][string]$ProjectRoot
+    )
+
+    $candidates = @()
+    if (-not [string]::IsNullOrWhiteSpace($RequestedEngineRoot)) {
+        $candidates += $RequestedEngineRoot
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($env:UE_ENGINE_ROOT)) {
+        $candidates += $env:UE_ENGINE_ROOT
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($env:UNREAL_ENGINE_ROOT)) {
+        $candidates += $env:UNREAL_ENGINE_ROOT
+    }
+
+    $candidates += @(
+        (Join-Path $ProjectRoot "..\..\UnrealEngine"),
+        (Join-Path $ProjectRoot "..\UnrealEngine"),
+        "C:\UnrealEngine",
+        "D:\UnrealEngine"
+    )
+
+    $epicRoots = @(
+        "C:\Program Files\Epic Games",
+        "D:\Program Files\Epic Games",
+        "D:\Epic Games"
+    )
+    foreach ($epicRoot in $epicRoots) {
+        if (-not (Test-Path $epicRoot)) {
+            continue
+        }
+
+        $installedEngines = Get-ChildItem $epicRoot -Directory -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match "^UE_" } |
+            Sort-Object Name -Descending
+
+        foreach ($engineDir in $installedEngines) {
+            $candidates += $engineDir.FullName
+        }
+    }
+
+    foreach ($candidate in $candidates | Select-Object -Unique) {
+        if ([string]::IsNullOrWhiteSpace($candidate)) {
+            continue
+        }
+
+        $resolved = Resolve-Path $candidate -ErrorAction SilentlyContinue
+        if (-not $resolved) {
+            continue
+        }
+
+        $candidatePath = $resolved.Path
+
+        # Candidate is engine root (ex: C:\UnrealEngine or UE_5.7 folder)
+        $runUatAsRoot = Join-Path $candidatePath "Engine\Build\BatchFiles\RunUAT.bat"
+        if (Test-Path $runUatAsRoot) {
+            return $candidatePath
+        }
+
+        # Candidate is Engine directory (ex: C:\UnrealEngine\Engine)
+        $runUatAsEngineDir = Join-Path $candidatePath "Build\BatchFiles\RunUAT.bat"
+        if (Test-Path $runUatAsEngineDir) {
+            return (Split-Path $candidatePath -Parent)
+        }
+
+        # Candidate is direct RunUAT.bat path
+        if ((Test-Path $candidatePath -PathType Leaf) -and ([System.IO.Path]::GetFileName($candidatePath) -ieq "RunUAT.bat")) {
+            $batchDir = Split-Path $candidatePath -Parent
+            $buildDir = Split-Path $batchDir -Parent
+            $engineDir = Split-Path $buildDir -Parent
+            if ((Split-Path $engineDir -Leaf) -ieq "Engine") {
+                return (Split-Path $engineDir -Parent)
+            }
+        }
+    }
+
+    return $null
 }
 
 function Stop-StaleUnrealBuildProcesses {
@@ -204,9 +287,29 @@ function Close-UnrealEditorForBuild {
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $ProjectName = "A302"
 $UProject = Join-Path $ProjectRoot "A302.uproject"
-$RunUATBat = Join-Path $EngineRoot "Engine\Build\BatchFiles\RunUAT.bat"
+$ResolvedEngineRoot = Resolve-EngineRoot -RequestedEngineRoot $EngineRoot -ProjectRoot $ProjectRoot
+$RunUATBat = $null
+if ($ResolvedEngineRoot) {
+    $RunUATBat = Join-Path $ResolvedEngineRoot "Engine\Build\BatchFiles\RunUAT.bat"
+}
 $StopScript = Join-Path $PSScriptRoot "stop-local-test-stack.ps1"
-$LobbyExe = (Resolve-Path (Join-Path $ProjectRoot "..\Server\build\Server.exe")).Path
+
+$LobbyExeCandidates = @(
+    (Join-Path $ProjectRoot "..\Server\build\Server.exe"),
+    (Join-Path $ProjectRoot "..\Server\GameServer\build\Release\Server.exe"),
+    (Join-Path $ProjectRoot "..\Server\GameServer\build\Server.exe")
+)
+$LobbyExe = $null
+foreach ($candidate in $LobbyExeCandidates) {
+    $resolvedCandidate = Resolve-Path $candidate -ErrorAction SilentlyContinue
+    if ($resolvedCandidate) {
+        $LobbyExe = $resolvedCandidate.Path
+        break
+    }
+}
+if (-not $LobbyExe) {
+    $LobbyExe = $LobbyExeCandidates[0]
+}
 
 if (-not (Test-Path $UProject)) {
     throw "A302.uproject not found: $UProject"
@@ -231,7 +334,7 @@ if (-not $SkipLobby) {
 }
 
 if (-not $SkipGameServer) {
-    $DefaultServerMap = "/Game/PersonalWorkSpace/wjtmd28/MyMap"
+    $DefaultServerMap = "/Game/PersonalWorkSpace/wjtmd28/Loading_Level"
     $ServerGameModeClass = "/Script/A302Server.A302GameMode"
     $ServerGameInstanceClass = "/Script/A302Shared.A302SharedGameInstance"
     $LaunchMap = ""
@@ -261,6 +364,7 @@ if (-not $SkipGameServer) {
 
     $CookMaps = @(
         $LaunchMapBase,
+        "/Game/PersonalWorkSpace/wjtmd28/Loading_Level",
         "/Game/PersonalWorkSpace/wjtmd28/MyMap"
     ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
 
@@ -269,6 +373,10 @@ if (-not $SkipGameServer) {
     if ($ForceRebuildStaged -or -not $StagedServerExe) {
         if (-not $SkipCloseEditor) {
             Close-UnrealEditorForBuild
+        }
+
+        if (-not $RunUATBat -or -not (Test-Path $RunUATBat)) {
+            throw "RunUAT.bat not found. Use -EngineRoot or set UE_ENGINE_ROOT/UNREAL_ENGINE_ROOT. Tried relative to project as well."
         }
 
         Build-StagedServer `

@@ -9,6 +9,19 @@
 #include "Manager/SpawnManager.h"
 #include "GameFramework/PlayerController.h"
 #include "Character/MyCharacter.h"
+#include "Engine/World.h"
+
+namespace
+{
+    bool IsLocalPieSession(const UWorld* World)
+    {
+#if WITH_EDITOR
+        return World && World->WorldType == EWorldType::PIE && World->GetNetMode() != NM_DedicatedServer;
+#else
+        return false;
+#endif
+    }
+}
 
 void UA302ServerPlayerSubsystem::HandlePlayerLogin(APlayerController* NewPlayer)
 {
@@ -82,6 +95,11 @@ bool UA302ServerPlayerSubsystem::IsPlayerGameplayEnabled(const APlayerController
     const FString RoomCode = A302RoomScope::NormalizeRoomCode(Registry->GetPlayerRoomCode(PlayerController));
     if (RoomCode.IsEmpty()) return false;
 
+    if (IsLocalPieSession(GetWorld()) && RoomCode.StartsWith(TEXT("PIE_LOCAL_")))
+    {
+        return true;
+    }
+
     // GameMode의 공개 메서드를 통해 룸 상태 확인
     return GM->IsRoomGameplayActive(RoomCode) && 
            GetWorld()->GetGameInstance()->GetSubsystem<UA302RoomRuntimeSubsystem>() && 
@@ -98,12 +116,10 @@ void UA302ServerPlayerSubsystem::UpdatePlayerGameplayFlag(APlayerController* Pla
     }
 }
 
-void UA302ServerPlayerSubsystem::QueueSpawnPlayer(APlayerController* PlayerController)
+void UA302ServerPlayerSubsystem::QueueSpawnPlayer(APlayerController* PlayerController, bool bForceSpawn)
 {
     AA302GameMode* GM = GetA302GameMode();
     if (!GM || !PlayerController) return;
-
-    if (!IsPlayerGameplayEnabled(PlayerController)) return;
 
     URoomMembershipRegistry* Registry = GM->GetRoomMembershipRegistry();
     FString PlayerRoomCode = Registry ? A302RoomScope::NormalizeRoomCode(Registry->GetPlayerRoomCode(PlayerController)) : FString();
@@ -116,6 +132,38 @@ void UA302ServerPlayerSubsystem::QueueSpawnPlayer(APlayerController* PlayerContr
         }
     }
 
+    UA302RoomRuntimeSubsystem* RoomRuntime = GetWorld() ? GetWorld()->GetGameInstance()->GetSubsystem<UA302RoomRuntimeSubsystem>() : nullptr;
+    const bool bPhaseActive = !PlayerRoomCode.IsEmpty() && GM->IsRoomGameplayActive(PlayerRoomCode);
+    const bool bRoomReady = !PlayerRoomCode.IsEmpty() && RoomRuntime && RoomRuntime->IsRoomLevelReady(PlayerRoomCode);
+    const bool bGameplayEnabled = bPhaseActive && bRoomReady;
+
+    if (!bForceSpawn && !bGameplayEnabled)
+    {
+        UE_LOG(
+            LogTemp,
+            Warning,
+            TEXT("[ServerPlayerSubsystem] QueueSpawnPlayer blocked. player=%s room=%s phaseActive=%s roomReady=%s"),
+            *GetNameSafe(PlayerController),
+            *PlayerRoomCode,
+            bPhaseActive ? TEXT("true") : TEXT("false"),
+            bRoomReady ? TEXT("true") : TEXT("false")
+        );
+        return;
+    }
+
+    if (bForceSpawn && !bGameplayEnabled)
+    {
+        UE_LOG(
+            LogTemp,
+            Warning,
+            TEXT("[ServerPlayerSubsystem] QueueSpawnPlayer forced despite inactive state. player=%s room=%s phaseActive=%s roomReady=%s"),
+            *GetNameSafe(PlayerController),
+            *PlayerRoomCode,
+            bPhaseActive ? TEXT("true") : TEXT("false"),
+            bRoomReady ? TEXT("true") : TEXT("false")
+        );
+    }
+
     ASpawnManager* SpawnManager = ASpawnManager::FindOrSpawn(GetWorld());
     if (SpawnManager)
     {
@@ -124,7 +172,25 @@ void UA302ServerPlayerSubsystem::QueueSpawnPlayer(APlayerController* PlayerContr
             GM->CharacterClass,
             1, // Default Stage
             PlayerRoomCode,
-            1.0f // Default Warmup
+            3.0f // 레벨 스트리밍 후 물리 콜리전 초기화 대기 (1.0f → 3.0f)
+        );
+        UE_LOG(
+            LogTemp,
+            Log,
+            TEXT("[ServerPlayerSubsystem] QueueSpawnPlayer queued. player=%s room=%s force=%s"),
+            *GetNameSafe(PlayerController),
+            *PlayerRoomCode,
+            bForceSpawn ? TEXT("true") : TEXT("false")
+        );
+    }
+    else
+    {
+        UE_LOG(
+            LogTemp,
+            Error,
+            TEXT("[ServerPlayerSubsystem] QueueSpawnPlayer failed: SpawnManager missing. player=%s room=%s"),
+            *GetNameSafe(PlayerController),
+            *PlayerRoomCode
         );
     }
 }
