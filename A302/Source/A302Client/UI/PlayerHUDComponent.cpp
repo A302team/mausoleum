@@ -1,6 +1,5 @@
 #include "UI/PlayerHUDComponent.h"
 
-#include "Character/Components/PlayerEventComponent.h"
 #include "Character/Components/MaliceComponent.h"
 #include "Character/Components/Inventory/QuickSlotComponent.h"
 #include "Character/MyPlayerController.h"
@@ -25,8 +24,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Misc/ConfigCacheIni.h"
+#include "UI/GroupEventHUDComponent.h"
 #include "UI/PersonalEventWidget.h"
-#include "UI/VoteClickableUserWidget.h"
 #include "Room/RoomScopeRules.h"
 #include "Sound/SoundClass.h"
 #include "Sound/SoundMix.h"
@@ -46,10 +45,31 @@ namespace
 	const TCHAR* BGMVolumeConfigKey = TEXT("BGMVolume");
 	const TCHAR* SFXVolumeConfigKey = TEXT("SFXVolume");
 	const TCHAR* InterfaceVolumeConfigKey = TEXT("InterfaceVolume");
+	constexpr float DefaultInspectMaliceSelectionTimeoutSeconds = 10.0f;
+	constexpr float DefaultInspectMaliceResultDisplaySeconds = 3.0f;
 
 	FString ClampNicknameForUi(const FString& Name)
 	{
 		return Name.Len() > MaxNicknameUiLen ? Name.Left(MaxNicknameUiLen) : Name;
+	}
+
+	bool IsInspectMaliceCandidateInScope(const APlayerState* LocalPlayerState, const APlayerState* CandidatePlayerState)
+	{
+		if (!LocalPlayerState || !CandidatePlayerState)
+		{
+			return false;
+		}
+
+		const FString LocalRoomCode = A302RoomScope::ResolvePlayerRoomCode(LocalPlayerState);
+		const FString CandidateRoomCode = A302RoomScope::ResolvePlayerRoomCode(CandidatePlayerState);
+		if (!LocalRoomCode.IsEmpty() && !CandidateRoomCode.IsEmpty())
+		{
+			return LocalRoomCode == CandidateRoomCode;
+		}
+
+		// PIE/local tests often run without authoritative room codes.
+		// In that case, fall back to the current world's player list only.
+		return true;
 	}
 
 	void EnsureComboHasOption(UComboBoxString* ComboBox, const FString& Option)
@@ -191,311 +211,55 @@ void UPlayerHUDComponent::ShowPersonalEventUI(TSubclassOf<UPersonalEventWidget> 
 	OwnerController->SetInputMode(InputMode);
 }
 
-void UPlayerHUDComponent::InitializeGroupEventVoteWidget(TSubclassOf<UUserWidget> GroupEventVoteWidgetClass)
+void UPlayerHUDComponent::EnsureGroupEventHUDComponent()
 {
-	AMyPlayerController* OwnerController = GetOwnerController();
-	if (!OwnerController || !GroupEventVoteWidgetClass)
+	if (GroupEventHUDComponent)
 	{
 		return;
 	}
 
-	if (!GroupEventVoteWidgetInstance)
+	AActor* OwnerActor = GetOwner();
+	if (!OwnerActor)
 	{
-		GroupEventVoteWidgetInstance = CreateWidget<UUserWidget>(OwnerController, GroupEventVoteWidgetClass);
-		if (!GroupEventVoteWidgetInstance)
-		{
-			return;
-		}
-
-		GroupEventVoteWidgetInstance->AddToViewport(125);
-		GroupEventVoteWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+		return;
 	}
 
-	GroupEventVoteTitleText = FindGroupEventVoteText(TEXT("GroupEventVoteTitle"));
-	GroupEventVoteDescriptionText = FindGroupEventVoteText(TEXT("GroupEventVoteDes"));
-	GroupEventVoteTimerText = FindGroupEventVoteText(TEXT("VoteTimer"));
-
-	VoteUserSlotWidgets.Reset();
-	for (int32 SlotIndex = 0; SlotIndex < PlayerHUDVoteSlotCount; ++SlotIndex)
+	GroupEventHUDComponent = Cast<UGroupEventHUDComponent>(OwnerActor->GetComponentByClass(UGroupEventHUDComponent::StaticClass()));
+	if (!GroupEventHUDComponent)
 	{
-		if (UVoteClickableUserWidget* VoteSlotWidget = FindVoteUserSlot(SlotIndex))
+		GroupEventHUDComponent = NewObject<UGroupEventHUDComponent>(OwnerActor, TEXT("GroupEventHUDComponent"));
+		if (GroupEventHUDComponent)
 		{
-			VoteUserSlotWidgets.Add(VoteSlotWidget);
-			VoteSlotWidget->OnVoteClickableUserSelected.RemoveAll(this);
-			VoteSlotWidget->OnVoteClickableUserSelected.AddUObject(this, &UPlayerHUDComponent::HandleLocalGroupVoteSelection);
+			GroupEventHUDComponent->RegisterComponent();
 		}
 	}
 }
 
 void UPlayerHUDComponent::ShowGroupEventVoteUI(TSubclassOf<UUserWidget> GroupEventVoteWidgetClass, FName EventID, const FText& EventTitle, const FText& EventDescription, float VoteDuration)
 {
-	AMyPlayerController* OwnerController = GetOwnerController();
-	if (!OwnerController)
+	EnsureGroupEventHUDComponent();
+	if (GroupEventHUDComponent)
 	{
-		return;
-	}
-
-	InitializeGroupEventVoteWidget(GroupEventVoteWidgetClass);
-	if (!GroupEventVoteWidgetInstance)
-	{
-		return;
-	}
-
-	OwnerController->FlushPressedKeys();
-	ActiveGroupVoteEventID = EventID;
-	GroupEventVoteRemainingSeconds = FMath::Max(1, FMath::CeilToInt(VoteDuration));
-	bHasSubmittedGroupVote = false;
-
-	if (UWorld* World = GetWorld())
-	{
-		World->GetTimerManager().ClearTimer(GroupEventVoteCountdownHandle);
-		World->GetTimerManager().ClearTimer(GroupEventVoteCloseHandle);
-	}
-
-	if (GroupEventVoteTitleText)
-	{
-		GroupEventVoteTitleText->SetText(EventTitle);
-	}
-
-	if (GroupEventVoteDescriptionText)
-	{
-		GroupEventVoteDescriptionText->SetText(EventDescription);
-	}
-
-	PopulateGroupEventVoteCandidates();
-	UpdateGroupEventVoteTimerDisplay();
-	GroupEventVoteWidgetInstance->SetVisibility(ESlateVisibility::Visible);
-
-	FInputModeUIOnly InputMode;
-	InputMode.SetWidgetToFocus(GroupEventVoteWidgetInstance->TakeWidget());
-	OwnerController->SetInputMode(InputMode);
-	OwnerController->bShowMouseCursor = true;
-	OwnerController->bEnableClickEvents = true;
-	OwnerController->bEnableMouseOverEvents = true;
-
-	if (UWorld* World = GetWorld())
-	{
-		World->GetTimerManager().SetTimer(
-			GroupEventVoteCountdownHandle,
-			this,
-			&UPlayerHUDComponent::TickGroupEventVoteCountdown,
-			1.0f,
-			true
-		);
+		GroupEventHUDComponent->ShowGroupEventVoteUI(GroupEventVoteWidgetClass, EventID, EventTitle, EventDescription, VoteDuration);
 	}
 }
 
 void UPlayerHUDComponent::FinishGroupEventVoteUI(FName EventID, const FText& ResultText)
 {
-	if (ActiveGroupVoteEventID != NAME_None && EventID != ActiveGroupVoteEventID)
+	EnsureGroupEventHUDComponent();
+	if (GroupEventHUDComponent)
 	{
-		return;
-	}
-
-	if (UWorld* World = GetWorld())
-	{
-		World->GetTimerManager().ClearTimer(GroupEventVoteCountdownHandle);
-		World->GetTimerManager().ClearTimer(GroupEventVoteCloseHandle);
-	}
-
-	DisableGroupVoteInteractions();
-	ActiveGroupVoteEventID = EventID;
-
-	if (GroupEventVoteTitleText)
-	{
-		GroupEventVoteTitleText->SetText(FText::FromString(TEXT("Result")));
-	}
-
-	if (GroupEventVoteDescriptionText)
-	{
-		GroupEventVoteDescriptionText->SetText(ResultText);
-	}
-
-	if (GroupEventVoteTimerText)
-	{
-		GroupEventVoteTimerText->SetText(FText::GetEmpty());
-	}
-
-	if (GroupEventVoteWidgetInstance)
-	{
-		GroupEventVoteWidgetInstance->SetVisibility(ESlateVisibility::Visible);
-	}
-
-	if (UWorld* World = GetWorld())
-	{
-		World->GetTimerManager().SetTimer(
-			GroupEventVoteCloseHandle,
-			this,
-			&UPlayerHUDComponent::CloseGroupEventVoteUI,
-			2.5f,
-			false
-		);
+		GroupEventHUDComponent->FinishGroupEventVoteUI(EventID, ResultText);
 	}
 }
 
 void UPlayerHUDComponent::CloseGroupEventVoteUI()
 {
-	AMyPlayerController* OwnerController = GetOwnerController();
-	if (!OwnerController)
+	EnsureGroupEventHUDComponent();
+	if (GroupEventHUDComponent)
 	{
-		return;
+		GroupEventHUDComponent->CloseGroupEventVoteUI();
 	}
-
-	if (UWorld* World = GetWorld())
-	{
-		World->GetTimerManager().ClearTimer(GroupEventVoteCountdownHandle);
-		World->GetTimerManager().ClearTimer(GroupEventVoteCloseHandle);
-	}
-
-	if (GroupEventVoteWidgetInstance)
-	{
-		GroupEventVoteWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
-	}
-
-	ActiveGroupVoteEventID = NAME_None;
-	GroupEventVoteRemainingSeconds = 0;
-	bHasSubmittedGroupVote = false;
-
-	FInputModeGameOnly InputMode;
-	OwnerController->SetInputMode(InputMode);
-	OwnerController->bShowMouseCursor = false;
-	OwnerController->bEnableClickEvents = false;
-	OwnerController->bEnableMouseOverEvents = false;
-}
-
-void UPlayerHUDComponent::PopulateGroupEventVoteCandidates()
-{
-	AMyPlayerController* OwnerController = GetOwnerController();
-	AGameStateBase* GameState = GetWorld() ? GetWorld()->GetGameState() : nullptr;
-	if (!OwnerController || !GameState)
-	{
-		return;
-	}
-
-	APlayerState* LocalPlayerState = OwnerController->PlayerState;
-	int32 CandidateIndex = 0;
-	for (APlayerState* CandidatePlayerState : GameState->PlayerArray)
-	{
-		if (!CandidatePlayerState || CandidatePlayerState == LocalPlayerState)
-		{
-			continue;
-		}
-
-		if (!A302RoomScope::ArePlayersInSameLogicalRoom(LocalPlayerState, CandidatePlayerState))
-		{
-			continue;
-		}
-
-		if (const AA302PlayerState* ExtendedPlayerState = Cast<AA302PlayerState>(CandidatePlayerState))
-		{
-			if (!ExtendedPlayerState->bIsAlive || ExtendedPlayerState->bIsEscaped)
-			{
-				continue;
-			}
-		}
-
-		if (CandidateIndex >= VoteUserSlotWidgets.Num())
-		{
-			break;
-		}
-
-		if (UVoteClickableUserWidget* VoteSlotWidget = VoteUserSlotWidgets[CandidateIndex])
-		{
-			VoteSlotWidget->SetupCandidate(CandidatePlayerState->GetPlayerId(), ResolvePlayerDisplayName(CandidatePlayerState));
-			VoteSlotWidget->SetCandidateVisible(true);
-		}
-
-		++CandidateIndex;
-	}
-
-	for (int32 SlotIndex = CandidateIndex; SlotIndex < VoteUserSlotWidgets.Num(); ++SlotIndex)
-	{
-		if (UVoteClickableUserWidget* VoteSlotWidget = VoteUserSlotWidgets[SlotIndex])
-		{
-			VoteSlotWidget->SetCandidateVisible(false);
-		}
-	}
-}
-
-void UPlayerHUDComponent::UpdateGroupEventVoteTimerDisplay()
-{
-	if (GroupEventVoteTimerText)
-	{
-		GroupEventVoteTimerText->SetText(FText::AsNumber(GroupEventVoteRemainingSeconds));
-	}
-}
-
-void UPlayerHUDComponent::TickGroupEventVoteCountdown()
-{
-	GroupEventVoteRemainingSeconds = FMath::Max(0, GroupEventVoteRemainingSeconds - 1);
-	UpdateGroupEventVoteTimerDisplay();
-
-	if (GroupEventVoteRemainingSeconds <= 0)
-	{
-		if (UWorld* World = GetWorld())
-		{
-			World->GetTimerManager().ClearTimer(GroupEventVoteCountdownHandle);
-		}
-	}
-}
-
-void UPlayerHUDComponent::DisableGroupVoteInteractions()
-{
-	for (UVoteClickableUserWidget* VoteSlotWidget : VoteUserSlotWidgets)
-	{
-		if (VoteSlotWidget)
-		{
-			VoteSlotWidget->SetVotingEnabled(false);
-		}
-	}
-}
-
-void UPlayerHUDComponent::HandleLocalGroupVoteSelection(int32 TargetPlayerId)
-{
-	AMyPlayerController* OwnerController = GetOwnerController();
-	if (!OwnerController || bHasSubmittedGroupVote || ActiveGroupVoteEventID.IsNone())
-	{
-		return;
-	}
-
-	bHasSubmittedGroupVote = true;
-	DisableGroupVoteInteractions();
-
-	for (UVoteClickableUserWidget* VoteSlotWidget : VoteUserSlotWidgets)
-	{
-		if (VoteSlotWidget)
-		{
-			VoteSlotWidget->SetSelected(VoteSlotWidget->GetTargetPlayerId() == TargetPlayerId);
-		}
-	}
-
-	if (GroupEventVoteDescriptionText)
-	{
-		GroupEventVoteDescriptionText->SetText(FText::FromString(TEXT("투표가 완료되었습니다.")));
-	}
-
-	if (UPlayerEventComponent* EventComponent = OwnerController->GetPlayerEventComponent())
-	{
-		EventComponent->RequestSubmitGroupVote(ActiveGroupVoteEventID, TargetPlayerId);
-	}
-}
-
-UTextBlock* UPlayerHUDComponent::FindGroupEventVoteText(const FName& WidgetName) const
-{
-	return GroupEventVoteWidgetInstance
-		? Cast<UTextBlock>(GroupEventVoteWidgetInstance->GetWidgetFromName(WidgetName))
-		: nullptr;
-}
-
-UVoteClickableUserWidget* UPlayerHUDComponent::FindVoteUserSlot(int32 SlotIndex) const
-{
-	if (!GroupEventVoteWidgetInstance || SlotIndex < 0 || SlotIndex >= PlayerHUDVoteSlotCount)
-	{
-		return nullptr;
-	}
-
-	const FName SlotWidgetName(*FString::Printf(TEXT("VoteUserSlot%d"), SlotIndex + 1));
-	return Cast<UVoteClickableUserWidget>(GroupEventVoteWidgetInstance->GetWidgetFromName(SlotWidgetName));
 }
 
 FString UPlayerHUDComponent::ResolvePlayerDisplayName(const APlayerState* TargetPlayerState) const
@@ -511,13 +275,11 @@ FString UPlayerHUDComponent::ResolvePlayerDisplayName(const APlayerState* Target
 
 void UPlayerHUDComponent::InitializeInGameHUD(TSubclassOf<UUserWidget> InQuickSlotBarClass, TSubclassOf<UUserWidget> InInGameSettingClass, TSubclassOf<UUserWidget> InInspectMaliceWidgetClass)
 {
-	UE_LOG(LogTemp, Warning, TEXT("[UI/Comp/Debug] InitializeInGameHUD called. QuickSlot: %s, Setting: %s, Inspect: %s"), 
-		*GetNameSafe(InQuickSlotBarClass.Get()), *GetNameSafe(InInGameSettingClass.Get()), *GetNameSafe(InInspectMaliceWidgetClass.Get()));
-
 	QuickSlotBarClass = InQuickSlotBarClass;
 	InGameSettingClass = InInGameSettingClass;
 	InspectMaliceWidgetClass = InInspectMaliceWidgetClass;
 
+	EnsureGroupEventHUDComponent();
 	InitializeQuickSlotWidget();
 	InitializeInGameSettingWidget();
 	InitializeInspectMaliceWidget();
@@ -583,6 +345,11 @@ void UPlayerHUDComponent::ShowPublicMaliceAnnouncement(const FString& PlayerName
 
 void UPlayerHUDComponent::ShowInspectMaliceSelectionWidget()
 {
+	ShowInspectMaliceSelectionWidgetWithConfig(DefaultInspectMaliceSelectionTimeoutSeconds, DefaultInspectMaliceResultDisplaySeconds);
+}
+
+void UPlayerHUDComponent::ShowInspectMaliceSelectionWidgetWithConfig(float SelectionTimeoutSeconds, float ResultDisplaySeconds)
+{
 	AMyPlayerController* OwnerController = GetOwnerController();
 	if (!OwnerController || !OwnerController->IsLocalController())
 	{
@@ -598,10 +365,19 @@ void UPlayerHUDComponent::ShowInspectMaliceSelectionWidget()
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().ClearTimer(InspectMaliceHideTimerHandle);
+		World->GetTimerManager().ClearTimer(InspectMaliceSelectionTimeoutHandle);
+		World->GetTimerManager().ClearTimer(InspectMalicePopulateRetryHandle);
+		World->GetTimerManager().ClearTimer(InspectMaliceItemTimerTickHandle);
 	}
+
+	InspectMaliceSelectionTimeoutSeconds = FMath::Max(0.1f, SelectionTimeoutSeconds);
+	InspectMaliceResultDisplaySeconds = FMath::Max(0.1f, ResultDisplaySeconds);
+	bInspectMaliceSelectionConsumed = false;
+	bInspectMaliceItemTimerBaselineCaptured = false;
 
 	ResetInspectMaliceSelectionWidget();
 	PopulateInspectMaliceSelectionWidget();
+	SetInspectMaliceSelectionButtonsEnabled(true);
 	InspectMaliceWidgetInstance->SetVisibility(ESlateVisibility::Visible);
 
 	FInputModeGameAndUI InputMode;
@@ -612,6 +388,18 @@ void UPlayerHUDComponent::ShowInspectMaliceSelectionWidget()
 	OwnerController->bShowMouseCursor = true;
 	OwnerController->bEnableClickEvents = true;
 	OwnerController->bEnableMouseOverEvents = true;
+	StartInspectMaliceItemTimer(InspectMaliceSelectionTimeoutSeconds);
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().SetTimer(
+			InspectMaliceSelectionTimeoutHandle,
+			this,
+			&UPlayerHUDComponent::HandleInspectMaliceSelectionTimeout,
+			InspectMaliceSelectionTimeoutSeconds,
+			false
+		);
+	}
 }
 
 bool UPlayerHUDComponent::UpdateShieldCountText(int32 ShieldCount)
@@ -1662,7 +1450,7 @@ void UPlayerHUDComponent::PopulateInspectMaliceSelectionWidget()
 			continue;
 		}
 
-		if (!A302RoomScope::ArePlayersInSameLogicalRoom(LocalPlayerState, CandidatePlayerState))
+		if (!IsInspectMaliceCandidateInScope(LocalPlayerState, CandidatePlayerState))
 		{
 			continue;
 		}
@@ -1689,12 +1477,43 @@ void UPlayerHUDComponent::PopulateInspectMaliceSelectionWidget()
 			TargetButton->SetVisibility(ESlateVisibility::Visible);
 			TargetButton->SetIsEnabled(true);
 		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[InspectMalice] Missing button widget: %s"), *ButtonName.ToString());
+		}
 
 		const FName TextName(*FString::Printf(TEXT("UserText%d"), WidgetIndex));
 		if (UTextBlock* TargetText = FindInspectMaliceText(TextName))
 		{
 			TargetText->SetText(FText::FromString(ResolvePlayerDisplayName(CandidatePlayerState)));
 			TargetText->SetVisibility(ESlateVisibility::Visible);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[InspectMalice] Missing text widget: %s"), *TextName.ToString());
+		}
+	}
+
+	if (InspectMaliceSelectablePlayers.Num() == 0 && GameState->PlayerArray.Num() > 1)
+	{
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("[InspectMalice] No selectable players found. localPlayer=%s room=%s totalPlayers=%d"),
+			*GetNameSafe(LocalPlayerState),
+			*A302RoomScope::ResolvePlayerRoomCode(LocalPlayerState),
+			GameState->PlayerArray.Num()
+		);
+
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().SetTimer(
+				InspectMalicePopulateRetryHandle,
+				this,
+				&UPlayerHUDComponent::RetryPopulateInspectMaliceSelectionWidget,
+				0.25f,
+				false
+			);
 		}
 	}
 
@@ -1765,6 +1584,17 @@ void UPlayerHUDComponent::HideInspectMaliceSelectionWidget()
 		InspectMaliceWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
 	}
 
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(InspectMaliceHideTimerHandle);
+		World->GetTimerManager().ClearTimer(InspectMaliceSelectionTimeoutHandle);
+		World->GetTimerManager().ClearTimer(InspectMalicePopulateRetryHandle);
+		World->GetTimerManager().ClearTimer(InspectMaliceItemTimerTickHandle);
+	}
+
+	StopInspectMaliceItemTimer();
+	bInspectMaliceSelectionConsumed = false;
+
 	FInputModeGameOnly InputMode;
 	OwnerController->SetInputMode(InputMode);
 	OwnerController->bShowMouseCursor = false;
@@ -1772,8 +1602,25 @@ void UPlayerHUDComponent::HideInspectMaliceSelectionWidget()
 	OwnerController->bEnableMouseOverEvents = false;
 }
 
+void UPlayerHUDComponent::RetryPopulateInspectMaliceSelectionWidget()
+{
+	if (!InspectMaliceWidgetInstance || InspectMaliceWidgetInstance->GetVisibility() != ESlateVisibility::Visible || bInspectMaliceSelectionConsumed)
+	{
+		return;
+	}
+
+	ResetInspectMaliceSelectionWidget();
+	PopulateInspectMaliceSelectionWidget();
+	SetInspectMaliceSelectionButtonsEnabled(true);
+}
+
 void UPlayerHUDComponent::ApplyInspectMaliceSelection(int32 EntryIndex)
 {
+	if (bInspectMaliceSelectionConsumed)
+	{
+		return;
+	}
+
 	if (!InspectMaliceSelectablePlayers.IsValidIndex(EntryIndex))
 	{
 		return;
@@ -1783,6 +1630,15 @@ void UPlayerHUDComponent::ApplyInspectMaliceSelection(int32 EntryIndex)
 	if (!TargetPlayerState)
 	{
 		return;
+	}
+
+	bInspectMaliceSelectionConsumed = true;
+	SetInspectMaliceSelectionButtonsEnabled(false);
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(InspectMalicePopulateRetryHandle);
+		World->GetTimerManager().ClearTimer(InspectMaliceSelectionTimeoutHandle);
 	}
 
 	if (UTextBlock* UserText = FindInspectMaliceText(TEXT("InspectMaliceUserText")))
@@ -1796,6 +1652,7 @@ void UPlayerHUDComponent::ApplyInspectMaliceSelection(int32 EntryIndex)
 	}
 
 	SetInspectMaliceResultVisible(true);
+	StartInspectMaliceItemTimer(InspectMaliceResultDisplaySeconds);
 
 	if (UWorld* World = GetWorld())
 	{
@@ -1803,9 +1660,97 @@ void UPlayerHUDComponent::ApplyInspectMaliceSelection(int32 EntryIndex)
 			InspectMaliceHideTimerHandle,
 			this,
 			&UPlayerHUDComponent::HideInspectMaliceSelectionWidget,
-			3.0f,
+			InspectMaliceResultDisplaySeconds,
 			false
 		);
+	}
+}
+
+void UPlayerHUDComponent::HandleInspectMaliceSelectionTimeout()
+{
+	if (bInspectMaliceSelectionConsumed)
+	{
+		return;
+	}
+
+	HideInspectMaliceSelectionWidget();
+}
+
+void UPlayerHUDComponent::SetInspectMaliceSelectionButtonsEnabled(bool bEnabled)
+{
+	for (int32 WidgetIndex = 1; WidgetIndex <= PlayerHUDVoteSlotCount; ++WidgetIndex)
+	{
+		const FName ButtonName(*FString::Printf(TEXT("UserBtn%d"), WidgetIndex));
+		if (UButton* TargetButton = FindInspectMaliceButton(ButtonName))
+		{
+			if (TargetButton->GetVisibility() == ESlateVisibility::Visible)
+			{
+				TargetButton->SetIsEnabled(bEnabled);
+			}
+		}
+	}
+}
+
+void UPlayerHUDComponent::StartInspectMaliceItemTimer(float DurationSeconds)
+{
+	UWorld* World = GetWorld();
+	UTextBlock* ItemTimerText = FindItemTimerText();
+	if (!World || !ItemTimerText)
+	{
+		return;
+	}
+
+	if (!bInspectMaliceItemTimerBaselineCaptured)
+	{
+		bInspectMaliceItemTimerWasVisible = ItemTimerText->GetVisibility() == ESlateVisibility::Visible;
+		bInspectMaliceItemTimerBaselineCaptured = true;
+	}
+
+	InspectMaliceItemTimerEndTime = World->GetTimeSeconds() + FMath::Max(0.1f, DurationSeconds);
+	SetItemTimerVisible(true);
+	UpdateItemTimerText(DurationSeconds);
+
+	World->GetTimerManager().ClearTimer(InspectMaliceItemTimerTickHandle);
+	World->GetTimerManager().SetTimer(
+		InspectMaliceItemTimerTickHandle,
+		this,
+		&UPlayerHUDComponent::TickInspectMaliceItemTimer,
+		0.1f,
+		true
+	);
+}
+
+void UPlayerHUDComponent::StopInspectMaliceItemTimer()
+{
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(InspectMaliceItemTimerTickHandle);
+	}
+
+	InspectMaliceItemTimerEndTime = 0.0f;
+	if (bInspectMaliceItemTimerBaselineCaptured && !bInspectMaliceItemTimerWasVisible)
+	{
+		SetItemTimerVisible(false);
+	}
+
+	bInspectMaliceItemTimerBaselineCaptured = false;
+	bInspectMaliceItemTimerWasVisible = false;
+}
+
+void UPlayerHUDComponent::TickInspectMaliceItemTimer()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	const float RemainingSeconds = FMath::Max(0.0f, InspectMaliceItemTimerEndTime - World->GetTimeSeconds());
+	UpdateItemTimerText(RemainingSeconds);
+
+	if (RemainingSeconds <= 0.0f)
+	{
+		World->GetTimerManager().ClearTimer(InspectMaliceItemTimerTickHandle);
 	}
 }
 
