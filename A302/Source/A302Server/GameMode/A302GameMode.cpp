@@ -188,11 +188,7 @@ void AA302GameMode::BeginPlay()
 void AA302GameMode::PostLogin(APlayerController *NewPlayer)
 {
     Super::PostLogin(NewPlayer);
-    
-    if (UA302ServerPlayerSubsystem* PlayerSubsystem = GetWorld()->GetSubsystem<UA302ServerPlayerSubsystem>())
-    {
-        PlayerSubsystem->HandlePlayerLogin(NewPlayer);
-    }
+    // HandleStartingNewPlayer_Implementation에서 HandlePlayerLogin을 호출하므로 여기선 중복 호출하지 않음
 }
 
 void AA302GameMode::Logout(AController *Exiting)
