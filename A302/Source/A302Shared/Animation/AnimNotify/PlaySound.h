@@ -7,7 +7,7 @@
 class USoundBase;
 
 UCLASS()
-class A302CLIENT_API UPlaySound : public UAnimNotify
+class A302SHARED_API UPlaySound : public UAnimNotify
 {
     GENERATED_BODY()
 
