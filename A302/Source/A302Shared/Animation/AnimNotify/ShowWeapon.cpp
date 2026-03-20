@@ -1,22 +1,29 @@
 #include "Animation/AnimNotify/ShowWeapon.h"
-#include "GameFramework/Character.h"
+#include "Character/MyCharacter.h"
+#include "Character/Components/Combat/EquipmentComponent.h"
 
 void UShowWeapon::Notify(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation)
 {
-    if (!MeshComp || !WeaponClass) return;
+    if (!MeshComp) return;
 
-    ACharacter* OwnerCharacter = Cast<ACharacter>(MeshComp->GetOwner());
-    if (!OwnerCharacter) return;
+    if (AMyCharacter* Character = Cast<AMyCharacter>(MeshComp->GetOwner()))
+    {
+        if (UEquipmentComponent* Equipment = Character->GetEquipmentComponent())
+        {
+            switch (WeaponType)
+            {
+                case EWeaponType::Knife:
+                    Equipment->EquipKnifeWeapon();
+                    break;
 
-    // 무기 생성
-    AWeaponActor* SpawnedWeapon = MeshComp->GetWorld()->SpawnActor<AWeaponActor>(WeaponClass);
+                case EWeaponType::CursedSword:
+                    Equipment->EquipCursedSwordWeapon();
+                    break;
 
-    if (!SpawnedWeapon) return;
-
-    // 소켓에 부착
-    SpawnedWeapon->AttachToComponent(
-        MeshComp,
-        FAttachmentTransformRules::SnapToTargetNotIncludingScale,
-        SocketName
-    );
+                case EWeaponType::Shield:
+                    Equipment->EquipShieldWeapon();
+                    break;
+            }
+        }
+    }
 }
