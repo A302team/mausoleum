@@ -230,25 +230,25 @@ FString AA302GameMode::InitNewPlayer(
 
 bool AA302GameMode::TryHandlePersonalEventReward(ACharacter* InstigatorCharacter, AActor* InteractedActor, const URewardDefinition* RewardDefinition)
 {
-    if (!InstigatorCharacter || !A302GameplayGuards::IsGameplayEnabledCharacter(InstigatorCharacter))
-    {
-        return false;
-    }
+	if (!InstigatorCharacter || !A302GameplayGuards::IsGameplayEnabledCharacter(InstigatorCharacter))
+	{
+		return false;
+	}
 
     const bool bIsStandaloneLocal = A302GameplayGuards::IsStandaloneLocalExecution(InstigatorCharacter);
     if (!bIsStandaloneLocal)
     {
-        if (const AA302PlayerState* InstigatorState = InstigatorCharacter->GetPlayerState<AA302PlayerState>())
-        {
-            if (!IsRoomGameplayActive(InstigatorState->GetRoomCode()))
-            {
-                UE_LOG(LogTemp, Warning, TEXT("[Reward] Personal event blocked: room gameplay inactive. player=%s room=%s reward=%s"), *GetNameSafe(InstigatorCharacter), *InstigatorState->GetRoomCode(), *GetNameSafe(RewardDefinition));
-                return false;
-            }
-        }
-    }
+		if (const AA302PlayerState* InstigatorState = InstigatorCharacter->GetPlayerState<AA302PlayerState>())
+		{
+			if (!IsRoomGameplayActive(InstigatorState->GetRoomCode()))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[Reward] Personal event blocked: room gameplay inactive. player=%s room=%s reward=%s"), *GetNameSafe(InstigatorCharacter), *InstigatorState->GetRoomCode(), *GetNameSafe(RewardDefinition));
+				return false;
+			}
+		}
+	}
 
-    return FA302ServerEventResolver::TryHandlePersonalEventReward(InstigatorCharacter, InteractedActor, RewardDefinition);
+	return FA302ServerEventResolver::TryHandlePersonalEventReward(InstigatorCharacter, InteractedActor, RewardDefinition);
 }
 
 bool AA302GameMode::TryHandleGroupEventReward(ACharacter* InstigatorCharacter, AActor* InteractedActor, const URewardDefinition* RewardDefinition)

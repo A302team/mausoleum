@@ -29,11 +29,11 @@ void UEquipmentComponent::EquipKnifeWeapon()
 	}
 }
 
-void UEquipmentComponent::EquipTimeKnifeWeapon()
+void UEquipmentComponent::EquipCursedSwordWeapon()
 {
-	if (TimeKnifeActorClass)
+	if (CursedSwordActorClass)
 	{
-		EquipWeapon(TimeKnifeActorClass);
+		EquipWeapon(CursedSwordActorClass);
 	}
 }
 
