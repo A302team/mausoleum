@@ -68,6 +68,12 @@ public:
 	UFUNCTION(Client, Reliable)
 	void Client_ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount);
 
+	UFUNCTION(Client, Reliable)
+	void Client_UpdateItemTimer(float RemainingSeconds);
+
+	UFUNCTION(Client, Reliable)
+	void Client_SetItemTimerVisible(bool bVisible);
+
 	UFUNCTION(Server, Reliable)
 	void Server_RegisterPlayerDisplayName(const FString& DesiredName);
 
