@@ -124,7 +124,7 @@ void UA302ServerPlayerSubsystem::QueueSpawnPlayer(APlayerController* PlayerContr
             GM->CharacterClass,
             1, // Default Stage
             PlayerRoomCode,
-            1.0f // Default Warmup
+            3.0f // 레벨 스트리밍 후 물리 콜리전 초기화 대기 (1.0f → 3.0f)
         );
     }
 }

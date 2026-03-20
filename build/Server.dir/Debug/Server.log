@@ -1,0 +1,6 @@
+﻿C:\Program Files\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\amd64\Microsoft.Common.CurrentVersion.targets(2189,5): warning MSB9008: 참조된 프로젝트 C:\Users\SSAFY\Desktop\2div\S14P21A302\build\ZERO_CHECK.vcxproj 없습니다.
+  Building Custom Rule C:/Users/SSAFY/Desktop/2div/S14P21A302/Server/GameServer/CMakeLists.txt
+  CMake is re-running because C:/Users/SSAFY/Desktop/2div/S14P21A302/build/CMakeFiles/generate.stamp dependency file is missing.
+CUSTOMBUILD : CMake error : The source directory "C:/Users/SSAFY/Desktop/2div/S14P21A302/Server/GameServer" does not exist.
+  Specify --help for usage, or press the help button on the CMake GUI.
+C:\Program Files\Microsoft Visual Studio\2022\Professional\MSBuild\Microsoft\VC\v170\Microsoft.CppCommon.targets(254,5): error MSB8066: 'C:\Users\SSAFY\Desktop\2div\S14P21A302\Server\GameServer\CMakeLists.txt'에 대한 사용자 지정 빌드가 종료되었습니다(코드 1).
