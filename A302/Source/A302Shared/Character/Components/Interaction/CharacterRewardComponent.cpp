@@ -183,6 +183,32 @@ bool UCharacterRewardComponent::HandleRewardPickup(AActor* InteractedActor, cons
 	}
 }
 
+ERewardCategory UCharacterRewardComponent::ResolveEffectiveRewardCategory(const URewardDefinition* RewardDefinition) const
+{
+	if (!RewardDefinition)
+	{
+		return ERewardCategory::BasicItem;
+	}
+
+	ERewardCategory EffectiveCategory = RewardDefinition->RewardCategory;
+	if (UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass())
+	{
+		const bool bIsLegacyPersonalEventClass =
+			LogicClass->IsChildOf(UItemCursedSword::StaticClass());
+
+		if (LogicClass->IsChildOf(UBasePersonalEvent::StaticClass()) || bIsLegacyPersonalEventClass)
+		{
+			EffectiveCategory = ERewardCategory::PersonalEvent;
+		}
+		else if (LogicClass->IsChildOf(UBaseGroupEvent::StaticClass()))
+		{
+			EffectiveCategory = ERewardCategory::GroupEvent;
+		}
+	}
+
+	return EffectiveCategory;
+}
+
 bool UCharacterRewardComponent::ShouldGrantRewardLocally(const URewardDefinition* RewardDefinition) const
 {
 	if (!RewardDefinition)
@@ -224,10 +250,19 @@ void UCharacterRewardComponent::ResolveInteractionRewardOnServer(ABaseInteractab
 		else if (bNeedsClientMirrorGrant && ShouldGrantRewardLocally(RewardDefinition))
 		{
 			Client_GrantInteractionReward(const_cast<URewardDefinition*>(RewardDefinition));
+			bRewardHandled = true;
 		}
 		else
 		{
-			HandleRewardPickup(Interactable, RewardDefinition);
+			bRewardHandled = HandleRewardPickup(Interactable, RewardDefinition);
+		}
+
+		if (bRewardHandled)
+		{
+			if (IA302ServerRewardBridge* RewardBridge = Cast<IA302ServerRewardBridge>(GetWorld() ? GetWorld()->GetAuthGameMode() : nullptr))
+			{
+				RewardBridge->NotifyInteractionRewardResolved(OwnerCharacter, RewardDefinition, EffectiveCategory);
+			}
 		}
 	}
 
