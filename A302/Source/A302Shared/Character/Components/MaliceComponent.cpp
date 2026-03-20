@@ -5,6 +5,9 @@
 #include "Character/MyPlayerController.h"
 #include "Character/MyCharacter.h"
 #include "Character/MyCharacter.h"
+#include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
+#include "Room/RoomScopeRules.h"
 
 UMaliceComponent::UMaliceComponent()
 {
@@ -30,7 +33,45 @@ void UMaliceComponent::BroadcastPublicMaliceAnnouncement(const FString& PlayerNa
 	{
 		if (AMyCharacter* OwnerCharacter = Cast<AMyCharacter>(GetOwner()))
 		{
-            OwnerCharacter->OnRequestPublicMaliceAnnouncement.Broadcast(PlayerName, NewMaliceCount);
+			if (OwnerCharacter->OnRequestPublicMaliceAnnouncement.IsBound())
+			{
+				OwnerCharacter->OnRequestPublicMaliceAnnouncement.Broadcast(PlayerName, NewMaliceCount);
+				return;
+			}
+
+			// Fallback: if the server-side bridge delegate is not bound, broadcast directly
+			// to players in the same logical room so local/listen tests still receive updates.
+			const FString SourceRoomCode = A302RoomScope::ResolvePlayerRoomCode(OwnerCharacter->GetPlayerState());
+			if (UWorld* World = OwnerCharacter->GetWorld())
+			{
+				for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+				{
+					AMyPlayerController* TargetController = Cast<AMyPlayerController>(It->Get());
+					if (!TargetController)
+					{
+						continue;
+					}
+
+					if (!SourceRoomCode.IsEmpty())
+					{
+						const FString TargetRoomCode = A302RoomScope::ResolvePlayerRoomCode(TargetController->PlayerState);
+						if (!A302RoomScope::MatchesRoomCodeStrict(SourceRoomCode, TargetRoomCode))
+						{
+							continue;
+						}
+					}
+
+					TargetController->Client_ShowPublicMaliceAnnouncement(PlayerName, NewMaliceCount);
+				}
+			}
+
+			UE_LOG(
+				LogTemp,
+				Warning,
+				TEXT("[PublicMalice] Used direct server fallback broadcast. owner=%s room=%s"),
+				*GetNameSafe(OwnerCharacter),
+				*SourceRoomCode
+			);
 		}
 		return;
 	}
