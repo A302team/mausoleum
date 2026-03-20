@@ -192,7 +192,7 @@ ERewardCategory UCharacterRewardComponent::ResolveEffectiveRewardCategory(const 
 	if (UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass())
 	{
 		const bool bIsLegacyPersonalEventClass =
-			LogicClass->IsChildOf(UItemTimeKnife::StaticClass());
+			LogicClass->IsChildOf(UItemCursedSword::StaticClass());
 
 		if (LogicClass->IsChildOf(UBasePersonalEvent::StaticClass()) || bIsLegacyPersonalEventClass)
 		{
