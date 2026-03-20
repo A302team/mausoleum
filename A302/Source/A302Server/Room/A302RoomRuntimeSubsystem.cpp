@@ -136,7 +136,7 @@ void UA302RoomRuntimeSubsystem::TickRoomRuntimes()
         {
             if (ULevelStreamingDynamic* Streaming = RoomState.StreamingLevel.Get())
             {
-                if (Streaming->HasLoadedLevel())
+                if (Streaming->HasLoadedLevel() && Streaming->IsLevelVisible())
                 {
                     RoomState.bLevelReady = true;
                     RoomState.LastTouchedServerTime = CurrentServerTime;
@@ -235,7 +235,7 @@ bool UA302RoomRuntimeSubsystem::TryRequestLevelInstance(FA302RoomRuntimeState& R
 
     RoomState.StreamingLevel = StreamingLevel;
     RoomState.bLevelInstanceRequested = true;
-    RoomState.bLevelReady = StreamingLevel->HasLoadedLevel();
+    RoomState.bLevelReady = StreamingLevel->HasLoadedLevel() && StreamingLevel->IsLevelVisible();
 
     UE_LOG(
         LogTemp,
