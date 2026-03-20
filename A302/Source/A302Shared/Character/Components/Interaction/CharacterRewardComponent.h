@@ -9,6 +9,7 @@ class AActor;
 class URewardDefinition;
 class UItemDefinition;
 class ABaseInteractable;
+enum class ERewardCategory : uint8;
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class A302SHARED_API UCharacterRewardComponent : public UActorComponent
@@ -35,6 +36,8 @@ protected:
 
 private:
 	AMyCharacter* GetOwnerCharacter() const;
+
+	ERewardCategory ResolveEffectiveRewardCategory(const URewardDefinition* RewardDefinition) const;
 
 	bool ShouldGrantRewardLocally(const URewardDefinition* RewardDefinition) const;
 	bool HandleBasicItemPickup(AActor* InteractedActor, const UItemDefinition* RewardDefinition);
