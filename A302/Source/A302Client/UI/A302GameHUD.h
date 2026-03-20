@@ -36,6 +36,9 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<UUserWidget> InGameSettingClass;
 
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<UUserWidget> ResultWidgetClass;
+
 	void ShowTitleCard(const FText& Title, const FText& Context, float DisplaySeconds);
 
 	UFUNCTION()
@@ -62,6 +65,9 @@ public:
 	void ShowInspectMaliceSelectionWidget();
 
 	UFUNCTION()
+	void ShowInspectMaliceSelectionWidgetWithConfig(float SelectionTimeoutSeconds, float ResultDisplaySeconds);
+
+	UFUNCTION()
 	void UpdateShieldCountText(int32 ShieldCount);
 
 	UFUNCTION()
@@ -82,6 +88,9 @@ public:
 	UFUNCTION()
 	void FinishGroupEventVoteUI(FName EventID, const FText& ResultText);
 
+	UFUNCTION()
+	void ShowResultScreen(const FText& Title, const FText& Description, float DisplaySeconds);
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<class UPlayerHUDComponent> PlayerHUDComponent;
 
@@ -93,6 +102,9 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UUserWidget> TitleCardWidgetInstance;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UUserWidget> ResultWidgetInstance;
 
 private:
 	FTimerHandle TitleCardHideTimerHandle;

@@ -151,6 +151,8 @@ void UWaitingRoomWidget::OnStartGameClicked()
     if (!GI)
         return;
 
+    GI->BeginStartGameLoadingTransition();
+
     TSharedPtr<FJsonObject> Data = MakeShareable(new FJsonObject);
     Data->SetStringField(TEXT("roomCode"), GI->CurrentRoomCode);
     Data->SetStringField(TEXT("playerName"), GI->MyPlayerName);

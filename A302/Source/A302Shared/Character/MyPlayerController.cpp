@@ -3,6 +3,7 @@
 #include "Character/Components/PlayerEventComponent.h"
 // UI Widget 헤더들은 AA302GameHUD에서 관리합니다.
 #include "EnhancedInputSubsystems.h"
+#include "GameMode/A302GameInstance.h"
 #include "GameMode/A302PlayerState.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerState.h"
@@ -10,9 +11,13 @@
 #include "UObject/ConstructorHelpers.h"
 #include "A302RuntimeGuards.h"
 #include "GameFramework/HUD.h"
+#include "Room/RoomScopeRules.h"
+#include "Engine/World.h"
 
 namespace
 {
+	constexpr int32 MaxVoiceRoomCodeRetryCount = 8;
+
 	UClass* LoadClientVoiceComponentClass()
 	{
 		static TWeakObjectPtr<UClass> CachedClass;
@@ -43,6 +48,51 @@ namespace
 
 		return nullptr;
 	}
+
+	bool IsLocalPieSession(const APlayerController* PlayerController)
+	{
+#if WITH_EDITOR
+		if (!PlayerController)
+		{
+			return false;
+		}
+
+		const UWorld* World = PlayerController->GetWorld();
+		return World && World->WorldType == EWorldType::PIE && World->GetNetMode() != NM_DedicatedServer;
+#else
+		return false;
+#endif
+	}
+
+	FString BuildLocalPieRoomCode(const APlayerController* PlayerController)
+	{
+		const UWorld* World = PlayerController ? PlayerController->GetWorld() : nullptr;
+		if (!World)
+		{
+			return FString();
+		}
+
+		FString SafeMapName = World->GetMapName();
+		if (SafeMapName.StartsWith(TEXT("UEDPIE_")))
+		{
+			const int32 PrefixLen = 7;
+			const int32 UnderscoreIndex = SafeMapName.Find(TEXT("_"), ESearchCase::IgnoreCase, ESearchDir::FromStart, PrefixLen);
+			if (UnderscoreIndex != INDEX_NONE)
+			{
+				SafeMapName = SafeMapName.Mid(UnderscoreIndex + 1);
+			}
+		}
+
+		for (TCHAR& Ch : SafeMapName)
+		{
+			if (!FChar::IsAlnum(Ch))
+			{
+				Ch = TEXT('_');
+			}
+		}
+
+		return A302RoomScope::NormalizeRoomCode(FString::Printf(TEXT("PIE_LOCAL_%s"), *SafeMapName));
+	}
 }
 
 void AMyPlayerController::Server_RegisterPlayerDisplayName_Implementation(const FString& DesiredName)
@@ -72,6 +122,29 @@ void AMyPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
+	if (HasAuthority() && IsLocalPieSession(this))
+	{
+		if (AA302PlayerState* A302PS = GetPlayerState<AA302PlayerState>())
+		{
+			const FString CurrentRoomCode = A302RoomScope::NormalizeRoomCode(A302PS->GetRoomCode());
+			if (CurrentRoomCode.IsEmpty() || CurrentRoomCode == TEXT("DEFAULT"))
+			{
+				const FString FallbackRoomCode = BuildLocalPieRoomCode(this);
+				if (!FallbackRoomCode.IsEmpty())
+				{
+					A302PS->SetRoomCode(FallbackRoomCode);
+					UE_LOG(LogTemp, Log, TEXT("[RoomFallback] PIE local room code assigned. controller=%s room=%s"), *GetNameSafe(this), *FallbackRoomCode);
+				}
+			}
+
+			if (!A302PS->bGameplayEnabled)
+			{
+				A302PS->SetGameplayEnabled(true);
+				UE_LOG(LogTemp, Log, TEXT("[RoomFallback] PIE gameplay enabled forced. controller=%s"), *GetNameSafe(this));
+			}
+		}
+	}
+
 	if (!A302RuntimeGuards::ShouldInitializeLocalControllerUI(this))
 	{
 		return;
@@ -91,26 +164,10 @@ void AMyPlayerController::BeginPlay()
 	EnsureLocalVoiceComponent();
 
 #if !UE_SERVER
-	if (IsLocalController() && IsInGameMap())
+	if (IsLocalController() && ShouldAttemptGameplayHUDInitialization())
 	{
-		FString HUDPath = TEXT("/Game/WorkSpace/UI/BP_A302GameHUD.BP_A302GameHUD_C");
-		UClass* InGameHUDClass = LoadClass<AHUD>(nullptr, *HUDPath);
-		if (InGameHUDClass)
-		{
-			ClientSetHUD(InGameHUDClass);
-
-			FTimerHandle HUDInitTimer;
-			GetWorldTimerManager().SetTimer(HUDInitTimer, [this]()
-			{
-				if (AHUD* CurrentHUD = GetHUD())
-				{
-					if (UFunction* Func = CurrentHUD->FindFunction(TEXT("InitializeClientInGameWidgets")))
-					{
-						CurrentHUD->ProcessEvent(Func, nullptr);
-					}
-				}
-			}, 0.2f, false);
-		}
+		bInGameHUDInitialized = false;
+		TryInitializeInGameHUD();
 	}
 #endif
 }
@@ -120,14 +177,9 @@ void AMyPlayerController::AcknowledgePossession(APawn* P)
 	Super::AcknowledgePossession(P);
 
 #if !UE_SERVER
-	if (IsLocalController() && IsInGameMap())
+	if (IsLocalController() && ShouldAttemptGameplayHUDInitialization())
 	{
-		if (AHUD* CurrentHUD = GetHUD())
-		{
-			if (CurrentHUD->FindFunction(TEXT("InitializeClientInGameWidgets")))
-			{
-			}
-		}
+		TryInitializeInGameHUD();
 	}
 #endif
 }
@@ -139,9 +191,88 @@ void AMyPlayerController::OnRep_Pawn()
 	EnsureLocalVoiceComponent();
 }
 
-bool AMyPlayerController::IsInGameMap() const
+bool AMyPlayerController::ShouldAttemptGameplayHUDInitialization() const
 {
-	return A302RuntimeGuards::IsInGameWorld(this);
+	return !A302RuntimeGuards::IsLobbyWorld(GetWorld());
+}
+
+void AMyPlayerController::TryInitializeInGameHUD()
+{
+#if !UE_SERVER
+	if (!IsLocalController() || !ShouldAttemptGameplayHUDInitialization() || bInGameHUDInitialized)
+	{
+		return;
+	}
+
+	if (const UA302GameInstance* GameInstance = GetGameInstance<UA302GameInstance>())
+	{
+		if (!GameInstance->CanInitializeGameplayUI())
+		{
+			if (!GetWorldTimerManager().IsTimerActive(DeferredHUDInitTimerHandle))
+			{
+				GetWorldTimerManager().SetTimer(
+					DeferredHUDInitTimerHandle,
+					this,
+					&AMyPlayerController::PollDeferredHUDInitialization,
+					0.1f,
+					true
+				);
+			}
+			return;
+		}
+	}
+
+	const TCHAR* HUDPath = TEXT("/Game/WorkSpace/UI/BP_A302GameHUD.BP_A302GameHUD_C");
+	UClass* InGameHUDClass = LoadClass<AHUD>(nullptr, HUDPath);
+	if (!InGameHUDClass)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to load HUD class: %s"), HUDPath);
+		return;
+	}
+
+	ClientSetHUD(InGameHUDClass);
+
+	FTimerHandle HUDInitTimer;
+	GetWorldTimerManager().SetTimer(HUDInitTimer, [this]()
+	{
+		if (AHUD* CurrentHUD = GetHUD())
+		{
+			if (UFunction* Func = CurrentHUD->FindFunction(TEXT("InitializeClientInGameWidgets")))
+			{
+				CurrentHUD->ProcessEvent(Func, nullptr);
+				bInGameHUDInitialized = true;
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("InitializeClientInGameWidgets function not found on HUD: %s"), *GetNameSafe(CurrentHUD));
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("HUD instance is null after attempting to set it."));
+		}
+	}, 0.2f, false);
+#endif
+}
+
+void AMyPlayerController::PollDeferredHUDInitialization()
+{
+#if !UE_SERVER
+	if (!IsLocalController() || bInGameHUDInitialized)
+	{
+		GetWorldTimerManager().ClearTimer(DeferredHUDInitTimerHandle);
+		return;
+	}
+
+	const UA302GameInstance* GameInstance = GetGameInstance<UA302GameInstance>();
+	if (GameInstance && !GameInstance->CanInitializeGameplayUI())
+	{
+		return;
+	}
+
+	GetWorldTimerManager().ClearTimer(DeferredHUDInitTimerHandle);
+	TryInitializeInGameHUD();
+#endif
 }
 
 // InitializeClientInGameWidgets, InitializeChatWidget은 AA302GameHUD로 이관되어 제거되었습니다.
@@ -267,6 +398,31 @@ void AMyPlayerController::ShowInspectMaliceSelectionWidget()
 	}
 }
 
+void AMyPlayerController::ShowInspectMaliceSelectionWidgetWithConfig(float SelectionTimeoutSeconds, float ResultDisplaySeconds)
+{
+	if (AHUD* GameHUD = GetHUD())
+	{
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("ShowInspectMaliceSelectionWidgetWithConfig")))
+		{
+			struct FParams
+			{
+				float InSelectionTimeoutSeconds;
+				float InResultDisplaySeconds;
+			};
+
+			FParams Params
+			{
+				SelectionTimeoutSeconds,
+				ResultDisplaySeconds
+			};
+			GameHUD->ProcessEvent(Func, &Params);
+			return;
+		}
+	}
+
+	ShowInspectMaliceSelectionWidget();
+}
+
 void AMyPlayerController::OpenGroupEventVote(FName EventID, const FText& EventTitle, const FText& EventDescription, float VoteDuration)
 {
 	if (PlayerEventComponent)
@@ -319,6 +475,12 @@ void AMyPlayerController::UpdateMaliceCount(int32 MaliceCount)
 
 void AMyPlayerController::UpdateItemTimer(float RemainingSeconds)
 {
+	if (HasAuthority() && !IsLocalController())
+	{
+		Client_UpdateItemTimer(RemainingSeconds);
+		return;
+	}
+
 	if (AHUD* GameHUD = GetHUD())
 	{
 		if (UFunction* Func = GameHUD->FindFunction(TEXT("UpdateItemTimerText")))
@@ -332,12 +494,37 @@ void AMyPlayerController::UpdateItemTimer(float RemainingSeconds)
 
 void AMyPlayerController::SetItemTimerVisibleForClient(bool bVisible)
 {
+	if (HasAuthority() && !IsLocalController())
+	{
+		Client_SetItemTimerVisible(bVisible);
+		return;
+	}
+
 	if (AHUD* GameHUD = GetHUD())
 	{
 		if (UFunction* Func = GameHUD->FindFunction(TEXT("SetItemTimerVisible")))
 		{
 			struct FParams { bool bVis; };
 			FParams Params { bVisible };
+			GameHUD->ProcessEvent(Func, &Params);
+		}
+	}
+}
+
+void AMyPlayerController::ShowResultScreen(const FText& Title, const FText& Description, float DisplaySeconds)
+{
+	if (AHUD* GameHUD = GetHUD())
+	{
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("ShowResultScreen")))
+		{
+			struct FParams
+			{
+				FText InTitle;
+				FText InDescription;
+				float InDisplaySeconds;
+			};
+
+			FParams Params { Title, Description, DisplaySeconds };
 			GameHUD->ProcessEvent(Func, &Params);
 		}
 	}
@@ -412,6 +599,32 @@ void AMyPlayerController::EnsureLocalVoiceComponent()
 			Params.InRoomCode = RoomCode;
 			VoiceComponent->ProcessEvent(SetRoomCodeFunction, &Params);
 		}
+
+		if (RoomCode.IsEmpty())
+		{
+			if (UWorld* World = GetWorld())
+			{
+				if (VoiceRoomCodeRetryCount < MaxVoiceRoomCodeRetryCount)
+				{
+					++VoiceRoomCodeRetryCount;
+					World->GetTimerManager().SetTimer(
+						VoiceRoomCodeRetryTimerHandle,
+						this,
+						&AMyPlayerController::EnsureLocalVoiceComponent,
+						0.5f,
+						false
+					);
+				}
+			}
+		}
+		else
+		{
+			VoiceRoomCodeRetryCount = 0;
+			if (UWorld* World = GetWorld())
+			{
+				World->GetTimerManager().ClearTimer(VoiceRoomCodeRetryTimerHandle);
+			}
+		}
 	}
 }
 
@@ -420,7 +633,28 @@ void AMyPlayerController::Client_ShowInspectMaliceSelectionWidget_Implementation
 	ShowInspectMaliceSelectionWidget();
 }
 
+void AMyPlayerController::Client_ShowInspectMaliceSelectionWidgetWithConfig_Implementation(float SelectionTimeoutSeconds, float ResultDisplaySeconds)
+{
+	ShowInspectMaliceSelectionWidgetWithConfig(SelectionTimeoutSeconds, ResultDisplaySeconds);
+}
+
 void AMyPlayerController::Client_ShowPublicMaliceAnnouncement_Implementation(const FString& PlayerName, int32 MaliceCount)
 {
 	ShowPublicMaliceAnnouncement(PlayerName, MaliceCount);
 }
+
+void AMyPlayerController::Client_UpdateItemTimer_Implementation(float RemainingSeconds)
+{
+	UpdateItemTimer(RemainingSeconds);
+}
+
+void AMyPlayerController::Client_SetItemTimerVisible_Implementation(bool bVisible)
+{
+	SetItemTimerVisibleForClient(bVisible);
+}
+
+void AMyPlayerController::Client_ShowResultScreen_Implementation(const FText& Title, const FText& Description, float DisplaySeconds)
+{
+	ShowResultScreen(Title, Description, DisplaySeconds);
+}
+

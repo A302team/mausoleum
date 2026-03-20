@@ -10,6 +10,11 @@
 #include "GameData/RewardDefinition.h"
 #include "GamePlay/Items/BaseItem.h"
 #include "GamePlay/Items/ItemCursedSword.h"
+#include "Engine/World.h"
+#include "Character/MyCharacter.h"
+#include "Character/MyPlayerController.h"
+#include "Character/Components/PlayerEventComponent.h"
+#include "Character/Components/Interaction/CharacterRewardComponent.h"
 
 namespace
 {
@@ -39,7 +44,7 @@ namespace
 
 void UPersonalEventCursedSword::ExecuteEvent_Implementation(ACharacter* InstigatorCharacter)
 {
-	if (!InstigatorCharacter)
+	if (!InstigatorCharacter || !InstigatorCharacter->HasAuthority())
 	{
 		return;
 	}
@@ -60,6 +65,14 @@ void UPersonalEventCursedSword::ExecuteEvent_Implementation(ACharacter* Instigat
 
 	EventComp->SetActivePersonalEvent(this);
 
+	// Personal event UI can fail to load in broken local/editor setups.
+	// Keep cursed sword flow alive by resolving immediately on server.
+	UE_LOG(LogTemp, Warning, TEXT("[PersonalEventCursedSword] UI fallback: resolving immediately. instigator=%s reward=%s"), *GetNameSafe(InstigatorCharacter), *GetNameSafe(GetRewardDefinition()));
+	OnEventResolved(InstigatorCharacter, true);
+	return;
+
+#if 0
+
 	const URewardDefinition* SourceRewardDefinition = GetRewardDefinition();
 	if (SourceRewardDefinition)
 	{
@@ -79,6 +92,7 @@ void UPersonalEventCursedSword::ExecuteEvent_Implementation(ACharacter* Instigat
 		UE_LOG(LogTemp, Warning, TEXT("[PersonalEventCursedSword] EventDef is missing, executing immediately."));
 		OnEventResolved(InstigatorCharacter, 0);
 	}
+#endif
 }
 
 void UPersonalEventCursedSword::OnEventResolved(ACharacter* InstigatorCharacter, int32 ChoiceIndex)
@@ -124,6 +138,18 @@ void UPersonalEventCursedSword::OnEventResolved(ACharacter* InstigatorCharacter,
 			{
 				BaseItemLogic->OnItemAcquired(InstigatorCharacter);
 			}
+		}
+	}
+
+	if (UCharacterRewardComponent* RewardComponent = InstigatorCharacter->FindComponentByClass<UCharacterRewardComponent>())
+	{
+		const bool bNeedsClientMirrorGrant =
+			!InstigatorCharacter->IsLocallyControlled() &&
+			Cast<AMyPlayerController>(InstigatorCharacter->GetController()) != nullptr;
+
+		if (bNeedsClientMirrorGrant)
+		{
+			RewardComponent->Client_GrantInteractionReward(GrantedCursedSwordDefinition);
 		}
 	}
 

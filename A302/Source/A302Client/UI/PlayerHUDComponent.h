@@ -18,9 +18,9 @@ class USoundMix;
 class UTextBlock;
 class UTexture2D;
 class UUserWidget;
-class UVoteClickableUserWidget;
 class UWidget;
 class UItemDefinition;
+class UGroupEventHUDComponent;
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class A302CLIENT_API UPlayerHUDComponent : public UActorComponent
@@ -41,6 +41,7 @@ public:
 	float GetMouseSensitivityMultiplier() const;
 	void ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount);
 	void ShowInspectMaliceSelectionWidget();
+	void ShowInspectMaliceSelectionWidgetWithConfig(float SelectionTimeoutSeconds, float ResultDisplaySeconds);
 	bool UpdateShieldCountText(int32 ShieldCount);
 	bool UpdateMaliceCountText(int32 MaliceCount);
 	bool UpdateItemTimerText(float RemainingSeconds);
@@ -48,15 +49,8 @@ public:
 
 private:
 	AMyPlayerController* GetOwnerController() const;
-	void InitializeGroupEventVoteWidget(TSubclassOf<UUserWidget> GroupEventVoteWidgetClass);
-	void PopulateGroupEventVoteCandidates();
-	void UpdateGroupEventVoteTimerDisplay();
-	void TickGroupEventVoteCountdown();
-	void DisableGroupVoteInteractions();
-	void HandleLocalGroupVoteSelection(int32 TargetPlayerId);
-	UTextBlock* FindGroupEventVoteText(const FName& WidgetName) const;
-	UVoteClickableUserWidget* FindVoteUserSlot(int32 SlotIndex) const;
 	FString ResolvePlayerDisplayName(const APlayerState* TargetPlayerState) const;
+	void EnsureGroupEventHUDComponent();
 	void InitializeQuickSlotWidget();
 	void InitializeQuickSlotVisualState();
 	void BindQuickSlotComponent();
@@ -99,6 +93,12 @@ private:
 	void SetInspectMaliceResultVisible(bool bVisible);
 	void HideInspectMaliceSelectionWidget();
 	void ApplyInspectMaliceSelection(int32 EntryIndex);
+	void RetryPopulateInspectMaliceSelectionWidget();
+	void HandleInspectMaliceSelectionTimeout();
+	void SetInspectMaliceSelectionButtonsEnabled(bool bEnabled);
+	void StartInspectMaliceItemTimer(float DurationSeconds);
+	void StopInspectMaliceItemTimer();
+	void TickInspectMaliceItemTimer();
 	int32 QueryPlayerMaliceCount(const APlayerState* TargetPlayerState) const;
 	UButton* FindInspectMaliceButton(const FName& WidgetName) const;
 	UTextBlock* FindInspectMaliceText(const FName& WidgetName) const;
@@ -131,28 +131,17 @@ private:
 	TObjectPtr<UPersonalEventWidget> PersonalEventWidgetInstance;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UUserWidget> GroupEventVoteWidgetInstance;
+	TObjectPtr<UGroupEventHUDComponent> GroupEventHUDComponent;
 
-	UPROPERTY(Transient)
-	TObjectPtr<UTextBlock> GroupEventVoteTimerText = nullptr;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UTextBlock> GroupEventVoteTitleText = nullptr;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UTextBlock> GroupEventVoteDescriptionText = nullptr;
-
-	UPROPERTY(Transient)
-	TArray<TObjectPtr<UVoteClickableUserWidget>> VoteUserSlotWidgets;
-
-	FTimerHandle GroupEventVoteCountdownHandle;
-	FTimerHandle GroupEventVoteCloseHandle;
 	FTimerHandle PublicMaliceAnnouncementHideTimerHandle;
 	FTimerHandle InspectMaliceHideTimerHandle;
+	FTimerHandle InspectMaliceSelectionTimeoutHandle;
+	FTimerHandle InspectMalicePopulateRetryHandle;
+	FTimerHandle InspectMaliceItemTimerTickHandle;
 
-	FName ActiveGroupVoteEventID = NAME_None;
-	int32 GroupEventVoteRemainingSeconds = 0;
-	bool bHasSubmittedGroupVote = false;
+	float InspectMaliceItemTimerEndTime = 0.0f;
+	bool bInspectMaliceItemTimerBaselineCaptured = false;
+	bool bInspectMaliceItemTimerWasVisible = false;
 
 	UPROPERTY(Transient)
 	TSubclassOf<UUserWidget> QuickSlotBarClass;
@@ -234,6 +223,15 @@ private:
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<APlayerState>> InspectMaliceSelectablePlayers;
+
+	UPROPERTY(Transient)
+	float InspectMaliceSelectionTimeoutSeconds = 10.0f;
+
+	UPROPERTY(Transient)
+	float InspectMaliceResultDisplaySeconds = 3.0f;
+
+	UPROPERTY(Transient)
+	bool bInspectMaliceSelectionConsumed = false;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UQuickSlotComponent> BoundQuickSlotComponent = nullptr;

@@ -38,6 +38,7 @@ public:
 	virtual void SetActiveGroupEvent(UBaseGroupEvent* Event);
 	virtual void ShowPersonalEvent(FName EventID, const FText& Title, const FText& Description, const TArray<FText>& Choices);
 	virtual void ShowInspectMaliceSelectionWidget();
+	virtual void ShowInspectMaliceSelectionWidgetWithConfig(float SelectionTimeoutSeconds, float ResultDisplaySeconds);
 	virtual void OpenGroupEventVote(FName EventID, const FText& EventTitle, const FText& EventDescription, float VoteDuration);
 	virtual void FinishGroupEventVote(FName EventID, const FText& ResultText);
 	virtual void ApplyConfiscationToLocalInventory();
@@ -45,12 +46,16 @@ public:
 	virtual void UpdateMaliceCount(int32 MaliceCount);
 	virtual void UpdateItemTimer(float RemainingSeconds);
 	virtual void SetItemTimerVisibleForClient(bool bVisible);
+	virtual void ShowResultScreen(const FText& Title, const FText& Description, float DisplaySeconds);
 	virtual void ToggleVoiceChatCapture();
 
 	// UI 위젯 속성은 모두 AA302GameHUD로 이동되었습니다.
 
 	UFUNCTION(Client, Reliable)
 	void Client_ShowInspectMaliceSelectionWidget();
+
+	UFUNCTION(Client, Reliable)
+	void Client_ShowInspectMaliceSelectionWidgetWithConfig(float SelectionTimeoutSeconds, float ResultDisplaySeconds);
 
 	UFUNCTION(Client, Reliable)
 	void Client_ShowTitleCard(const FText& Title, const FText& Context, float DisplaySeconds);
@@ -63,6 +68,16 @@ public:
 
 	UFUNCTION(Client, Reliable)
 	void Client_ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount);
+
+	UFUNCTION(Client, Reliable)
+	void Client_UpdateItemTimer(float RemainingSeconds);
+
+	UFUNCTION(Client, Reliable)
+	void Client_SetItemTimerVisible(bool bVisible);
+
+	UFUNCTION(Client, Reliable)
+	void Client_ShowResultScreen(const FText& Title, const FText& Description, float DisplaySeconds);
+
 
 	UFUNCTION(Server, Reliable)
 	void Server_RegisterPlayerDisplayName(const FString& DesiredName);
@@ -85,6 +100,12 @@ protected:
 	int32 MappingPriority = 0;
 
 private:
-	bool IsInGameMap() const;
+	bool ShouldAttemptGameplayHUDInitialization() const;
+	void TryInitializeInGameHUD();
+	void PollDeferredHUDInitialization();
     void EnsureLocalVoiceComponent();
+	bool bInGameHUDInitialized = false;
+	FTimerHandle DeferredHUDInitTimerHandle;
+	FTimerHandle VoiceRoomCodeRetryTimerHandle;
+	int32 VoiceRoomCodeRetryCount = 0;
 };

@@ -73,6 +73,8 @@ AMyCharacter::AMyCharacter()
 	ItemTargetingComponent = CreateDefaultSubobject<UItemTargetingComponent>(TEXT("ItemTargetingComponent"));
     
 	InteractionComponent = CreateDefaultSubobject<UInteractComponent>(TEXT("InteractionComponent"));
+	InteractComp = InteractionComponent;
+	InteractionQuickSlotComponent = InteractionComponent;
 	QuickSlotComponent = CreateDefaultSubobject<UQuickSlotComponent>(TEXT("QuickSlotComponent"));
 	CombatStatusComponent = CreateDefaultSubobject<UCombatStatusComponent>(TEXT("CombatStatusComponent"));
 	MaliceComponent = CreateDefaultSubobject<UMaliceComponent>(TEXT("MaliceComponent"));
@@ -151,11 +153,29 @@ float AMyCharacter::TakeDamage(
 
 bool AMyCharacter::IsDead() const
 {
+	if (const AA302PlayerState* A302PlayerState = GetPlayerState<AA302PlayerState>())
+	{
+		if (!A302PlayerState->bIsAlive)
+		{
+			return true;
+		}
+	}
+
 	if (CharacterHealthComponent)
 	{
 		return CharacterHealthComponent->IsDead();
 	}
 	return false;
+}
+
+float AMyCharacter::GetInteractionProgressRatio() const
+{
+	return InteractionComponent ? InteractionComponent->GetInteractionProgressRatio() : 0.0f;
+}
+
+UInteractComponent* AMyCharacter::GetInteractionComponentCompat() const
+{
+	return InteractionComponent;
 }
 
 bool AMyCharacter::IsNetRelevantFor(const AActor* RealViewer, const AActor* ViewTarget, const FVector& SrcLocation) const
@@ -261,7 +281,6 @@ void AMyCharacter::BroadcastPublicMaliceAnnouncement(const FString& PlayerName, 
 		MaliceComponent->BroadcastPublicMaliceAnnouncement(PlayerName, MaliceCount);
 	}
 }
-
 
 
 
