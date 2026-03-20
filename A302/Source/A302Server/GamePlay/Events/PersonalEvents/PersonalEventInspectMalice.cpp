@@ -35,6 +35,6 @@ void UPersonalEventInspectMalice::ExecuteEvent_Implementation(ACharacter* Instig
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("[PersonalEventInspectMalice] Requesting inspect malice selection UI on owning client."));
-	EventComp->ShowInspectMaliceSelectionWidgetWithConfig(SelectionTimeoutSeconds, ResultDisplaySeconds);
-	OnEventResolved(InstigatorCharacter, true);
+	EventComp->ShowInspectMaliceSelectionWidget();
+	OnEventResolved_Implementation(InstigatorCharacter, true);
 }

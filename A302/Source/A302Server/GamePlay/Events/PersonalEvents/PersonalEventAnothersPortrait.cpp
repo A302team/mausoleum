@@ -41,7 +41,7 @@ void UPersonalEventAnothersPortrait::ExecuteEvent_Implementation(ACharacter* Ins
 	);
 }
 
-void UPersonalEventAnothersPortrait::OnEventResolvedMulti(ACharacter* InstigatorCharacter, int32 ChoiceIndex)
+void UPersonalEventAnothersPortrait::OnEventResolved(ACharacter* InstigatorCharacter, int32 ChoiceIndex)
 {
 	(void)ChoiceIndex;
 

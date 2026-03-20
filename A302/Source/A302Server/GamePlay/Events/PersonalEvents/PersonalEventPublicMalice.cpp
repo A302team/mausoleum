@@ -55,5 +55,5 @@ void UPersonalEventPublicMalice::ExecuteEvent_Implementation(ACharacter* Instiga
 		ClientEventBridge->ShowPublicMaliceAnnouncement(PlayerName, CurrentMaliceCount);
 	}
 
-	OnEventResolved(InstigatorCharacter, true);
+	OnEventResolved_Implementation(InstigatorCharacter, true);
 }

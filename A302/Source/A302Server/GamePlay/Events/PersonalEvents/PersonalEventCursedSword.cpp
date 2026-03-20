@@ -1,8 +1,11 @@
 #include "GamePlay/Events/PersonalEvents/PersonalEventCursedSword.h"
 
+#include "Character/MyCharacter.h"
+#include "Character/MyPlayerController.h"
 #include "Character/Components/Inventory/ItemManagerComponent.h"
+#include "Character/Components/PlayerEventComponent.h"
+#include "Engine/World.h"
 #include "GameData/Events/PersonalEvents/Equipment/PersonalEventCursedSwordDefinition.h"
-#include "GameData/Events/PersonalEvents/PersonalEventDefinition.h"
 #include "GameData/Items/ItemDefinition.h"
 #include "GameData/RewardDefinition.h"
 #include "GamePlay/Items/BaseItem.h"
@@ -71,42 +74,32 @@ void UPersonalEventCursedSword::ExecuteEvent_Implementation(ACharacter* Instigat
 #if 0
 
 	const URewardDefinition* SourceRewardDefinition = GetRewardDefinition();
-	const UPersonalEventDefinition* EventDef = Cast<UPersonalEventDefinition>(SourceRewardDefinition);
-
-	if (EventDef)
+	if (SourceRewardDefinition)
 	{
 		TArray<FText> Choices;
-		if (EventDef->bIsCancelable)
-		{
-			Choices.Add(FText::FromString(TEXT("거절")));
-			Choices.Add(FText::FromString(TEXT("수락")));
-		}
-		else
-		{
-			Choices.Add(FText::FromString(TEXT("")));
-			Choices.Add(FText::FromString(TEXT("확인")));
-		}
+		Choices.Reset();
+		Choices.Add(FText::FromString(TEXT("확인")));
 
 		EventComp->ShowPersonalEvent(
-			EventDef->ItemId,
-			EventDef->DisplayName,
-			EventDef->Description,
+			SourceRewardDefinition->ItemId,
+			FText::FromString(TEXT("저주받은 검")),
+			FText::FromString(TEXT("피를 갈망하는 저주받은 검을 습득했습니다.\n제한 시간 내에 누군가를 공격하지 않으면 검 끝이 당신을 향할 것입니다.")),
 			Choices
 		);
 	}
 	else
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[PersonalEventCursedSword] EventDef is missing, executing immediately."));
-		OnEventResolved(InstigatorCharacter, true);
+		OnEventResolved(InstigatorCharacter, 0);
 	}
 #endif
 }
 
-void UPersonalEventCursedSword::OnEventResolved(ACharacter* InstigatorCharacter, bool bIsConfirmed)
+void UPersonalEventCursedSword::OnEventResolved(ACharacter* InstigatorCharacter, int32 ChoiceIndex)
 {
-	if (!bIsConfirmed || !InstigatorCharacter || !InstigatorCharacter->HasAuthority() || bIsActive)
+	if (ChoiceIndex != 0 || !InstigatorCharacter || !InstigatorCharacter->HasAuthority() || bIsActive)
 	{
-		if (!bIsConfirmed)
+		if (ChoiceIndex != 0)
 		{
 			OwnerCharacter = nullptr;
 		}
@@ -182,7 +175,6 @@ void UPersonalEventCursedSword::OnEventResolved(ACharacter* InstigatorCharacter,
 			true
 		);
 	}
-
 }
 
 void UPersonalEventCursedSword::NotifyTimedKillConfirmed()

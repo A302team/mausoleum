@@ -15,12 +15,7 @@ class A302SHARED_API UBasePersonalEvent : public UBaseEvent
 
 public:
 	void InitializeContext(const URewardDefinition* InRewardDefinition, AActor* InSourceActor);
-	virtual void OnEventResolved(ACharacter* InstigatorCharacter, bool bIsConfirmed) {}
-	virtual void OnEventResolvedMulti(ACharacter* InstigatorCharacter, int32 ChoiceIndex)
-	{
-		// 복수 선택지 대응(0은 취소)
-		OnEventResolved(InstigatorCharacter, ChoiceIndex > 0);
-	}
+	virtual void OnEventResolved(ACharacter* InstigatorCharacter, int32 ChoiceIndex) {}
 
 protected:
 	const URewardDefinition* GetRewardDefinition() const { return RewardDefinition; }
