@@ -8,6 +8,8 @@
 
 class FJsonObject;
 class ULevelStreamingDynamic;
+class UUserWidget;
+class UWorld;
 
 USTRUCT(BlueprintType)
 struct FRoomInfo
@@ -77,6 +79,21 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Network")
 	void SendToServer(const FString &Message);
 
+	UFUNCTION(BlueprintCallable, Category = "Loading")
+	void BeginStartGameLoadingTransition(float TimeoutSeconds = 5.0f);
+
+	UFUNCTION(BlueprintCallable, Category = "Loading")
+	void CancelStartGameLoadingTransition();
+
+	UFUNCTION(BlueprintPure, Category = "Loading")
+	bool IsWaitingForRoomStreamingReady() const { return bWaitingForRoomStreamingReady; }
+
+	UFUNCTION(BlueprintPure, Category = "Loading")
+	bool CanInitializeGameplayUI() const;
+
+	UFUNCTION(BlueprintPure, Category = "Loading")
+	float GetLoadingProgress() const { return LoadingProgress; }
+
 	// Delegates
 	UPROPERTY(BlueprintAssignable, Category = "Events")
 	FOnRoomCreated OnRoomCreated;
@@ -121,6 +138,12 @@ public:
 	UPROPERTY()
 	TObjectPtr<UUserWidget> WaitingRoomWidget;
 
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSoftClassPtr<UUserWidget> LoadingWidgetClass;
+
+	UPROPERTY()
+	TObjectPtr<UUserWidget> LoadingWidget;
+
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	void ShowWaitingRoom(const FString &RoomCode);
 
@@ -132,6 +155,14 @@ private:
 	void OnMessageReceived(const FString &Message);
 
 	bool TryCreateLobbyWidget(UWorld *LoadedWorld);
+	bool TryCreateLoadingWidget(UWorld* LoadedWorld);
+	void SetLoadingProgressValue(float NewProgress);
+	void PushLoadingProgressToWidget() const;
+	void FinalizeLoadingProgress();
+	void HideLoadingWidget();
+	void HandleStartGameLoadingTransitionTimeout();
+	void PollRoomStreamingReady();
+	TSubclassOf<UUserWidget> ResolveLoadingWidgetClass();
 	void EnsureLocalRoomLevelInstance(UWorld* LoadedWorld);
 	FString ResolveRoomCodeForInGameWorld(UWorld* LoadedWorld) const;
 
@@ -141,5 +172,17 @@ private:
 	UPROPERTY(Transient)
 	FString LocalRoomStreamingRoomCode;
 
+	float LoadingProgress = 0.0f;
+	float LoadingProgressPhaseStartTime = 0.0f;
+	float FinalizeLoadingProgressStartTime = 0.0f;
+	float FinalizeLoadingProgressStartValue = 0.9f;
+
+	bool bStartGameLoadingTransitionActive = false;
+	bool bWaitingForRoomStreamingReady = false;
+
 	FTimerHandle LobbyWidgetRetryTimerHandle;
+	FTimerHandle LoadingWidgetRetryTimerHandle;
+	FTimerHandle StartGameLoadingTransitionTimeoutTimerHandle;
+	FTimerHandle FinalizeLoadingProgressTimerHandle;
+	FTimerHandle RoomStreamingReadyPollTimerHandle;
 };
