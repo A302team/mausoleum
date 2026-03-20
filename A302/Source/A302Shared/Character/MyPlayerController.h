@@ -89,9 +89,12 @@ protected:
 	int32 MappingPriority = 0;
 
 private:
-	bool IsInGameMap() const;
+	bool ShouldAttemptGameplayHUDInitialization() const;
+	void TryInitializeInGameHUD();
+	void PollDeferredHUDInitialization();
     void EnsureLocalVoiceComponent();
-
+	bool bInGameHUDInitialized = false;
+	FTimerHandle DeferredHUDInitTimerHandle;
 	FTimerHandle VoiceRoomCodeRetryTimerHandle;
 	int32 VoiceRoomCodeRetryCount = 0;
 };
