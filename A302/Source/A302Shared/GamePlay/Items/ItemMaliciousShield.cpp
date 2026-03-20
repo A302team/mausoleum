@@ -6,7 +6,7 @@ void UItemMaliciousShield::OnItemAcquired(ACharacter* OwnerCharacter) const
 {
 	Super::OnItemAcquired(OwnerCharacter);
 
-	if (OwnerCharacter)
+	if (OwnerCharacter && OwnerCharacter->HasAuthority())
 	{
 		if (UMaliceComponent* MaliceComp = OwnerCharacter->FindComponentByClass<UMaliceComponent>())
 		{
@@ -21,7 +21,7 @@ void UItemMaliciousShield::OnItemUsed(ACharacter* OwnerCharacter) const
 {
 	Super::OnItemUsed(OwnerCharacter);
 
-	if (OwnerCharacter)
+	if (OwnerCharacter && OwnerCharacter->HasAuthority())
 	{
 		if (UMaliceComponent* MaliceComp = OwnerCharacter->FindComponentByClass<UMaliceComponent>())
 		{
