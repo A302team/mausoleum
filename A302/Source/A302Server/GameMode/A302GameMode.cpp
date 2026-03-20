@@ -391,7 +391,7 @@ void AA302GameMode::SpawnPlayersInRoom(const FString& RoomCode)
 	for (APlayerController* RoomPlayer : RoomPlayers)
 	{
 		PlayerSubsystem->UpdatePlayerGameplayFlag(RoomPlayer, true);
-		PlayerSubsystem->QueueSpawnPlayer(RoomPlayer);
+		PlayerSubsystem->QueueSpawnPlayer(RoomPlayer, true);
 	}
 }
 

@@ -85,6 +85,13 @@ void ASpawnManager::QueueSpawnAndPossessPlayer(APlayerController* PlayerControll
             {
                 if (!A302PlayerState->bGameplayEnabled)
                 {
+                    UE_LOG(
+                        LogTemp,
+                        Warning,
+                        TEXT("[SpawnManager] Deferred spawn canceled: gameplay disabled. controller=%s room=%s"),
+                        *GetNameSafe(DeferredPlayer),
+                        *A302PlayerState->GetRoomCode()
+                    );
                     return;
                 }
             }
@@ -274,4 +281,3 @@ bool ASpawnManager::IsSpawnAreaInRoomSpace(const ASpawnArea* SpawnArea, const FS
     const double AcceptRangeX = A302RoomWorldOffset::DefaultOffsetStepX * 0.45;
     return DistanceX <= AcceptRangeX;
 }
-

@@ -5,10 +5,31 @@ param(
 $ErrorActionPreference = "SilentlyContinue"
 
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$LobbyExePath = (Join-Path $ProjectRoot "..\Server\build\Server.exe").ToLower()
+$LobbyExeCandidates = @(
+    (Join-Path $ProjectRoot "..\Server\build\Server.exe"),
+    (Join-Path $ProjectRoot "..\Server\GameServer\build\Release\Server.exe"),
+    (Join-Path $ProjectRoot "..\Server\GameServer\build\Server.exe")
+)
+
+$LobbyExePaths = @()
+foreach ($candidate in $LobbyExeCandidates) {
+    $resolved = Resolve-Path $candidate -ErrorAction SilentlyContinue
+    if ($resolved) {
+        $LobbyExePaths += $resolved.Path.ToLower()
+    }
+    else {
+        $LobbyExePaths += $candidate.ToLower()
+    }
+}
+$LobbyExePaths = @($LobbyExePaths | Select-Object -Unique)
+
 $A302ServerExePaths = @(
     (Join-Path $ProjectRoot "Binaries\Win64\A302Server-Win64-Development.exe").ToLower(),
-    (Join-Path $ProjectRoot "Binaries\Win64\A302Server.exe").ToLower()
+    (Join-Path $ProjectRoot "Binaries\Win64\A302Server.exe").ToLower(),
+    (Join-Path $ProjectRoot "Saved\StagedBuilds\WindowsServer\A302Server.exe").ToLower(),
+    (Join-Path $ProjectRoot "Saved\StagedBuilds\WindowsServer\A302\Binaries\Win64\A302Server.exe").ToLower(),
+    (Join-Path (Split-Path $ProjectRoot -Parent) "Artifacts\WindowsServer\A302Server.exe").ToLower(),
+    (Join-Path (Split-Path $ProjectRoot -Parent) "Artifacts\WindowsServer\A302\Binaries\Win64\A302Server.exe").ToLower()
 )
 $UProjectPath = (Join-Path $ProjectRoot "A302.uproject").ToLower()
 
@@ -18,7 +39,7 @@ $Processes = Get-CimInstance Win32_Process
 $LobbyProcesses = $Processes | Where-Object {
     $_.Name -ieq "Server.exe" -and
     $_.ExecutablePath -and
-    $_.ExecutablePath.ToLower() -eq $LobbyExePath
+    $LobbyExePaths -contains $_.ExecutablePath.ToLower()
 }
 
 foreach ($p in $LobbyProcesses) {
