@@ -13,6 +13,11 @@ bool UItemShield::CanUse_Implementation(ACharacter* Instigator, const FItemTarge
         return false;
     }
 
+    if (!Instigator->HasAuthority())
+    {
+        return false;
+    }
+
     if (!GetDefinition())
     {
         return false;

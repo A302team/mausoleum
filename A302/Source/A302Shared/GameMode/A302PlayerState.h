@@ -24,7 +24,7 @@ public:
     UPROPERTY(Replicated, BlueprintReadOnly)
     EPlayerRole PlayerRole = EPlayerRole::Innocent;
 
-    UPROPERTY(Replicated, BlueprintReadOnly)
+    UPROPERTY(ReplicatedUsing = OnRep_IsAlive, BlueprintReadOnly)
     bool bIsAlive = true;
 
     UPROPERTY(Replicated, BlueprintReadOnly)
@@ -52,6 +52,9 @@ public:
         TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 private:
+    UFUNCTION()
+    void OnRep_IsAlive();
+
     UFUNCTION()
     void OnRep_RoomCode();
 };
