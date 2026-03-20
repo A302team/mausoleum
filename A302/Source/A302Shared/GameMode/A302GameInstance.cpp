@@ -14,6 +14,17 @@
 namespace
 {
 	constexpr TCHAR LoadingWidgetClassPath[] = TEXT("/Game/WorkSpace/UI/WBP_Loading.WBP_Loading_C");
+	constexpr const TCHAR* LoadingProgressFunctionCandidates[] = {
+		TEXT("SetLoadingProgress"),
+		TEXT("UpdateLoadingProgress")
+	};
+	constexpr const TCHAR* LoadingProgressBarNameCandidates[] = {
+		TEXT("LoadingProgress"),
+		TEXT("LoadingProgressBar"),
+		TEXT("ProgressBar_Loading"),
+		TEXT("PB_LoadingProgress"),
+		TEXT("ProgressBar")
+	};
 }
 
 UA302GameInstance::UA302GameInstance()
@@ -338,24 +349,37 @@ void UA302GameInstance::PushLoadingProgressToWidget() const
 		return;
 	}
 
-	if (UFunction* SetProgressFunc = LoadingWidget->FindFunction(TEXT("SetLoadingProgress")))
+	for (const TCHAR* FunctionName : LoadingProgressFunctionCandidates)
 	{
-		struct FSetLoadingProgressParams
+		if (UFunction* SetProgressFunc = LoadingWidget->FindFunction(FunctionName))
 		{
-			float Progress;
-		};
+			struct FSetLoadingProgressParams
+			{
+				float Progress;
+			};
 
-		FSetLoadingProgressParams Params { LoadingProgress };
-		LoadingWidget->ProcessEvent(SetProgressFunc, &Params);
-		return;
+			FSetLoadingProgressParams Params { LoadingProgress };
+			LoadingWidget->ProcessEvent(SetProgressFunc, &Params);
+			return;
+		}
 	}
 
-	if (FObjectProperty* ProgressBarProperty = FindFProperty<FObjectProperty>(LoadingWidget->GetClass(), TEXT("LoadingProgress")))
+	for (const TCHAR* ProgressBarName : LoadingProgressBarNameCandidates)
 	{
-		UObject* ProgressBarObject = ProgressBarProperty->GetObjectPropertyValue_InContainer(LoadingWidget);
-		if (UProgressBar* ProgressBar = Cast<UProgressBar>(ProgressBarObject))
+		if (UProgressBar* ProgressBar = Cast<UProgressBar>(LoadingWidget->GetWidgetFromName(ProgressBarName)))
 		{
 			ProgressBar->SetPercent(LoadingProgress);
+			return;
+		}
+
+		if (FObjectProperty* ProgressBarProperty = FindFProperty<FObjectProperty>(LoadingWidget->GetClass(), ProgressBarName))
+		{
+			UObject* ProgressBarObject = ProgressBarProperty->GetObjectPropertyValue_InContainer(LoadingWidget);
+			if (UProgressBar* ProgressBar = Cast<UProgressBar>(ProgressBarObject))
+			{
+				ProgressBar->SetPercent(LoadingProgress);
+				return;
+			}
 		}
 	}
 }
@@ -403,7 +427,7 @@ void UA302GameInstance::PollRoomStreamingReady()
 		return;
 	}
 
-	if (!LocalRoomStreamingLevel->HasLoadedLevel())
+	if (!LocalRoomStreamingLevel->HasLoadedLevel() || !LocalRoomStreamingLevel->IsLevelVisible())
 	{
 		return;
 	}
