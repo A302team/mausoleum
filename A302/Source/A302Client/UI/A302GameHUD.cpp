@@ -1,6 +1,7 @@
 #include "UI/A302GameHUD.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/TextBlock.h"
+#include "Components/PanelWidget.h"
 #include "UI/PersonalEventWidget.h"
 #include "UI/PlayerHUDComponent.h"
 #include "UObject/ConstructorHelpers.h"
@@ -29,10 +30,13 @@ AA302GameHUD::AA302GameHUD()
 		}
 	}
 
-	static ConstructorHelpers::FClassFinder<UPersonalEventWidget> PersonalEventWidgetBPClass(TEXT("/Game/WorkSpace/UI/WBP_PersonalEvent.WBP_PersonalEvent_C"));
-	if (PersonalEventWidgetBPClass.Succeeded())
+	if (UClass* LoadedPersonalEventClass = LoadClass<UPersonalEventWidget>(
+		nullptr,
+		TEXT("/Game/WorkSpace/UI/WBP_PersonalEvent.WBP_PersonalEvent_C"),
+		nullptr,
+		LOAD_NoWarn))
 	{
-		PersonalEventWidgetClass = PersonalEventWidgetBPClass.Class;
+		PersonalEventWidgetClass = LoadedPersonalEventClass;
 	}
 
 	static ConstructorHelpers::FClassFinder<UUserWidget> InspectMaliceWidgetBPClass(TEXT("/Game/WorkSpace/UI/PersonalEvent/WBP_SelectUser"));
@@ -51,6 +55,12 @@ AA302GameHUD::AA302GameHUD()
 	if (TitleCardWidgetBPClass.Succeeded())
 	{
 		TitleCardWidgetClass = TitleCardWidgetBPClass.Class;
+	}
+
+	static ConstructorHelpers::FClassFinder<UUserWidget> ResultWidgetBPClass(TEXT("/Game/WorkSpace/UI/WBP_Result"));
+	if (ResultWidgetBPClass.Succeeded())
+	{
+		ResultWidgetClass = ResultWidgetBPClass.Class;
 	}
 
 	PlayerHUDComponent = CreateDefaultSubobject<UPlayerHUDComponent>(TEXT("PlayerHUDComponent"));
@@ -260,4 +270,75 @@ void AA302GameHUD::ShowGroupEventVote(FName EventID, const FText& EventTitle, co
 void AA302GameHUD::FinishGroupEventVoteUI(FName EventID, const FText& ResultText)
 {
 	if (PlayerHUDComponent) PlayerHUDComponent->FinishGroupEventVoteUI(EventID, ResultText);
+}
+
+void AA302GameHUD::ShowResultScreen(const FText& Title, const FText& Description, float DisplaySeconds)
+{
+	APlayerController* PC = GetOwningPlayerController();
+	if (!PC)
+	{
+		return;
+	}
+
+	if (!ResultWidgetClass)
+	{
+		if (UClass* LoadedResultClass = LoadClass<UUserWidget>(nullptr, TEXT("/Game/WorkSpace/UI/WBP_Result.WBP_Result_C")))
+		{
+			ResultWidgetClass = LoadedResultClass;
+		}
+	}
+
+	if (!ResultWidgetClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[A302GameHUD] Result widget class is missing."));
+		return;
+	}
+
+	if (!ResultWidgetInstance)
+	{
+		ResultWidgetInstance = CreateWidget<UUserWidget>(PC, ResultWidgetClass);
+	}
+
+	if (!ResultWidgetInstance)
+	{
+		return;
+	}
+
+	auto SetFirstAvailableText = [&](const TArray<FName>& CandidateNames, const FText& InText)
+	{
+		for (const FName& CandidateName : CandidateNames)
+		{
+			if (UTextBlock* TextBlock = Cast<UTextBlock>(ResultWidgetInstance->GetWidgetFromName(CandidateName)))
+			{
+				TextBlock->SetText(InText);
+				return;
+			}
+		}
+	};
+
+	SetFirstAvailableText({ TEXT("ResultTitle"), TEXT("TitleText"), TEXT("Txt_Title"), TEXT("EventTitle") }, Title);
+	SetFirstAvailableText({ TEXT("ResultDescription"), TEXT("DescriptionText"), TEXT("Txt_Description"), TEXT("EventContext"), TEXT("BodyText") }, Description);
+	SetFirstAvailableText({ TEXT("ResultCountdown"), TEXT("CountdownText"), TEXT("RemainTimeText") }, FText::Format(NSLOCTEXT("A302GameHUD", "ResultCountdown", "{0}초 후 로비로 이동합니다."), FText::AsNumber(FMath::Max(1, FMath::RoundToInt(DisplaySeconds)))));
+
+	if (!ResultWidgetInstance->IsInViewport())
+	{
+		ResultWidgetInstance->AddToViewport(300);
+	}
+
+	ResultWidgetInstance->SetVisibility(ESlateVisibility::Visible);
+
+	if (ChatWidgetInstance)
+	{
+		ChatWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+	}
+
+	if (TitleCardWidgetInstance)
+	{
+		TitleCardWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+	}
+
+	PC->SetInputMode(FInputModeUIOnly());
+	PC->bShowMouseCursor = true;
+	PC->bEnableClickEvents = true;
+	PC->bEnableMouseOverEvents = true;
 }
