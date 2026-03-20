@@ -93,34 +93,21 @@ void AMyPlayerController::BeginPlay()
 #if !UE_SERVER
 	if (IsLocalController() && IsInGameMap())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[UI/Debug] BeginPlay - IsLocal: 1, IsInGame: 1, Map: %s"), *GetWorld()->GetMapName());
-		
 		FString HUDPath = TEXT("/Game/WorkSpace/UI/BP_A302GameHUD.BP_A302GameHUD_C");
 		UClass* InGameHUDClass = LoadClass<AHUD>(nullptr, *HUDPath);
 		if (InGameHUDClass)
 		{
 			ClientSetHUD(InGameHUDClass);
-			UE_LOG(LogTemp, Warning, TEXT("[UI/Debug] Successfully loaded and set HUD class: %s"), *HUDPath);
-		
+
 			FTimerHandle HUDInitTimer;
 			GetWorldTimerManager().SetTimer(HUDInitTimer, [this]()
 			{
 				if (AHUD* CurrentHUD = GetHUD())
 				{
-					UE_LOG(LogTemp, Warning, TEXT("[UI/Debug] Current HUD Instance: %s"), *CurrentHUD->GetName());
 					if (UFunction* Func = CurrentHUD->FindFunction(TEXT("InitializeClientInGameWidgets")))
 					{
-						UE_LOG(LogTemp, Warning, TEXT("[UI/Debug] Found InitializeClientInGameWidgets function. Calling..."));
 						CurrentHUD->ProcessEvent(Func, nullptr);
 					}
-					else
-					{
-						UE_LOG(LogTemp, Error, TEXT("[UI/Debug] InitializeClientInGameWidgets function NOT FOUND on HUD: %s"), *GetNameSafe(CurrentHUD));
-					}
-				}
-				else
-				{
-					UE_LOG(LogTemp, Error, TEXT("[UI/Debug] HUD Instance is NULL after attempt to set it."));
 				}
 			}, 0.2f, false);
 		}
@@ -137,9 +124,8 @@ void AMyPlayerController::AcknowledgePossession(APawn* P)
 	{
 		if (AHUD* CurrentHUD = GetHUD())
 		{
-			if (UFunction* Func = CurrentHUD->FindFunction(TEXT("InitializeClientInGameWidgets")))
+			if (CurrentHUD->FindFunction(TEXT("InitializeClientInGameWidgets")))
 			{
-				UE_LOG(LogTemp, Warning, TEXT("[UI/Debug] AcknowledgePossession - Refreshing HUD for new Pawn."));
 			}
 		}
 	}

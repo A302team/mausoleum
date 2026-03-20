@@ -70,7 +70,6 @@ void AA302GameHUD::InitializeClientInGameWidgets()
 
 	if (!PlayerHUDComponent)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[UI/HUD/Debug] PlayerHUDComponent not found via class. Creating NEW fallback..."));
 		PlayerHUDComponent = NewObject<UPlayerHUDComponent>(this, TEXT("PlayerHUDComponent"));
 		if (PlayerHUDComponent)
 		{
@@ -80,13 +79,11 @@ void AA302GameHUD::InitializeClientInGameWidgets()
 
 	if (!QuickSlotBarClass)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[UI/HUD/Debug] QuickSlotBarClass is null. Attempting LoadClass..."));
 		if (UClass* LoadedQuickSlotClass = LoadClass<UUserWidget>(nullptr, TEXT("/Game/WorkSpace/UI/WBP_HUD2.WBP_HUD2_C")))
 		{
 			QuickSlotBarClass = LoadedQuickSlotClass;
 		}
 	}
-	UE_LOG(LogTemp, Warning, TEXT("[UI/HUD/Debug] QuickSlotBarClass: %s"), *GetNameSafe(QuickSlotBarClass.Get()));
 
 	if (!InGameSettingClass)
 	{
@@ -108,13 +105,8 @@ void AA302GameHUD::InitializeClientInGameWidgets()
 
 	if (PlayerHUDComponent)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[UI/HUD/Debug] Calling PlayerHUDComponent->InitializeInGameHUD"));
 		PlayerHUDComponent->InitializeInGameHUD(QuickSlotBarClass, InGameSettingClass, InspectMaliceWidgetClass);
 		PlayerHUDComponent->RefreshQuickSlotBinding();
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("[UI/HUD/Debug] PlayerHUDComponent is NULL!"));
 	}
 }
 

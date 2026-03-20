@@ -19,9 +19,29 @@ namespace A302GameplayGuards
 		return World && World->GetNetMode() == NM_Standalone;
 	}
 
+	inline bool IsEditorTestMapExecution(const UObject* WorldContextObject)
+	{
+#if WITH_EDITOR
+		if (!WorldContextObject)
+		{
+			return false;
+		}
+
+		const UWorld* World = WorldContextObject->GetWorld();
+		if (!World || World->WorldType != EWorldType::PIE)
+		{
+			return false;
+		}
+
+		return World->GetMapName().Contains(TEXT("TestMap"));
+#else
+		return false;
+#endif
+	}
+
 	inline bool IsGameplayEnabledPlayer(const APlayerState* PlayerState)
 	{
-		if (IsStandaloneLocalExecution(PlayerState))
+		if (IsStandaloneLocalExecution(PlayerState) || IsEditorTestMapExecution(PlayerState))
 		{
 			return true;
 		}
@@ -41,7 +61,10 @@ namespace A302GameplayGuards
 			return false;
 		}
 
-		if (IsStandaloneLocalExecution(InstigatorCharacter) || IsStandaloneLocalExecution(TargetCharacter))
+		if (IsStandaloneLocalExecution(InstigatorCharacter)
+			|| IsStandaloneLocalExecution(TargetCharacter)
+			|| IsEditorTestMapExecution(InstigatorCharacter)
+			|| IsEditorTestMapExecution(TargetCharacter))
 		{
 			return true;
 		}
