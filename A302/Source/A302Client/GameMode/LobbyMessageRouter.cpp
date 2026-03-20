@@ -328,6 +328,7 @@ void ULobbyMessageRouter::HandleGameStarted(const TSharedPtr<FJsonObject>& Data)
 	}
 
 	GameInstance->OnGameStarted.Broadcast();
+	GameInstance->BeginStartGameLoadingTransition();
 
 	// 룸 대기실(testLevel)에서만 DS 인게임으로 이동한다.
 	if (!A302RuntimeGuards::IsLobbyWorld(GameInstance->GetWorld()))
@@ -417,6 +418,11 @@ void ULobbyMessageRouter::HandleItemReceived(const TSharedPtr<FJsonObject>& Data
 
 void ULobbyMessageRouter::HandleError(const TSharedPtr<FJsonObject>& Data)
 {
+	if (GameInstance)
+	{
+		GameInstance->CancelStartGameLoadingTransition();
+	}
+
 	if (!Data.IsValid())
 	{
 		return;
