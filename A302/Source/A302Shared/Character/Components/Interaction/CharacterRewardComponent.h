@@ -11,6 +11,9 @@ class UItemDefinition;
 class ABaseInteractable;
 enum class ERewardCategory : uint8;
 
+// [ItemEffectComponent] Reward 획득 시 외부 컴포넌트가 반응할 수 있도록 델리게이트 선언
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnRewardAcquired, const URewardDefinition*);
+
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class A302SHARED_API UCharacterRewardComponent : public UActorComponent
 {
@@ -30,6 +33,9 @@ public:
 
 	UFUNCTION(Client, Reliable)
 	void Client_GrantInteractionReward(URewardDefinition* RewardDefinition);
+
+	// [ItemEffectComponent] Reward 획득 델리게이트
+	FOnRewardAcquired OnRewardAcquired;
 
 protected:
 	virtual void BeginPlay() override;

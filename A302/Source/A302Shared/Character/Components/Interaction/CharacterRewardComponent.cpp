@@ -140,6 +140,9 @@ bool UCharacterRewardComponent::HandleRewardPickup(AActor* InteractedActor, cons
 		return false;
 	}
 
+	// [ItemEffectComponent] Reward 획득 알림 - 모든 타입의 Reward에 대해 브로드캐스트
+	OnRewardAcquired.Broadcast(RewardDefinition);
+
 	ERewardCategory EffectiveCategory = RewardDefinition->RewardCategory;
 	UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass();
 	if (LogicClass)
