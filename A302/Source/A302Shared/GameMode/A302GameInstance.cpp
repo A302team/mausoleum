@@ -7,13 +7,32 @@
 #include "Engine/World.h"
 #include "Room/RoomWorldOffset.h"
 #include "Blueprint/UserWidget.h"
+#include "Blueprint/WidgetTree.h"
+#include "Components/Button.h"
+#include "Components/EditableTextBox.h"
 #include "Components/ProgressBar.h"
+#include "Kismet/KismetSystemLibrary.h"
+#include "Dom/JsonObject.h"
+#include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonWriter.h"
 #include "TimerManager.h"
 #include "UObject/UObjectGlobals.h"
 
 namespace
 {
+	enum class EFallbackLobbyPendingAction : int32
+	{
+		None = 0,
+		CreateRoom,
+		EnterRoom,
+		FindRoom
+	};
+
+	constexpr TCHAR WorkspaceLobby2ClassPath[] = TEXT("/Game/WorkSpace/UI/WBP_Lobby2.WBP_Lobby2_C");
+	constexpr TCHAR PersonalLobby2ClassPath[] = TEXT("/Game/PersonalWorkSpace/wjtmd28/WBP_Lobby2.WBP_Lobby2_C");
+	constexpr TCHAR RoomListPopupClassPath[] = TEXT("/Game/PersonalWorkSpace/sikk806/WBP_RoomListPopup.WBP_RoomListPopup_C");
 	constexpr TCHAR LoadingWidgetClassPath[] = TEXT("/Game/WorkSpace/UI/WBP_Loading.WBP_Loading_C");
+	constexpr TCHAR TestLevelMapName[] = TEXT("testLevel");
 	constexpr const TCHAR* LoadingProgressFunctionCandidates[] = {
 		TEXT("SetLoadingProgress"),
 		TEXT("UpdateLoadingProgress")
@@ -25,6 +44,27 @@ namespace
 		TEXT("PB_LoadingProgress"),
 		TEXT("ProgressBar")
 	};
+
+	FString GetNormalizedMapName(const UWorld* World)
+	{
+		if (!World)
+		{
+			return FString();
+		}
+
+		FString MapName = World->GetMapName();
+		if (MapName.StartsWith(TEXT("UEDPIE_")))
+		{
+			const int32 PrefixLen = 7;
+			const int32 UnderscoreIndex = MapName.Find(TEXT("_"), ESearchCase::IgnoreCase, ESearchDir::FromStart, PrefixLen);
+			if (UnderscoreIndex != INDEX_NONE)
+			{
+				MapName = MapName.Mid(UnderscoreIndex + 1);
+			}
+		}
+
+		return FPackageName::GetShortName(MapName);
+	}
 }
 
 UA302GameInstance::UA302GameInstance()
@@ -233,7 +273,8 @@ bool UA302GameInstance::TryCreateLobbyWidget(UWorld* LoadedWorld)
 	if (!LoadedWorld || LoadedWorld != GetWorld() || A302RuntimeGuards::IsDedicatedServerWorld(LoadedWorld))
 		return false;
 
-	if (LobbyWidgetClass.IsNull())
+	TSubclassOf<UUserWidget> LoadedClass = ResolveLobbyWidgetClass(LoadedWorld);
+	if (!LoadedClass)
 		return false;
 
 	APlayerController* PC = LoadedWorld->GetFirstPlayerController();
@@ -251,19 +292,284 @@ bool UA302GameInstance::TryCreateLobbyWidget(UWorld* LoadedWorld)
 	PC->bEnableClickEvents = true;
 	PC->SetInputMode(FInputModeUIOnly());
 
-	UClass* LoadedClass = LobbyWidgetClass.LoadSynchronous();
-	if (!LoadedClass) return false;
-
 	LobbyWidget = CreateWidget<UUserWidget>(PC, LoadedClass);
 	if (LobbyWidget)
 	{
 		LobbyWidget->AddToViewport();
+		SetupFallbackLobbyBindings();
 		LoadedWorld->GetTimerManager().ClearTimer(LobbyWidgetRetryTimerHandle);
 		UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] LobbyWidget created successfully."));
 		return true;
 	}
 
 	return false;
+}
+
+void UA302GameInstance::SetupFallbackLobbyBindings()
+{
+	bFallbackLobbyBindingsActive = false;
+	FallbackLobbyPendingAction = static_cast<int32>(EFallbackLobbyPendingAction::None);
+
+	if (!LobbyWidget || !LobbyWidget->WidgetTree)
+	{
+		return;
+	}
+
+	UButton* CreateRoomButton = FindLobbyButton(TEXT("Btn_CreateRoom"));
+	UButton* EnterRoomButton = FindLobbyButton(TEXT("Btn_EnterRoom"));
+	UButton* FindRoomButton = FindLobbyButton(TEXT("Btn_FindRoom"));
+	UButton* ExitButton = FindLobbyButton(TEXT("Btn_Exit"));
+
+	if (CreateRoomButton && !CreateRoomButton->OnClicked.IsBound())
+	{
+		CreateRoomButton->OnClicked.AddDynamic(this, &UA302GameInstance::HandleFallbackLobbyCreateRoomClicked);
+		bFallbackLobbyBindingsActive = true;
+	}
+	if (EnterRoomButton && !EnterRoomButton->OnClicked.IsBound())
+	{
+		EnterRoomButton->OnClicked.AddDynamic(this, &UA302GameInstance::HandleFallbackLobbyEnterRoomClicked);
+		bFallbackLobbyBindingsActive = true;
+	}
+	if (FindRoomButton && !FindRoomButton->OnClicked.IsBound())
+	{
+		FindRoomButton->OnClicked.AddDynamic(this, &UA302GameInstance::HandleFallbackLobbyFindRoomClicked);
+		bFallbackLobbyBindingsActive = true;
+	}
+	if (ExitButton && !ExitButton->OnClicked.IsBound())
+	{
+		ExitButton->OnClicked.AddDynamic(this, &UA302GameInstance::HandleFallbackLobbyExitClicked);
+		bFallbackLobbyBindingsActive = true;
+	}
+
+	if (bFallbackLobbyBindingsActive)
+	{
+		OnRoomCreated.RemoveDynamic(this, &UA302GameInstance::HandleFallbackLobbyRoomCreated);
+		OnNicknameAvailable.RemoveDynamic(this, &UA302GameInstance::HandleFallbackLobbyNicknameAvailable);
+		OnRoomCreated.AddDynamic(this, &UA302GameInstance::HandleFallbackLobbyRoomCreated);
+		OnNicknameAvailable.AddDynamic(this, &UA302GameInstance::HandleFallbackLobbyNicknameAvailable);
+		UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] Fallback lobby bindings enabled for current lobby widget."));
+	}
+}
+
+UButton* UA302GameInstance::FindLobbyButton(FName WidgetName) const
+{
+	return LobbyWidget && LobbyWidget->WidgetTree ? Cast<UButton>(LobbyWidget->WidgetTree->FindWidget(WidgetName)) : nullptr;
+}
+
+UEditableTextBox* UA302GameInstance::FindLobbyEditableTextBox(FName WidgetName) const
+{
+	return LobbyWidget && LobbyWidget->WidgetTree ? Cast<UEditableTextBox>(LobbyWidget->WidgetTree->FindWidget(WidgetName)) : nullptr;
+}
+
+bool UA302GameInstance::ValidateLobbyPlayerName(FString& OutPlayerName) const
+{
+	if (const UEditableTextBox* PlayerNameInput = FindLobbyEditableTextBox(TEXT("Input_PlayerName")))
+	{
+		OutPlayerName = PlayerNameInput->GetText().ToString().TrimStartAndEnd();
+	}
+	else
+	{
+		OutPlayerName.Reset();
+	}
+
+	FString ErrorMessage;
+	if (!IsNicknameValid(OutPlayerName, ErrorMessage))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[GameMode/A302GameInstance] %s"), *ErrorMessage);
+		return false;
+	}
+
+	return true;
+}
+
+void UA302GameInstance::SendLobbyNicknameCheck(const FString& PlayerName)
+{
+	TSharedPtr<FJsonObject> Data = MakeShareable(new FJsonObject);
+	Data->SetStringField(TEXT("playerName"), PlayerName);
+
+	TSharedPtr<FJsonObject> Json = MakeShareable(new FJsonObject);
+	Json->SetStringField(TEXT("type"), TEXT("check_nickname"));
+	Json->SetObjectField(TEXT("data"), Data);
+
+	FString Output;
+	TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Output);
+	FJsonSerializer::Serialize(Json.ToSharedRef(), Writer);
+
+	SendToServer(Output);
+	UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] Fallback lobby nickname check sent: %s"), *PlayerName);
+}
+
+void UA302GameInstance::SendCreateRoomRequest(const FString& PlayerName)
+{
+	TSharedPtr<FJsonObject> Data = MakeShareable(new FJsonObject);
+	Data->SetStringField(TEXT("playerName"), PlayerName);
+
+	TSharedPtr<FJsonObject> Json = MakeShareable(new FJsonObject);
+	Json->SetStringField(TEXT("type"), TEXT("create_room"));
+	Json->SetObjectField(TEXT("data"), Data);
+
+	FString Output;
+	TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Output);
+	FJsonSerializer::Serialize(Json.ToSharedRef(), Writer);
+
+	SendToServer(Output);
+	UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] Fallback lobby create room requested."));
+}
+
+void UA302GameInstance::SendJoinRoomRequest(const FString& RoomCode, const FString& PlayerName)
+{
+	TSharedPtr<FJsonObject> Data = MakeShareable(new FJsonObject);
+	Data->SetStringField(TEXT("roomCode"), RoomCode);
+	Data->SetStringField(TEXT("playerName"), PlayerName);
+
+	TSharedPtr<FJsonObject> Json = MakeShareable(new FJsonObject);
+	Json->SetStringField(TEXT("type"), TEXT("join_room"));
+	Json->SetObjectField(TEXT("data"), Data);
+
+	FString Output;
+	TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Output);
+	FJsonSerializer::Serialize(Json.ToSharedRef(), Writer);
+
+	SendToServer(Output);
+	UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] Fallback lobby join room requested. code=%s"), *RoomCode);
+}
+
+void UA302GameInstance::OpenRoomListPopupFallback()
+{
+	if (!LobbyWidget)
+	{
+		return;
+	}
+
+	if (UClass* PopupClass = LoadClass<UUserWidget>(nullptr, RoomListPopupClassPath))
+	{
+		if (UWorld* World = GetWorld())
+		{
+			if (UUserWidget* Popup = CreateWidget<UUserWidget>(World, PopupClass))
+			{
+				Popup->AddToViewport();
+				UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] Fallback room list popup opened."));
+			}
+		}
+	}
+}
+
+void UA302GameInstance::HandleFallbackLobbyCreateRoomClicked()
+{
+	FString PlayerName;
+	if (!ValidateLobbyPlayerName(PlayerName))
+	{
+		return;
+	}
+
+	MyPlayerName = PlayerName;
+	FallbackLobbyPendingAction = static_cast<int32>(EFallbackLobbyPendingAction::CreateRoom);
+	SendLobbyNicknameCheck(PlayerName);
+}
+
+void UA302GameInstance::HandleFallbackLobbyEnterRoomClicked()
+{
+	FString PlayerName;
+	if (!ValidateLobbyPlayerName(PlayerName))
+	{
+		return;
+	}
+
+	const UEditableTextBox* RoomCodeInput = FindLobbyEditableTextBox(TEXT("Input_RoomCode"));
+	const FString RoomCode = RoomCodeInput ? RoomCodeInput->GetText().ToString().TrimStartAndEnd() : FString();
+	if (RoomCode.IsEmpty())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[GameMode/A302GameInstance] 방 코드를 입력해주세요."));
+		return;
+	}
+
+	MyPlayerName = PlayerName;
+	FallbackLobbyPendingAction = static_cast<int32>(EFallbackLobbyPendingAction::EnterRoom);
+	SendLobbyNicknameCheck(PlayerName);
+}
+
+void UA302GameInstance::HandleFallbackLobbyFindRoomClicked()
+{
+	FString PlayerName;
+	if (!ValidateLobbyPlayerName(PlayerName))
+	{
+		return;
+	}
+
+	MyPlayerName = PlayerName;
+	FallbackLobbyPendingAction = static_cast<int32>(EFallbackLobbyPendingAction::FindRoom);
+	SendLobbyNicknameCheck(PlayerName);
+}
+
+void UA302GameInstance::HandleFallbackLobbyExitClicked()
+{
+	UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] Fallback lobby exit clicked."));
+	UKismetSystemLibrary::QuitGame(this, nullptr, EQuitPreference::Quit, false);
+}
+
+void UA302GameInstance::HandleFallbackLobbyRoomCreated(const FString& RoomCode)
+{
+	if (!bFallbackLobbyBindingsActive)
+	{
+		return;
+	}
+
+	if (UEditableTextBox* RoomCodeInput = FindLobbyEditableTextBox(TEXT("Input_RoomCode")))
+	{
+		RoomCodeInput->SetText(FText::FromString(RoomCode));
+	}
+}
+
+void UA302GameInstance::HandleFallbackLobbyNicknameAvailable()
+{
+	if (!bFallbackLobbyBindingsActive)
+	{
+		return;
+	}
+
+	switch (static_cast<EFallbackLobbyPendingAction>(FallbackLobbyPendingAction))
+	{
+	case EFallbackLobbyPendingAction::CreateRoom:
+		SendCreateRoomRequest(MyPlayerName);
+		break;
+	case EFallbackLobbyPendingAction::EnterRoom:
+		if (const UEditableTextBox* RoomCodeInput = FindLobbyEditableTextBox(TEXT("Input_RoomCode")))
+		{
+			SendJoinRoomRequest(RoomCodeInput->GetText().ToString().TrimStartAndEnd(), MyPlayerName);
+		}
+		break;
+	case EFallbackLobbyPendingAction::FindRoom:
+		OpenRoomListPopupFallback();
+		break;
+	default:
+		break;
+	}
+
+	FallbackLobbyPendingAction = static_cast<int32>(EFallbackLobbyPendingAction::None);
+}
+
+TSubclassOf<UUserWidget> UA302GameInstance::ResolveLobbyWidgetClass(UWorld* LoadedWorld) const
+{
+	const FString MapName = GetNormalizedMapName(LoadedWorld);
+	if (MapName.Equals(TestLevelMapName, ESearchCase::IgnoreCase))
+	{
+		if (UClass* WorkspaceLobby2Class = LoadClass<UUserWidget>(nullptr, WorkspaceLobby2ClassPath))
+		{
+			return WorkspaceLobby2Class;
+		}
+
+		if (UClass* PersonalLobby2Class = LoadClass<UUserWidget>(nullptr, PersonalLobby2ClassPath))
+		{
+			return PersonalLobby2Class;
+		}
+	}
+
+	if (LobbyWidgetClass.IsNull())
+	{
+		return nullptr;
+	}
+
+	return LobbyWidgetClass.LoadSynchronous();
 }
 
 bool UA302GameInstance::TryCreateLoadingWidget(UWorld* LoadedWorld)
