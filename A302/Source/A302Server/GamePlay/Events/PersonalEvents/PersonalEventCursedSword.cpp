@@ -2,6 +2,7 @@
 
 #include "Character/MyCharacter.h"
 #include "Character/MyPlayerController.h"
+#include "Character/Components/Interaction/CharacterRewardComponent.h"
 #include "Character/Components/Inventory/ItemManagerComponent.h"
 #include "Character/Components/PlayerEventComponent.h"
 #include "Engine/World.h"
@@ -10,11 +11,6 @@
 #include "GameData/RewardDefinition.h"
 #include "GamePlay/Items/BaseItem.h"
 #include "GamePlay/Items/ItemCursedSword.h"
-#include "Engine/World.h"
-#include "Character/MyCharacter.h"
-#include "Character/MyPlayerController.h"
-#include "Character/Components/PlayerEventComponent.h"
-#include "Character/Components/Interaction/CharacterRewardComponent.h"
 
 namespace
 {
@@ -63,36 +59,16 @@ void UPersonalEventCursedSword::ExecuteEvent_Implementation(ACharacter* Instigat
 		return;
 	}
 
+	TArray<FText> Choices;
+	Choices.Add(FText::FromString(TEXT("검을 집어든다")));
+
 	EventComp->SetActivePersonalEvent(this);
-
-	// Personal event UI can fail to load in broken local/editor setups.
-	// Keep cursed sword flow alive by resolving immediately on server.
-	UE_LOG(LogTemp, Warning, TEXT("[PersonalEventCursedSword] UI fallback: resolving immediately. instigator=%s reward=%s"), *GetNameSafe(InstigatorCharacter), *GetNameSafe(GetRewardDefinition()));
-	OnEventResolved(InstigatorCharacter, true);
-	return;
-
-#if 0
-
-	const URewardDefinition* SourceRewardDefinition = GetRewardDefinition();
-	if (SourceRewardDefinition)
-	{
-		TArray<FText> Choices;
-		Choices.Reset();
-		Choices.Add(FText::FromString(TEXT("확인")));
-
-		EventComp->ShowPersonalEvent(
-			SourceRewardDefinition->ItemId,
-			FText::FromString(TEXT("저주받은 검")),
-			FText::FromString(TEXT("피를 갈망하는 저주받은 검을 습득했습니다.\n제한 시간 내에 누군가를 공격하지 않으면 검 끝이 당신을 향할 것입니다.")),
-			Choices
-		);
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[PersonalEventCursedSword] EventDef is missing, executing immediately."));
-		OnEventResolved(InstigatorCharacter, 0);
-	}
-#endif
+	EventComp->ShowPersonalEvent(
+		EventID,
+		FText::FromString(TEXT("저주받은 검")),
+		FText::FromString(TEXT("피를 갈망하는 저주받은 검을 습득했습니다.\n제한 시간 내에 누군가를 공격하지 않으면 검 끝이 당신을 향할 것입니다.")),
+		Choices
+	);
 }
 
 void UPersonalEventCursedSword::OnEventResolved(ACharacter* InstigatorCharacter, int32 ChoiceIndex)
@@ -156,6 +132,15 @@ void UPersonalEventCursedSword::OnEventResolved(ACharacter* InstigatorCharacter,
 	GrantedItemId = GrantedCursedSwordDefinition->ItemId;
 	GrantedSlotIndex = AddedSlotIndex;
 	bIsActive = true;
+
+	if (AMyPlayerController* PlayerController = Cast<AMyPlayerController>(InstigatorCharacter->GetController()))
+	{
+		PlayerController->Client_ShowTitleCard(
+			ResolveCursedSwordTitle(GrantedCursedSwordDefinition, EventDef),
+			BuildCursedSwordCountdownContext(RemainingSeconds),
+			3.0f
+		);
+	}
 
 	if (AMyCharacter* CharacterBridge = Cast<AMyCharacter>(InstigatorCharacter))
 	{
