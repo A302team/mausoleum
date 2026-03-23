@@ -250,7 +250,6 @@ void UCharacterRewardComponent::ResolveInteractionRewardOnServer(ABaseInteractab
 			{
 				Client_GrantInteractionReward(const_cast<URewardDefinition*>(RewardDefinition));
 			}
-			bRewardHandled = bServerGranted;
 		}
 		else if (bNeedsClientMirrorGrant && ShouldGrantRewardLocally(RewardDefinition))
 		{
