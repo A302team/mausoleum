@@ -241,6 +241,7 @@ void AMyPlayerController::TryInitializeInGameHUD()
 			{
 				CurrentHUD->ProcessEvent(Func, nullptr);
 				bInGameHUDInitialized = true;
+				ApplyMatchTimerConfigToHUD();
 			}
 			else
 			{
@@ -253,6 +254,35 @@ void AMyPlayerController::TryInitializeInGameHUD()
 		}
 	}, 0.2f, false);
 #endif
+}
+
+void AMyPlayerController::ApplyMatchTimerConfigToHUD()
+{
+	if (!bHasPendingMatchTimerConfig)
+	{
+		return;
+	}
+
+	if (AHUD* GameHUD = GetHUD())
+	{
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("ConfigureMatchTimer")))
+		{
+			struct FParams
+			{
+				float InMatchStartServerTime;
+				float InDurationSeconds;
+				bool bInVisible;
+			};
+
+			FParams Params
+			{
+				PendingMatchTimerStartServerTime,
+				PendingMatchTimerDurationSeconds,
+				bPendingMatchTimerVisible
+			};
+			GameHUD->ProcessEvent(Func, &Params);
+		}
+	}
 }
 
 void AMyPlayerController::PollDeferredHUDInitialization()
@@ -511,6 +541,22 @@ void AMyPlayerController::SetItemTimerVisibleForClient(bool bVisible)
 	}
 }
 
+void AMyPlayerController::ConfigureMatchTimer(float MatchStartServerTime, float DurationSeconds, bool bVisible)
+{
+	PendingMatchTimerStartServerTime = MatchStartServerTime;
+	PendingMatchTimerDurationSeconds = DurationSeconds;
+	bPendingMatchTimerVisible = bVisible;
+	bHasPendingMatchTimerConfig = true;
+
+	if (HasAuthority() && !IsLocalController())
+	{
+		Client_ConfigureMatchTimer(MatchStartServerTime, DurationSeconds, bVisible);
+		return;
+	}
+
+	ApplyMatchTimerConfigToHUD();
+}
+
 void AMyPlayerController::ShowResultScreen(const FText& Title, const FText& Description, float DisplaySeconds)
 {
 	if (AHUD* GameHUD = GetHUD())
@@ -651,6 +697,11 @@ void AMyPlayerController::Client_UpdateItemTimer_Implementation(float RemainingS
 void AMyPlayerController::Client_SetItemTimerVisible_Implementation(bool bVisible)
 {
 	SetItemTimerVisibleForClient(bVisible);
+}
+
+void AMyPlayerController::Client_ConfigureMatchTimer_Implementation(float MatchStartServerTime, float DurationSeconds, bool bVisible)
+{
+	ConfigureMatchTimer(MatchStartServerTime, DurationSeconds, bVisible);
 }
 
 void AMyPlayerController::Client_ShowResultScreen_Implementation(const FText& Title, const FText& Description, float DisplaySeconds)

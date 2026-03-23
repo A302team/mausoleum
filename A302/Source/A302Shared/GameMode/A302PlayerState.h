@@ -27,7 +27,7 @@ public:
     UPROPERTY(ReplicatedUsing = OnRep_IsAlive, BlueprintReadOnly)
     bool bIsAlive = true;
 
-    UPROPERTY(Replicated, BlueprintReadOnly)
+    UPROPERTY(ReplicatedUsing = OnRep_IsEscaped, BlueprintReadOnly)
     bool bIsEscaped = false;
 
     UPROPERTY(Replicated, BlueprintReadOnly)
@@ -48,12 +48,18 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Room")
     void SetGameplayEnabled(bool bInGameplayEnabled);
 
+    UFUNCTION(BlueprintCallable, Category = "Room")
+    void SetEscaped(bool bInEscaped);
+
     virtual void GetLifetimeReplicatedProps(
         TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 private:
     UFUNCTION()
     void OnRep_IsAlive();
+
+    UFUNCTION()
+    void OnRep_IsEscaped();
 
     UFUNCTION()
     void OnRep_RoomCode();

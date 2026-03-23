@@ -13,6 +13,7 @@
 #include "Character/Components/Interaction/CharacterActionInputComponent.h"
 #include "Character/Components/Interaction/InteractComponent.h"
 #include "Character/MyPlayerController.h"
+#include "Components/CapsuleComponent.h"
 #include "Engine/Engine.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"	
@@ -52,6 +53,8 @@ DEFINE_LOG_CATEGORY_STATIC(LogMyInput, Log, All);
 
 namespace
 {
+	constexpr float EscapeSequenceDelaySeconds = 1.0f;
+
 	void LogAndScreenCharacter(const FString& Message, const FColor& Color = FColor::Yellow, const float Duration = 3.0f)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("%s"), *Message);
@@ -59,6 +62,18 @@ namespace
 		{
 			GEngine->AddOnScreenDebugMessage(-1, Duration, Color, Message);
 		}
+	}
+
+	bool HasEscapePointTag(const AActor* Actor)
+	{
+		if (!Actor)
+		{
+			return false;
+		}
+
+		static const FName EscapePointTag(TEXT("EscapePoint"));
+		static const FName Stage3EscapePointTag(TEXT("Stage3EscapePoint"));
+		return Actor->ActorHasTag(EscapePointTag) || Actor->ActorHasTag(Stage3EscapePointTag);
 	}
 }
 
@@ -89,6 +104,12 @@ AMyCharacter::AMyCharacter()
 void AMyCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	if (UCapsuleComponent* CollisionCapsule = GetCapsuleComponent())
+	{
+		CollisionCapsule->OnComponentBeginOverlap.RemoveDynamic(this, &AMyCharacter::HandleCapsuleBeginOverlap);
+		CollisionCapsule->OnComponentBeginOverlap.AddDynamic(this, &AMyCharacter::HandleCapsuleBeginOverlap);
+	}
 
 	if (CombatStatusComponent)
 	{
@@ -199,6 +220,106 @@ bool AMyCharacter::IsNetRelevantFor(const AActor* RealViewer, const AActor* View
 	}
 
 	return Super::IsNetRelevantFor(RealViewer, ViewTarget, SrcLocation);
+}
+
+void AMyCharacter::NotifyActorBeginOverlap(AActor* OtherActor)
+{
+	Super::NotifyActorBeginOverlap(OtherActor);
+	TryHandleEscapePortalOverlap(OtherActor);
+}
+
+void AMyCharacter::HandleCapsuleBeginOverlap(
+	UPrimitiveComponent* OverlappedComponent,
+	AActor* OtherActor,
+	UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex,
+	bool bFromSweep,
+	const FHitResult& SweepResult
+)
+{
+	TryHandleEscapePortalOverlap(OtherActor);
+}
+
+bool AMyCharacter::TryHandleEscapePortalOverlap(AActor* OtherActor)
+{
+	if (!HasAuthority() || !HasEscapePointTag(OtherActor))
+	{
+		return false;
+	}
+
+	AA302PlayerState* A302PlayerState = GetPlayerState<AA302PlayerState>();
+	if (!A302PlayerState || A302PlayerState->bIsEscaped || !A302PlayerState->bIsAlive || !A302PlayerState->bGameplayEnabled)
+	{
+		return false;
+	}
+
+	A302PlayerState->SetEscaped(true);
+	BeginEscapedSequence();
+
+	UE_LOG(
+		LogTemp,
+		Log,
+		TEXT("[EscapePoint] Player escaped by overlap. player=%s portal=%s room=%s"),
+		*GetNameSafe(this),
+		*GetNameSafe(OtherActor),
+		*A302PlayerState->GetRoomCode()
+	);
+
+	return true;
+}
+
+void AMyCharacter::BeginEscapedSequence()
+{
+	if (bEscapedSequenceStarted)
+	{
+		return;
+	}
+
+	bEscapedSequenceStarted = true;
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		FinalizeEscapedSequence();
+		return;
+	}
+
+	World->GetTimerManager().ClearTimer(EscapedSequenceTimerHandle);
+	World->GetTimerManager().SetTimer(
+		EscapedSequenceTimerHandle,
+		this,
+		&AMyCharacter::FinalizeEscapedSequence,
+		EscapeSequenceDelaySeconds,
+		false
+	);
+}
+
+void AMyCharacter::FinalizeEscapedSequence()
+{
+	HandleEscapedState();
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(EscapedSequenceTimerHandle);
+	}
+}
+
+void AMyCharacter::HandleEscapedState()
+{
+	if (UCharacterMovementComponent* MovementComponent = GetCharacterMovement())
+	{
+		MovementComponent->StopMovementImmediately();
+		MovementComponent->DisableMovement();
+	}
+
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		PC->SetIgnoreMoveInput(true);
+		PC->SetIgnoreLookInput(true);
+		DisableInput(PC);
+	}
+
+	ForceNetUpdate();
 }
 
 void AMyCharacter::ForceDeathByPersonalEvent()

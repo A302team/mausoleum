@@ -46,6 +46,7 @@ public:
 	virtual void UpdateMaliceCount(int32 MaliceCount);
 	virtual void UpdateItemTimer(float RemainingSeconds);
 	virtual void SetItemTimerVisibleForClient(bool bVisible);
+	virtual void ConfigureMatchTimer(float MatchStartServerTime, float DurationSeconds, bool bVisible);
 	virtual void ShowResultScreen(const FText& Title, const FText& Description, float DisplaySeconds);
 	virtual void ToggleVoiceChatCapture();
 
@@ -76,6 +77,9 @@ public:
 	void Client_SetItemTimerVisible(bool bVisible);
 
 	UFUNCTION(Client, Reliable)
+	void Client_ConfigureMatchTimer(float MatchStartServerTime, float DurationSeconds, bool bVisible);
+
+	UFUNCTION(Client, Reliable)
 	void Client_ShowResultScreen(const FText& Title, const FText& Description, float DisplaySeconds);
 
 
@@ -103,8 +107,13 @@ private:
 	bool ShouldAttemptGameplayHUDInitialization() const;
 	void TryInitializeInGameHUD();
 	void PollDeferredHUDInitialization();
+	void ApplyMatchTimerConfigToHUD();
     void EnsureLocalVoiceComponent();
 	bool bInGameHUDInitialized = false;
+	bool bHasPendingMatchTimerConfig = false;
+	bool bPendingMatchTimerVisible = false;
+	float PendingMatchTimerStartServerTime = 0.0f;
+	float PendingMatchTimerDurationSeconds = 0.0f;
 	FTimerHandle DeferredHUDInitTimerHandle;
 	FTimerHandle VoiceRoomCodeRetryTimerHandle;
 	int32 VoiceRoomCodeRetryCount = 0;
