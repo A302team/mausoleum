@@ -9,6 +9,7 @@
 #include "GameFramework/PlayerState.h"
 #include "InputMappingContext.h"
 #include "UObject/ConstructorHelpers.h"
+#include "Character/Components/Audio/MaliceBGMComponent.h" // Added
 #include "A302RuntimeGuards.h"
 #include "GameFramework/HUD.h"
 #include "Room/RoomScopeRules.h"
@@ -116,6 +117,8 @@ AMyPlayerController::AMyPlayerController()
 	PlayerEventComponent = CreateDefaultSubobject<UPlayerEventComponent>(TEXT("PlayerEventComponent"));
 
 	// UI Widget 초기화 내용들은 AA302GameHUD로 이동되어 제거되었습니다.
+
+	MaliceBGMComp = CreateDefaultSubobject<UMaliceBGMComponent>(TEXT("MaliceBGMComponent")); // Added
 }
 
 void AMyPlayerController::BeginPlay()
@@ -501,6 +504,13 @@ void AMyPlayerController::UpdateMaliceCount(int32 MaliceCount)
 			GameHUD->ProcessEvent(Func, &Params);
 		}
 	}
+	// Added: Only play BGM on local player
+	if (!IsLocalController())
+	{
+		return;
+	}
+	// End Added
+	if (MaliceBGMComp) { MaliceBGMComp->HandleMaliceBGM(MaliceCount); } // Added
 }
 
 void AMyPlayerController::UpdateItemTimer(float RemainingSeconds)
