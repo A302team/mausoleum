@@ -39,6 +39,7 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<UUserWidget> ResultWidgetClass;
 
+	UFUNCTION()
 	void ShowTitleCard(const FText& Title, const FText& Context, float DisplaySeconds);
 
 	UFUNCTION()
