@@ -2,11 +2,13 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "GameData/RewardTypes.h"
 #include "Interface/InteractableInterface.h"
 #include "BaseInteractable.generated.h"
 
 class UItemDefinition;
 class URewardDefinition;
+class UStageRewardPoolDefinition;
 class UStaticMeshComponent;
 class ACharacter;
 
@@ -26,9 +28,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
 	virtual void OnInteractionSuccess(ACharacter* PlayerCharacter);
 
+	UFUNCTION(BlueprintCallable, Category = "Reward")
+	void ApplyStageRewardPoolDefinition(UStageRewardPoolDefinition* StageRewardPoolDefinition);
+
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
 	EInteractType CurrentInteractType = EInteractType::Hold;
+
+	virtual void BeginPlay() override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	virtual void Interact(ACharacter* PlayerCharacter) override;
 	virtual FString GetInteractText() override;
@@ -37,10 +45,22 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "Components")
 	TObjectPtr<UStaticMeshComponent> Mesh = nullptr;
 
-	// Reward definition consumed by character-side reward routing.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Reward")
+	ERewardAssignmentMode RewardAssignmentMode = ERewardAssignmentMode::RandomFromPool;
+
+	// Reward definition consumed by character-side reward routing.
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadOnly, Category = "Reward",
+		meta = (EditCondition = "RewardAssignmentMode == ERewardAssignmentMode::Manual", EditConditionHides))
 	TObjectPtr<URewardDefinition> RewardDefinition = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Reward",
+		meta = (EditCondition = "RewardAssignmentMode == ERewardAssignmentMode::RandomFromPool", EditConditionHides))
+	TObjectPtr<UStageRewardPoolDefinition> RewardPoolDefinition = nullptr;
 
 	UPROPERTY()
 	bool bInteractionConsumed = false;
+
+private:
+	void AssignRandomRewardDefinition();
+	URewardDefinition* PickWeightedRewardDefinition() const;
 };
