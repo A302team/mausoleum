@@ -8,6 +8,8 @@
 
 class FJsonObject;
 class ULevelStreamingDynamic;
+class UButton;
+class UEditableTextBox;
 class UUserWidget;
 class UWorld;
 
@@ -150,10 +152,36 @@ public:
 	UFUNCTION()
 	void OnMapLoaded(UWorld *LoadedWorld);
 
+	UFUNCTION()
+	void HandleFallbackLobbyCreateRoomClicked();
+
+	UFUNCTION()
+	void HandleFallbackLobbyEnterRoomClicked();
+
+	UFUNCTION()
+	void HandleFallbackLobbyFindRoomClicked();
+
+	UFUNCTION()
+	void HandleFallbackLobbyExitClicked();
+
+	UFUNCTION()
+	void HandleFallbackLobbyRoomCreated(const FString& RoomCode);
+
+	UFUNCTION()
+	void HandleFallbackLobbyNicknameAvailable();
+
 private:
 	UFUNCTION()
 	void OnMessageReceived(const FString &Message);
 
+	void SetupFallbackLobbyBindings();
+	UButton* FindLobbyButton(FName WidgetName) const;
+	UEditableTextBox* FindLobbyEditableTextBox(FName WidgetName) const;
+	void SendLobbyNicknameCheck(const FString& PlayerName);
+	void SendCreateRoomRequest(const FString& PlayerName);
+	void SendJoinRoomRequest(const FString& RoomCode, const FString& PlayerName);
+	void OpenRoomListPopupFallback();
+	bool ValidateLobbyPlayerName(FString& OutPlayerName) const;
 	bool TryCreateLobbyWidget(UWorld *LoadedWorld);
 	bool TryCreateLoadingWidget(UWorld* LoadedWorld);
 	void SetLoadingProgressValue(float NewProgress);
@@ -162,6 +190,7 @@ private:
 	void HideLoadingWidget();
 	void HandleStartGameLoadingTransitionTimeout();
 	void PollRoomStreamingReady();
+	TSubclassOf<UUserWidget> ResolveLobbyWidgetClass(UWorld* LoadedWorld) const;
 	TSubclassOf<UUserWidget> ResolveLoadingWidgetClass();
 	void EnsureLocalRoomLevelInstance(UWorld* LoadedWorld);
 	FString ResolveRoomCodeForInGameWorld(UWorld* LoadedWorld) const;
@@ -185,4 +214,7 @@ private:
 	FTimerHandle StartGameLoadingTransitionTimeoutTimerHandle;
 	FTimerHandle FinalizeLoadingProgressTimerHandle;
 	FTimerHandle RoomStreamingReadyPollTimerHandle;
+
+	bool bFallbackLobbyBindingsActive = false;
+	int32 FallbackLobbyPendingAction = 0;
 };

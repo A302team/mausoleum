@@ -31,58 +31,186 @@
 namespace
 {
     constexpr float ResultScreenDisplaySeconds = 5.0f;
+    constexpr int32 EvilMaliceThreshold = 3;
 
-    FText BuildResultRoleText(const AA302PlayerState* PlayerState)
+    enum class EResultFaction : uint8
     {
-        if (!PlayerState)
+        Innocent,
+        Evil
+    };
+
+    enum class EResultOutcome : uint8
+    {
+        InnocentVictory,
+        EvilVictory,
+        AllDefeat
+    };
+
+    struct FRoomResultSummary
+    {
+        EResultOutcome Outcome = EResultOutcome::EvilVictory;
+        bool bAnyEscapedInnocent = false;
+        bool bAnyEscapedEvil = false;
+        bool bTimedOutWithoutEscape = false;
+    };
+
+    bool IsEvilByMaliceCount(int32 MaliceCount)
+    {
+        return MaliceCount >= EvilMaliceThreshold;
+    }
+
+    int32 ResolvePlayerMaliceCount(const AMyCharacter* Character)
+    {
+        const UMaliceComponent* MaliceComponent = Character ? Character->FindComponentByClass<UMaliceComponent>() : nullptr;
+        return MaliceComponent ? MaliceComponent->GetMaliceCount() : 0;
+    }
+
+    EResultFaction ResolvePlayerFaction(const AA302PlayerState* PlayerState, const AMyCharacter* Character)
+    {
+        if (Character)
         {
-            return NSLOCTEXT("A302GameMode", "UnknownRole", "알 수 없음");
+            return IsEvilByMaliceCount(ResolvePlayerMaliceCount(Character))
+                ? EResultFaction::Evil
+                : EResultFaction::Innocent;
         }
 
-        return PlayerState->PlayerRole == EPlayerRole::Evil
+        if (PlayerState)
+        {
+            return PlayerState->PlayerRole == EPlayerRole::Evil
+                ? EResultFaction::Evil
+                : EResultFaction::Innocent;
+        }
+
+        return EResultFaction::Innocent;
+    }
+
+    FRoomResultSummary BuildRoomResultSummary(const TArray<APlayerController*>& RoomPlayers, bool bTimedOutWithoutEscape)
+    {
+        FRoomResultSummary Summary;
+        Summary.bTimedOutWithoutEscape = bTimedOutWithoutEscape;
+
+        for (APlayerController* RoomPlayer : RoomPlayers)
+        {
+            const AA302PlayerState* PlayerState = RoomPlayer ? RoomPlayer->GetPlayerState<AA302PlayerState>() : nullptr;
+            const AMyCharacter* MyCharacter = RoomPlayer ? Cast<AMyCharacter>(RoomPlayer->GetPawn()) : nullptr;
+            if (!PlayerState || !PlayerState->bIsEscaped)
+            {
+                continue;
+            }
+
+            const EResultFaction PlayerFaction = ResolvePlayerFaction(PlayerState, MyCharacter);
+            if (PlayerFaction == EResultFaction::Innocent)
+            {
+                Summary.bAnyEscapedInnocent = true;
+            }
+            else
+            {
+                Summary.bAnyEscapedEvil = true;
+            }
+        }
+
+        if (Summary.bTimedOutWithoutEscape)
+        {
+            Summary.Outcome = EResultOutcome::AllDefeat;
+        }
+        else if (Summary.bAnyEscapedInnocent)
+        {
+            Summary.Outcome = EResultOutcome::InnocentVictory;
+        }
+        else
+        {
+            Summary.Outcome = EResultOutcome::EvilVictory;
+        }
+
+        return Summary;
+    }
+
+    FText BuildFactionText(EResultFaction Faction)
+    {
+        return Faction == EResultFaction::Evil
             ? NSLOCTEXT("A302GameMode", "RoleEvil", "악인")
             : NSLOCTEXT("A302GameMode", "RoleInnocent", "선인");
     }
 
-    FText BuildResultTitle(const AA302PlayerState* PlayerState, const AMyCharacter* Character)
+    FText BuildResultRoleText(const AA302PlayerState* PlayerState, const AMyCharacter* Character)
     {
-        const UMaliceComponent* MaliceComponent = Character ? Character->FindComponentByClass<UMaliceComponent>() : nullptr;
-        if (PlayerState && PlayerState->bIsEscaped)
-        {
-            return NSLOCTEXT("A302GameMode", "EscapedTitle", "탈출 성공");
-        }
-
-        if (MaliceComponent && MaliceComponent->bMaliceEnding)
-        {
-            return NSLOCTEXT("A302GameMode", "MaliceEndingTitle", "악인 엔딩");
-        }
-
-        if (MaliceComponent && MaliceComponent->bNiceEnding)
-        {
-            return NSLOCTEXT("A302GameMode", "NiceEndingTitle", "선인 엔딩");
-        }
-
-        if (PlayerState && !PlayerState->bIsAlive)
-        {
-            return NSLOCTEXT("A302GameMode", "EliminatedTitle", "사망");
-        }
-
-        return NSLOCTEXT("A302GameMode", "ResultTitle", "게임 결과");
+        return BuildFactionText(ResolvePlayerFaction(PlayerState, Character));
     }
 
-    FText BuildResultDescription(const AA302PlayerState* PlayerState, const AMyCharacter* Character)
+    FText BuildResultStatusText(const AA302PlayerState* PlayerState)
     {
-        const UMaliceComponent* MaliceComponent = Character ? Character->FindComponentByClass<UMaliceComponent>() : nullptr;
-        const FText RoleText = BuildResultRoleText(PlayerState);
-        const FText StatusText = PlayerState && PlayerState->bIsEscaped
+        return PlayerState && PlayerState->bIsEscaped
             ? NSLOCTEXT("A302GameMode", "StatusEscaped", "탈출함")
             : (PlayerState && !PlayerState->bIsAlive
                 ? NSLOCTEXT("A302GameMode", "StatusDead", "사망함")
                 : NSLOCTEXT("A302GameMode", "StatusSurvived", "생존"));
-        const int32 MaliceCount = MaliceComponent ? MaliceComponent->GetMaliceCount() : 0;
+    }
+
+    FText BuildOutcomeNarration(EResultFaction WinningFaction)
+    {
+        return WinningFaction == EResultFaction::Innocent
+            ? NSLOCTEXT("A302GameMode", "OutcomeNarrationInnocent", "끝내 한 줄기 빛이 문턱을 넘어섰습니다. 선인 진영이 승리를 거머쥐었습니다.")
+            : NSLOCTEXT("A302GameMode", "OutcomeNarrationEvil", "끝내 빛은 문을 넘지 못했고, 남겨진 어둠이 이 밤의 결말이 되었습니다. 악인 진영이 승리했습니다.");
+    }
+
+    FText BuildPersonalNarration(const AA302PlayerState* PlayerState)
+    {
+        if (PlayerState && PlayerState->bIsEscaped)
+        {
+            return NSLOCTEXT("A302GameMode", "PersonalNarrationEscaped", "당신은 마침내 출구를 지나, 이곳을 빠져나오는 데 성공했습니다.");
+        }
+
+        if (PlayerState && !PlayerState->bIsAlive)
+        {
+            return NSLOCTEXT("A302GameMode", "PersonalNarrationDead", "당신은 끝내 이 밤을 벗어나지 못한 채, 그 자리에 멈추고 말았습니다.");
+        }
+
+        return NSLOCTEXT("A302GameMode", "PersonalNarrationSurvived", "당신은 끝까지 버텨냈지만, 스스로 문을 넘지는 못했습니다.");
+    }
+
+    FText BuildResultTitle(const AA302PlayerState* PlayerState, const AMyCharacter* Character, const FRoomResultSummary& Summary)
+    {
+        if (Summary.Outcome == EResultOutcome::AllDefeat)
+        {
+            return NSLOCTEXT("A302GameMode", "AllDefeatTitle", "끝내 아무도 문을 넘지 못했습니다");
+        }
+
+        const EResultFaction PlayerFaction = ResolvePlayerFaction(PlayerState, Character);
+        const bool bPlayerWon =
+            (Summary.Outcome == EResultOutcome::InnocentVictory && PlayerFaction == EResultFaction::Innocent) ||
+            (Summary.Outcome == EResultOutcome::EvilVictory && PlayerFaction == EResultFaction::Evil);
+        if (bPlayerWon)
+        {
+            return PlayerState && PlayerState->bIsEscaped
+                ? NSLOCTEXT("A302GameMode", "VictoryEscapedTitle", "마침내 문을 넘었습니다")
+                : NSLOCTEXT("A302GameMode", "VictoryTitle", "당신은 살아남았습니다");
+        }
+
+        return PlayerState && PlayerState->bIsEscaped
+            ? NSLOCTEXT("A302GameMode", "DefeatEscapedTitle", "문을 넘었지만 끝내 패배했습니다")
+            : NSLOCTEXT("A302GameMode", "DefeatTitle", "이 밤은 당신의 편이 아니었습니다");
+    }
+
+    FText BuildResultDescription(const AA302PlayerState* PlayerState, const AMyCharacter* Character, const FRoomResultSummary& Summary)
+    {
+        const int32 MaliceCount = ResolvePlayerMaliceCount(Character);
+        const FText RoleText = BuildResultRoleText(PlayerState, Character);
+        const FText StatusText = BuildResultStatusText(PlayerState);
+
+        if (Summary.Outcome == EResultOutcome::AllDefeat)
+        {
+            return FText::Format(
+                NSLOCTEXT("A302GameMode", "AllDefeatDescription", "끝내 정해진 시간 안에 누구도 문을 넘지 못했습니다.\n이 밤은 누구에게도 출구를 허락하지 않았습니다.\n\n당신의 역할은 {0}, 최종 상태는 {1}입니다.\n당신 안에 남은 악의는 {2}입니다."),
+                RoleText,
+                StatusText,
+                FText::AsNumber(MaliceCount)
+            );
+        }
 
         return FText::Format(
-            NSLOCTEXT("A302GameMode", "ResultDescription", "역할: {0}\n상태: {1}\nMalice: {2}"),
+            NSLOCTEXT("A302GameMode", "ResultDescription", "{0}\n\n{1}\n\n당신의 역할은 {2}, 최종 상태는 {3}입니다.\n당신 안에 남은 악의는 {4}입니다."),
+            BuildOutcomeNarration(Summary.Outcome == EResultOutcome::InnocentVictory ? EResultFaction::Innocent : EResultFaction::Evil),
+            BuildPersonalNarration(PlayerState),
             RoleText,
             StatusText,
             FText::AsNumber(MaliceCount)
@@ -390,6 +518,16 @@ void AA302GameMode::HandleRoomPhaseChanged(const FString& RoomCode, EGamePhase N
 
 	TArray<APlayerController*> RoomPlayers;
 	RoomMembershipRegistry->GatherPlayersInRoom(GetWorld(), NormalizedRoomCode, RoomPlayers);
+    bool bTimedOutWithoutEscape = false;
+    if (PhaseSubsystem)
+    {
+        FA302RoomPhaseState RoomPhaseState;
+        if (PhaseSubsystem->TryGetRoomPhaseState(NormalizedRoomCode, RoomPhaseState))
+        {
+            bTimedOutWithoutEscape = RoomPhaseState.bTimedOutWithoutEscape;
+        }
+    }
+    const FRoomResultSummary RoomResultSummary = BuildRoomResultSummary(RoomPlayers, bTimedOutWithoutEscape);
 
     const FString LobbyMapURL = TEXT("/Game/PersonalWorkSpace/sikk806/testLevel");
 
@@ -407,8 +545,8 @@ void AA302GameMode::HandleRoomPhaseChanged(const FString& RoomCode, EGamePhase N
                 const AMyCharacter* MyCharacter = Cast<AMyCharacter>(MyPlayerController->GetPawn());
                 const AA302PlayerState* A302PlayerState = MyPlayerController->GetPlayerState<AA302PlayerState>();
                 MyPlayerController->Client_ShowResultScreen(
-                    BuildResultTitle(A302PlayerState, MyCharacter),
-                    BuildResultDescription(A302PlayerState, MyCharacter),
+                    BuildResultTitle(A302PlayerState, MyCharacter, RoomResultSummary),
+                    BuildResultDescription(A302PlayerState, MyCharacter, RoomResultSummary),
                     ResultScreenDisplaySeconds
                 );
             }
