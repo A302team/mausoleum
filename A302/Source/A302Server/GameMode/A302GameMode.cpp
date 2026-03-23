@@ -484,7 +484,7 @@ void AA302GameMode::NotifyInteractionRewardResolved(
         return;
     }
 
-    PhaseSubsystem->NotifyRoomRewardResolved(RoomCode, EffectiveCategory);
+    PhaseSubsystem->NotifyRoomRewardResolved(RoomCode, RewardDefinition, EffectiveCategory);
 }
 
 

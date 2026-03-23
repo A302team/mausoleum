@@ -6,6 +6,7 @@
 #include "A302ServerPhaseSubsystem.generated.h"
 
 enum class ERewardCategory : uint8;
+class URewardDefinition;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnRoomPhaseChanged, const FString&, RoomCode, EGamePhase, NewPhase);
 
@@ -64,7 +65,7 @@ public:
     int32 Phase0RequiredItemCount = 3;
 
     UPROPERTY(Config, EditAnywhere, Category = "Phase")
-    int32 Phase1RequiredClearObjectCount = 3;
+    int32 Phase1RequiredClearObjectCount = 6;
 
     UPROPERTY(Config, EditAnywhere, Category = "Phase")
     int32 Phase2RequiredGroupEventCount = 3;
@@ -94,7 +95,7 @@ public:
     bool IsRoomPhaseActive(const FString& RoomCode) const;
 
     UFUNCTION(BlueprintCallable, Category = "Phase")
-    void NotifyRoomRewardResolved(const FString& RoomCode, ERewardCategory RewardCategory);
+    void NotifyRoomRewardResolved(const FString& RoomCode, const URewardDefinition* RewardDefinition, ERewardCategory RewardCategory);
 
 private:
     void HandleMapLoaded(UWorld* LoadedWorld);
