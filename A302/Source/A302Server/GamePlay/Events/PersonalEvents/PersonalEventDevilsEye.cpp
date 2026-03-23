@@ -32,23 +32,13 @@ void UPersonalEventDevilsEye::ExecuteEvent_Implementation(ACharacter* Instigator
 		return;
 	}
 
-	UPlayerEventComponent* EventComp = PlayerController->GetPlayerEventComponent();
-	if (!EventComp)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[DevilsEye] PlayerEventComponent is missing."));
-		return;
-	}
-
-	TArray<FText> Choices;
-	Choices.Add(DevilsEyeConfirmChoice);
-
-	EventComp->SetActivePersonalEvent(this);
-	EventComp->ShowPersonalEvent(
-		EventID,
+	PlayerController->Client_ShowTitleCard(
 		DevilsEyeTitle,
 		DevilsEyeDescription,
-		Choices
+		5.0f
 	);
+
+	OnEventResolved(InstigatorCharacter, 0);
 }
 
 void UPersonalEventDevilsEye::OnEventResolved(ACharacter* InstigatorCharacter, int32 ChoiceIndex)

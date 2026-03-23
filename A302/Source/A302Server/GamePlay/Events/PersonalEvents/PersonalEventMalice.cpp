@@ -19,22 +19,13 @@ void UPersonalEventMalice::ExecuteEvent_Implementation(ACharacter* InstigatorCha
 		return;
 	}
 
-	UPlayerEventComponent* EventComp = PlayerController->GetPlayerEventComponent();
-	if (!EventComp)
-	{
-		return;
-	}
-
-	TArray<FText> Choices;
-	Choices.Add(FText::FromString(TEXT("확인")));
-
-	EventComp->SetActivePersonalEvent(this);
-	EventComp->ShowPersonalEvent(
-		EventID,
+	PlayerController->Client_ShowTitleCard(
 		FText::FromString(TEXT("불의의 사고")),
 		FText::FromString(TEXT("조사 도중 모서리에 팔꿈치를 부딪쳤습니다! 짜증이 치밀어 오릅니다...")),
-		Choices
+		5.0f
 	);
+
+	OnEventResolved(InstigatorCharacter, 0);
 }
 
 void UPersonalEventMalice::OnEventResolved(ACharacter* InstigatorCharacter, int32 ChoiceIndex)

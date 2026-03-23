@@ -17,8 +17,6 @@ void UPersonalEventBizarreForge::ExecuteEvent_Implementation(ACharacter* Instiga
     UPlayerEventComponent* EventComp = PlayerController->GetPlayerEventComponent();
     if (!EventComp) return;
 
-    EventComp->SetActivePersonalEvent(this);
-    
     UMaliceComponent* MaliceComp = InstigatorCharacter->FindComponentByClass<UMaliceComponent>();
     int32 CurrentRawMalice = MaliceComp ? MaliceComp->GetRawMalice() : 0;
 
@@ -28,17 +26,20 @@ void UPersonalEventBizarreForge::ExecuteEvent_Implementation(ACharacter* Instiga
 
     if (bIsMaliceZeroBranch)
     {
-        // 분기 A(악의 0)
-        Choices.Add(FText::FromString(TEXT("확인")));
-        
-        EventComp->ShowPersonalEvent(EventID, 
-            FText::FromString(TEXT("기괴한 용광로")), 
-            FText::FromString(TEXT("불길하게 생긴 조각상의 검은 기운이 엄습합니다.\n(악의 +1)")), 
-            Choices);
+        // 분기 A(악의 0) - 즉발형 타이틀 카드 처리
+        PlayerController->Client_ShowTitleCard(
+            FText::FromString(TEXT("기괴한 용광로")),
+            FText::FromString(TEXT("불길하게 생긴 조각상의 검은 기운이 엄습합니다.\n(악의 +1)")),
+            5.0f
+        );
+
+        OnEventResolved(InstigatorCharacter, 0);
     }
     else
     {
-        // 분기 B(악의 1 이상)
+        EventComp->SetActivePersonalEvent(this);
+
+        // 분기 B(악의 1 이상) - 기존처럼 선택지 UI 처리
         Choices.Add(FText::FromString(TEXT("악의 서린 검 제련")));
         Choices.Add(FText::FromString(TEXT("악의 서린 방패 제련")));
         Choices.Add(FText::FromString(TEXT("무시하기")));
