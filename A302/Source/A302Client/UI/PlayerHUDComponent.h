@@ -46,6 +46,7 @@ public:
 	bool UpdateMaliceCountText(int32 MaliceCount);
 	bool UpdateItemTimerText(float RemainingSeconds);
 	void SetItemTimerVisible(bool bVisible);
+	void ConfigureMatchTimer(float MatchStartServerTime, float DurationSeconds, bool bVisible);
 
 private:
 	AMyPlayerController* GetOwnerController() const;
@@ -62,10 +63,13 @@ private:
 	UTextBlock* FindShieldCountText() const;
 	UTextBlock* FindMaliceCountText() const;
 	UTextBlock* FindItemTimerText() const;
+	UTextBlock* FindMatchTimerText() const;
 	UWidget* FindPublicMaliceAnnouncementWidget() const;
 	UTextBlock* FindPublicMaliceAnnouncementText(const FName& WidgetName) const;
 	void SetPublicMaliceAnnouncementVisible(bool bVisible);
 	void HidePublicMaliceAnnouncement();
+	void TickMatchTimer();
+	void StopMatchTimer();
 	bool UpdateQuickSlotItemVisual(int32 SlotIndex, const FText& ItemName, UTexture2D* ItemIcon);
 	void UpdateQuickSlotSelectionVisual(int32 SelectedSlotIndex);
 	void InitializeInGameSettingWidget();
@@ -134,11 +138,15 @@ private:
 	TObjectPtr<UGroupEventHUDComponent> GroupEventHUDComponent;
 
 	FTimerHandle PublicMaliceAnnouncementHideTimerHandle;
+	FTimerHandle MatchTimerTickHandle;
 	FTimerHandle InspectMaliceHideTimerHandle;
 	FTimerHandle InspectMaliceSelectionTimeoutHandle;
 	FTimerHandle InspectMalicePopulateRetryHandle;
 	FTimerHandle InspectMaliceItemTimerTickHandle;
 
+	float MatchTimerStartServerTime = 0.0f;
+	float MatchTimerDurationSeconds = 0.0f;
+	bool bMatchTimerVisible = false;
 	float InspectMaliceItemTimerEndTime = 0.0f;
 	bool bInspectMaliceItemTimerBaselineCaptured = false;
 	bool bInspectMaliceItemTimerWasVisible = false;

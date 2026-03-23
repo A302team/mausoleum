@@ -257,6 +257,14 @@ void AA302GameHUD::SetItemTimerVisible(bool bVisible)
 	if (PlayerHUDComponent) PlayerHUDComponent->SetItemTimerVisible(bVisible);
 }
 
+void AA302GameHUD::ConfigureMatchTimer(float MatchStartServerTime, float DurationSeconds, bool bVisible)
+{
+	if (PlayerHUDComponent)
+	{
+		PlayerHUDComponent->ConfigureMatchTimer(MatchStartServerTime, DurationSeconds, bVisible);
+	}
+}
+
 void AA302GameHUD::ShowPersonalEvent(FName EventID, const FText& EventTitle, const FText& EventDescription, const TArray<FText>& Choices)
 {
 	if (PlayerHUDComponent) PlayerHUDComponent->ShowPersonalEventUI(PersonalEventWidgetClass, EventID, EventTitle, EventDescription, Choices);
@@ -318,7 +326,7 @@ void AA302GameHUD::ShowResultScreen(const FText& Title, const FText& Description
 
 	SetFirstAvailableText({ TEXT("ResultTitle"), TEXT("TitleText"), TEXT("Txt_Title"), TEXT("EventTitle") }, Title);
 	SetFirstAvailableText({ TEXT("ResultDescription"), TEXT("DescriptionText"), TEXT("Txt_Description"), TEXT("EventContext"), TEXT("BodyText") }, Description);
-	SetFirstAvailableText({ TEXT("ResultCountdown"), TEXT("CountdownText"), TEXT("RemainTimeText") }, FText::Format(NSLOCTEXT("A302GameHUD", "ResultCountdown", "{0}초 후 로비로 이동합니다."), FText::AsNumber(FMath::Max(1, FMath::RoundToInt(DisplaySeconds)))));
+	SetFirstAvailableText({ TEXT("ResultCountdown"), TEXT("CountdownText"), TEXT("RemainTimeText") }, FText::AsNumber(FMath::Max(1, FMath::RoundToInt(DisplaySeconds))));
 
 	if (!ResultWidgetInstance->IsInViewport())
 	{

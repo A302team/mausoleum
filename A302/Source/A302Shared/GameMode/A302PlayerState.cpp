@@ -30,6 +30,21 @@ void AA302PlayerState::SetGameplayEnabled(bool bInGameplayEnabled)
     bGameplayEnabled = bInGameplayEnabled;
 }
 
+void AA302PlayerState::SetEscaped(bool bInEscaped)
+{
+    if (!HasAuthority())
+    {
+        return;
+    }
+
+    bIsEscaped = bInEscaped;
+
+    if (bIsEscaped)
+    {
+        OnRep_IsEscaped();
+    }
+}
+
 void AA302PlayerState::OnRep_IsAlive()
 {
     if (!bIsAlive)
@@ -37,6 +52,17 @@ void AA302PlayerState::OnRep_IsAlive()
         if (AMyCharacter* OwningCharacter = Cast<AMyCharacter>(GetPawn()))
         {
             OwningCharacter->ForceDeathByPersonalEvent();
+        }
+    }
+}
+
+void AA302PlayerState::OnRep_IsEscaped()
+{
+    if (bIsEscaped)
+    {
+        if (AMyCharacter* OwningCharacter = Cast<AMyCharacter>(GetPawn()))
+        {
+            OwningCharacter->BeginEscapedSequence();
         }
     }
 }
