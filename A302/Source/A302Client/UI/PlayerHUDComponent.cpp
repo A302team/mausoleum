@@ -48,6 +48,14 @@ namespace
 	constexpr float DefaultInspectMaliceSelectionTimeoutSeconds = 10.0f;
 	constexpr float DefaultInspectMaliceResultDisplaySeconds = 3.0f;
 
+	FText BuildClockText(float RemainingSeconds)
+	{
+		const int32 SafeSeconds = FMath::Max(0, FMath::CeilToInt(RemainingSeconds));
+		const int32 Minutes = SafeSeconds / 60;
+		const int32 Seconds = SafeSeconds % 60;
+		return FText::FromString(FString::Printf(TEXT("%02d:%02d"), Minutes, Seconds));
+	}
+
 	FString ClampNicknameForUi(const FString& Name)
 	{
 		return Name.Len() > MaxNicknameUiLen ? Name.Left(MaxNicknameUiLen) : Name;
@@ -449,6 +457,37 @@ void UPlayerHUDComponent::SetItemTimerVisible(bool bVisible)
 	}
 }
 
+void UPlayerHUDComponent::ConfigureMatchTimer(float MatchStartServerTime, float DurationSeconds, bool bVisible)
+{
+	MatchTimerStartServerTime = MatchStartServerTime;
+	MatchTimerDurationSeconds = FMath::Max(0.0f, DurationSeconds);
+	bMatchTimerVisible = bVisible && MatchTimerDurationSeconds > 0.0f;
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(MatchTimerTickHandle);
+	}
+
+	if (!bMatchTimerVisible)
+	{
+		StopMatchTimer();
+		return;
+	}
+
+	TickMatchTimer();
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().SetTimer(
+			MatchTimerTickHandle,
+			this,
+			&UPlayerHUDComponent::TickMatchTimer,
+			0.25f,
+			true
+		);
+	}
+}
+
 void UPlayerHUDComponent::InitializeQuickSlotWidget()
 {
 	AMyPlayerController* OwnerController = GetOwnerController();
@@ -543,6 +582,11 @@ void UPlayerHUDComponent::InitializeQuickSlotWidget()
 	UpdateMaliceCountText(0);
 	UpdateItemTimerText(30.0f);
 	SetItemTimerVisible(false);
+	if (UTextBlock* MatchTimerText = FindMatchTimerText())
+	{
+		MatchTimerText->SetText(FText::GetEmpty());
+		MatchTimerText->SetVisibility(ESlateVisibility::Hidden);
+	}
 }
 
 void UPlayerHUDComponent::InitializeQuickSlotVisualState()
@@ -685,6 +729,35 @@ UTextBlock* UPlayerHUDComponent::FindItemTimerText() const
 	return QuickSlotBarWidget ? Cast<UTextBlock>(QuickSlotBarWidget->GetWidgetFromName(TEXT("ItemTimer"))) : nullptr;
 }
 
+UTextBlock* UPlayerHUDComponent::FindMatchTimerText() const
+{
+	if (!QuickSlotBarWidget)
+	{
+		return nullptr;
+	}
+
+	static const FName CandidateNames[] =
+	{
+		TEXT("MatchTimer"),
+		TEXT("GameTimer"),
+		TEXT("StageTimer"),
+		TEXT("RemainingTime"),
+		TEXT("RemainTimeText"),
+		TEXT("TimeLimit"),
+		TEXT("TimerText")
+	};
+
+	for (const FName& CandidateName : CandidateNames)
+	{
+		if (UTextBlock* TextBlock = Cast<UTextBlock>(QuickSlotBarWidget->GetWidgetFromName(CandidateName)))
+		{
+			return TextBlock;
+		}
+	}
+
+	return nullptr;
+}
+
 UWidget* UPlayerHUDComponent::FindPublicMaliceAnnouncementWidget() const
 {
 	return QuickSlotBarWidget ? QuickSlotBarWidget->GetWidgetFromName(TEXT("PublicMaliceBorder")) : nullptr;
@@ -706,6 +779,44 @@ void UPlayerHUDComponent::SetPublicMaliceAnnouncementVisible(bool bVisible)
 void UPlayerHUDComponent::HidePublicMaliceAnnouncement()
 {
 	SetPublicMaliceAnnouncementVisible(false);
+}
+
+void UPlayerHUDComponent::TickMatchTimer()
+{
+	UTextBlock* MatchTimerText = FindMatchTimerText();
+	if (!MatchTimerText)
+	{
+		return;
+	}
+
+	if (!bMatchTimerVisible || MatchTimerDurationSeconds <= 0.0f)
+	{
+		StopMatchTimer();
+		return;
+	}
+
+	const AGameStateBase* GameStateBase = UGameplayStatics::GetGameState(this);
+	const double CurrentServerTime = GameStateBase
+		? static_cast<double>(GameStateBase->GetServerWorldTimeSeconds())
+		: (GetWorld() ? static_cast<double>(GetWorld()->GetTimeSeconds()) : 0.0);
+	const float RemainingSeconds = FMath::Max(0.0f, MatchTimerDurationSeconds - static_cast<float>(CurrentServerTime - MatchTimerStartServerTime));
+
+	MatchTimerText->SetText(BuildClockText(RemainingSeconds));
+	MatchTimerText->SetVisibility(ESlateVisibility::Visible);
+}
+
+void UPlayerHUDComponent::StopMatchTimer()
+{
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(MatchTimerTickHandle);
+	}
+
+	bMatchTimerVisible = false;
+	if (UTextBlock* MatchTimerText = FindMatchTimerText())
+	{
+		MatchTimerText->SetVisibility(ESlateVisibility::Hidden);
+	}
 }
 
 bool UPlayerHUDComponent::UpdateQuickSlotItemVisual(int32 SlotIndex, const FText& ItemName, UTexture2D* ItemIcon)
@@ -1731,6 +1842,10 @@ void UPlayerHUDComponent::StopInspectMaliceItemTimer()
 	if (bInspectMaliceItemTimerBaselineCaptured && !bInspectMaliceItemTimerWasVisible)
 	{
 		SetItemTimerVisible(false);
+	}
+	else if (bMatchTimerVisible)
+	{
+		TickMatchTimer();
 	}
 
 	bInspectMaliceItemTimerBaselineCaptured = false;

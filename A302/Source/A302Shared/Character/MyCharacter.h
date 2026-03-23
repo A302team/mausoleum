@@ -25,7 +25,9 @@ class AShieldActor;
 class ABaseInteractable;
 class UObject;
 class UEquipmentComponent;
+class UPrimitiveComponent;
 struct FInputActionValue;
+struct FHitResult;
 
 UCLASS()
 class A302SHARED_API AMyCharacter : public ACharacter
@@ -36,6 +38,10 @@ public:
 	AMyCharacter();
 	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
 	virtual bool IsNetRelevantFor(const AActor* RealViewer, const AActor* ViewTarget, const FVector& SrcLocation) const override;
+	virtual void NotifyActorBeginOverlap(AActor* OtherActor) override;
+	void BeginEscapedSequence();
+	void FinalizeEscapedSequence();
+	void HandleEscapedState();
 	void NotifyKilledCharacter();
 	void NotifyTimedKnifeAttackSucceeded();
 	void RegisterTimedKillEvent(UObject* EventInstance);
@@ -130,6 +136,16 @@ protected:
 	void FindAndWarpNearDummy();
 	void ExecuteAutoKnifeAttack();
 
+	UFUNCTION()
+	void HandleCapsuleBeginOverlap(
+		UPrimitiveComponent* OverlappedComponent,
+		AActor* OtherActor,
+		UPrimitiveComponent* OtherComp,
+		int32 OtherBodyIndex,
+		bool bFromSweep,
+		const FHitResult& SweepResult
+	);
+
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 
@@ -189,4 +205,9 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Health", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<class UCharacterHealthComponent> CharacterHealthComponent = nullptr;
+
+	FTimerHandle EscapedSequenceTimerHandle;
+	bool bEscapedSequenceStarted = false;
+
+	bool TryHandleEscapePortalOverlap(AActor* OtherActor);
 };

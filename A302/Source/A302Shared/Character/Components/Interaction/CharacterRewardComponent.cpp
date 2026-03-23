@@ -235,8 +235,8 @@ void UCharacterRewardComponent::ResolveInteractionRewardOnServer(ABaseInteractab
 	const URewardDefinition* RewardDefinition = Interactable->GetRewardDefinition();
 	if (RewardDefinition)
 	{
-		bool bRewardHandled;
 		const ERewardCategory EffectiveCategory = ResolveEffectiveRewardCategory(RewardDefinition);
+		bool bRewardHandled = false;
 
 		const bool bNeedsClientMirrorGrant =
 			!OwnerCharacter->IsLocallyControlled() &&

@@ -3,6 +3,7 @@
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "GameData/RewardTypes.h"
+#include "Character/MyPlayerController.h"
 #include "GameMode/A302GameMode.h"
 #include "GameMode/A302PlayerState.h"
 #include "GameFramework/PlayerController.h"
@@ -62,9 +63,11 @@ bool UA302ServerPhaseSubsystem::StartRoomPhaseTimeline(const FString& RoomCode)
     RoomState.Phase0ItemCount = 0;
     RoomState.Phase1ClearObjectCount = 0;
     RoomState.Phase2GroupEventCount = 0;
+    RoomState.bTimedOutWithoutEscape = false;
     RoomState.bFinished = false;
 
     EnsurePhaseTimer();
+    BroadcastMatchTimerStateToRoom(NormalizedRoomCode, RoomState.MatchStartServerTime, MatchTimeLimitSeconds, MatchTimeLimitSeconds > 0.0f);
     OnRoomPhaseChanged.Broadcast(NormalizedRoomCode, RoomState.CurrentPhase);
 
     UE_LOG(
@@ -282,6 +285,10 @@ void UA302ServerPhaseSubsystem::UpdateRoomPhase(const FString& RoomCode, double 
     }
 
     const EGamePhase PreviousPhase = RoomState->CurrentPhase;
+    const bool bTimedOutWithoutEscape =
+        MatchTimeLimitSeconds > 0.0f &&
+        (CurrentServerTime - RoomState->MatchStartServerTime) >= MatchTimeLimitSeconds &&
+        CountEscapedPlayersInRoom(RoomState->RoomCode) <= 0;
     const EGamePhase NewPhase = ResolvePhase(*RoomState);
     if (PreviousPhase == NewPhase)
     {
@@ -307,25 +314,41 @@ void UA302ServerPhaseSubsystem::UpdateRoomPhase(const FString& RoomCode, double 
     }
     else if (PreviousPhase == EGamePhase::Phase2 && NewPhase == EGamePhase::Ended)
     {
-        const int32 RequiredGroupEvents = FMath::Max(0, Phase2RequiredGroupEventCount);
-        const int32 AliveCount = CountAlivePlayersInRoom(RoomState->RoomCode);
-        if (RequiredGroupEvents > 0 && RoomState->Phase2GroupEventCount >= RequiredGroupEvents)
+        if (bTimedOutWithoutEscape)
         {
             TransitionReason = FString::Printf(
-                TEXT("Phase2 group event count reached (%d/%d)"),
-                RoomState->Phase2GroupEventCount,
-                RequiredGroupEvents
+                TEXT("No player escaped within time limit (elapsed=%.0fs, limit=%.0fs)"),
+                CurrentServerTime - RoomState->MatchStartServerTime,
+                MatchTimeLimitSeconds
             );
         }
         else
         {
-            TransitionReason = FString::Printf(TEXT("Last survivor condition met (alive=%d)"), AliveCount);
+            const int32 RequiredGroupEvents = FMath::Max(0, Phase2RequiredGroupEventCount);
+            const int32 AliveCount = CountAlivePlayersInRoom(RoomState->RoomCode);
+            if (RequiredGroupEvents > 0 && RoomState->Phase2GroupEventCount >= RequiredGroupEvents)
+            {
+                TransitionReason = FString::Printf(
+                    TEXT("Phase2 group event count reached (%d/%d)"),
+                    RoomState->Phase2GroupEventCount,
+                    RequiredGroupEvents
+                );
+            }
+            else
+            {
+                TransitionReason = FString::Printf(TEXT("Last survivor condition met (alive=%d)"), AliveCount);
+            }
         }
     }
 
     RoomState->CurrentPhase = NewPhase;
     RoomState->PhaseChangedServerTime = static_cast<float>(CurrentServerTime);
+    RoomState->bTimedOutWithoutEscape = bTimedOutWithoutEscape && NewPhase == EGamePhase::Ended;
     RoomState->bFinished = (NewPhase == EGamePhase::Ended);
+    if (RoomState->bFinished)
+    {
+        BroadcastMatchTimerStateToRoom(NormalizedRoomCode, RoomState->MatchStartServerTime, MatchTimeLimitSeconds, false);
+    }
 
     UE_LOG(
         LogA302Phase,
@@ -363,6 +386,16 @@ UWorld* UA302ServerPhaseSubsystem::ResolveWorld() const
 
 EGamePhase UA302ServerPhaseSubsystem::ResolvePhase(const FA302RoomPhaseState& RoomState) const
 {
+    if (MatchTimeLimitSeconds > 0.0f)
+    {
+        const double CurrentServerTime = FPlatformTime::Seconds();
+        const double ElapsedSeconds = CurrentServerTime - RoomState.MatchStartServerTime;
+        if (ElapsedSeconds >= MatchTimeLimitSeconds && CountEscapedPlayersInRoom(RoomState.RoomCode) <= 0)
+        {
+            return EGamePhase::Ended;
+        }
+    }
+
     switch (RoomState.CurrentPhase)
     {
     case EGamePhase::Phase0:
@@ -441,10 +474,78 @@ int32 UA302ServerPhaseSubsystem::CountAlivePlayersInRoom(const FString& RoomCode
     return AliveCount;
 }
 
+int32 UA302ServerPhaseSubsystem::CountEscapedPlayersInRoom(const FString& RoomCode) const
+{
+    UWorld* World = ResolveWorld();
+    if (!World)
+    {
+        return 0;
+    }
+
+    const AA302GameMode* GameMode = Cast<AA302GameMode>(World->GetAuthGameMode());
+    if (!GameMode)
+    {
+        return 0;
+    }
+
+    URoomMembershipRegistry* Registry = GameMode->GetRoomMembershipRegistry();
+    if (!Registry)
+    {
+        return 0;
+    }
+
+    TArray<APlayerController*> Players;
+    Registry->GatherPlayersInRoom(World, RoomCode, Players);
+
+    int32 EscapedCount = 0;
+    for (APlayerController* PlayerController : Players)
+    {
+        const AA302PlayerState* PlayerState = PlayerController ? PlayerController->GetPlayerState<AA302PlayerState>() : nullptr;
+        if (PlayerState && PlayerState->bIsEscaped)
+        {
+            ++EscapedCount;
+        }
+    }
+
+    return EscapedCount;
+}
+
+void UA302ServerPhaseSubsystem::BroadcastMatchTimerStateToRoom(const FString& RoomCode, float MatchStartServerTime, float DurationSeconds, bool bVisible) const
+{
+    UWorld* World = ResolveWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    const AA302GameMode* GameMode = Cast<AA302GameMode>(World->GetAuthGameMode());
+    if (!GameMode)
+    {
+        return;
+    }
+
+    URoomMembershipRegistry* Registry = GameMode->GetRoomMembershipRegistry();
+    if (!Registry)
+    {
+        return;
+    }
+
+    TArray<APlayerController*> Players;
+    Registry->GatherPlayersInRoom(World, RoomCode, Players);
+
+    for (APlayerController* PlayerController : Players)
+    {
+        if (AMyPlayerController* MyPlayerController = Cast<AMyPlayerController>(PlayerController))
+        {
+            MyPlayerController->ConfigureMatchTimer(MatchStartServerTime, DurationSeconds, bVisible);
+        }
+    }
+}
+
 FString UA302ServerPhaseSubsystem::BuildRoomProgressSummary(const FA302RoomPhaseState& RoomState) const
 {
     return FString::Printf(
-        TEXT("phase=%s p0=%d/%d p1=%d/%d p2=%d/%d alive=%d"),
+        TEXT("phase=%s p0=%d/%d p1=%d/%d p2=%d/%d alive=%d escaped=%d timeout=%s"),
         ToString(RoomState.CurrentPhase),
         RoomState.Phase0ItemCount,
         FMath::Max(0, Phase0RequiredItemCount),
@@ -452,7 +553,9 @@ FString UA302ServerPhaseSubsystem::BuildRoomProgressSummary(const FA302RoomPhase
         FMath::Max(0, Phase1RequiredClearObjectCount),
         RoomState.Phase2GroupEventCount,
         FMath::Max(0, Phase2RequiredGroupEventCount),
-        CountAlivePlayersInRoom(RoomState.RoomCode)
+        CountAlivePlayersInRoom(RoomState.RoomCode),
+        CountEscapedPlayersInRoom(RoomState.RoomCode),
+        RoomState.bTimedOutWithoutEscape ? TEXT("true") : TEXT("false")
     );
 }
 
