@@ -22,6 +22,7 @@ class UPlayerEventComponent;
 class UTextBlock;
 class UUserWidget;
 class UBasePersonalEvent;
+class UMaliceBGMComponent; // Added
 
 UCLASS()
 class A302SHARED_API AMyPlayerController : public APlayerController
@@ -49,6 +50,11 @@ public:
 	virtual void ConfigureMatchTimer(float MatchStartServerTime, float DurationSeconds, bool bVisible);
 	virtual void ShowResultScreen(const FText& Title, const FText& Description, float DisplaySeconds);
 	virtual void ToggleVoiceChatCapture();
+
+	// Added: Malice BGM Component
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Audio")
+	TObjectPtr<UMaliceBGMComponent> MaliceBGMComp;
+	// End Added
 
 	// UI 위젯 속성은 모두 AA302GameHUD로 이동되었습니다.
 
