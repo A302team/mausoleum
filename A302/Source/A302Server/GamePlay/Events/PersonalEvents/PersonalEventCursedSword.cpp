@@ -19,7 +19,7 @@ namespace
 	FText BuildCursedSwordCountdownContext(float RemainingSeconds)
 	{
 		const int32 SafeSeconds = FMath::Max(0, FMath::CeilToInt(RemainingSeconds));
-		return FText::FromString(FString::Printf(TEXT("%d초 안에 사용하지 않을 시 사망합니다."), SafeSeconds));
+		return FText::FromString(FString::Printf(TEXT("피를 갈망하는 저주받은 검을 습득했습니다.\n%d초 내에 누군가를 공격하지 않으면 검 끝이 당신을 향할 것입니다."), SafeSeconds));
 	}
 
 	FText ResolveCursedSwordTitle(const UItemDefinition* GrantedCursedSwordDefinition, const UPersonalEventCursedSwordDefinition* EventDef)
@@ -53,22 +53,13 @@ void UPersonalEventCursedSword::ExecuteEvent_Implementation(ACharacter* Instigat
 		return;
 	}
 
-	UPlayerEventComponent* EventComp = PlayerController->GetPlayerEventComponent();
-	if (!EventComp)
-	{
-		return;
-	}
-
-	TArray<FText> Choices;
-	Choices.Add(FText::FromString(TEXT("검을 집어든다")));
-
-	EventComp->SetActivePersonalEvent(this);
-	EventComp->ShowPersonalEvent(
-		EventID,
+	PlayerController->Client_ShowTitleCard(
 		FText::FromString(TEXT("저주받은 검")),
 		FText::FromString(TEXT("피를 갈망하는 저주받은 검을 습득했습니다.\n제한 시간 내에 누군가를 공격하지 않으면 검 끝이 당신을 향할 것입니다.")),
-		Choices
+		5.0f
 	);
+
+	OnEventResolved(InstigatorCharacter, 0);
 }
 
 void UPersonalEventCursedSword::OnEventResolved(ACharacter* InstigatorCharacter, int32 ChoiceIndex)
@@ -138,7 +129,7 @@ void UPersonalEventCursedSword::OnEventResolved(ACharacter* InstigatorCharacter,
 		PlayerController->Client_ShowTitleCard(
 			ResolveCursedSwordTitle(GrantedCursedSwordDefinition, EventDef),
 			BuildCursedSwordCountdownContext(RemainingSeconds),
-			3.0f
+			1.5f
 		);
 	}
 
@@ -204,6 +195,16 @@ void UPersonalEventCursedSword::HandleCountdownTick()
 
 	RemainingSeconds = FMath::Max(0.0f, RemainingSeconds - 1.0f);
 	RefreshTimerUI();
+
+	if (AMyPlayerController* ClientEventBridge = Cast<AMyPlayerController>(Character->GetController()))
+	{
+		// 이전에 저장할 수 없었던 Title을 로컬라이징 없이 재사용
+		ClientEventBridge->Client_ShowTitleCard(
+			FText::FromString(TEXT("저주받은 검")),
+			BuildCursedSwordCountdownContext(RemainingSeconds),
+			1.5f
+		);
+	}
 
 	if (RemainingSeconds > 0.0f)
 	{
