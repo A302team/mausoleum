@@ -7,8 +7,10 @@
 #include "Engine/World.h"
 #include "GameData/Items/ItemDefinition.h"
 #include "GameFramework/Character.h"
+#include "GameFramework/PlayerController.h"
 #include "GamePlay/Items/BaseItem.h"
 #include "Interface/UsableItem.h"
+#include "Character/Components/TraceHelper.h"
 
 UItemTargetingComponent::UItemTargetingComponent()
 {
@@ -53,8 +55,9 @@ AActor* UItemTargetingComponent::FindTargetActorForUse(
 	}
 
 	const float TraceDistance = ResolveTargetTraceDistance(ItemDefinition);
-	const FVector Start = OwnerCharacter->GetPawnViewLocation();
-	const FVector ForwardVector = OwnerCharacter->GetViewRotation().Vector();
+	FVector Start = OwnerCharacter->GetPawnViewLocation();
+	FVector ForwardVector = OwnerCharacter->GetViewRotation().Vector();
+	TraceHelper::TryGetCrosshairTrace(OwnerCharacter, Start, ForwardVector);
 	const FVector End = Start + (ForwardVector * TraceDistance);
 
 	OutTargetLocation = End;
@@ -122,7 +125,7 @@ AActor* UItemTargetingComponent::FindTargetActorForUse(
 		}
 
 		const float DotForward = FVector::DotProduct(OwnerForward, ToCandidate / Distance);
-		if (DotForward < 0.1f)
+		if (DotForward < 0.6f)
 		{
 			continue;
 		}
