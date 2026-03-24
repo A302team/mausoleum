@@ -8,6 +8,13 @@
 #include "Interface/InteractableInterface.h"
 #include "MyCharacter.generated.h"
 
+UENUM(BlueprintType)
+enum class EA302CameraViewMode : uint8
+{
+	ThirdPerson UMETA(DisplayName = "Third Person"),
+	FirstPersonChest UMETA(DisplayName = "First Person Chest")
+};
+
 class UInputAction;
 class UInputMappingContext;
 class UCombatStatusComponent;
@@ -36,6 +43,8 @@ class A302SHARED_API AMyCharacter : public ACharacter
 
 public:
 	AMyCharacter();
+	virtual void PossessedBy(AController* NewController) override;
+	virtual void OnRep_Controller() override;
 	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
 	virtual bool IsNetRelevantFor(const AActor* RealViewer, const AActor* ViewTarget, const FVector& SrcLocation) const override;
 	virtual void NotifyActorBeginOverlap(AActor* OtherActor) override;
@@ -109,6 +118,9 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Item|Action")
 	void BP_OnPrimaryItemUsed(const UItemDefinition* ItemDefinition, int32 UseSlotIndexOneBased);
 
+	UFUNCTION(BlueprintCallable, Category = "Camera")
+	void SetCameraViewMode(EA302CameraViewMode NewMode);
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -135,6 +147,8 @@ protected:
 	void SetupKnifeForTest();
 	void FindAndWarpNearDummy();
 	void ExecuteAutoKnifeAttack();
+	void ApplyCameraViewMode();
+	class UCameraComponent* ResolveCameraForMode(EA302CameraViewMode Mode) const;
 
 	UFUNCTION()
 	void HandleCapsuleBeginOverlap(
@@ -205,6 +219,16 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Health", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<class UCharacterHealthComponent> CharacterHealthComponent = nullptr;
+
+	UPROPERTY(EditAnywhere, Category = "Camera")
+	EA302CameraViewMode CameraViewMode = EA302CameraViewMode::FirstPersonChest;
+
+	// Optional explicit component names in BP_MyCharacter.
+	UPROPERTY(EditAnywhere, Category = "Camera")
+	FName ThirdPersonCameraComponentName = TEXT("ThirdCamera");
+
+	UPROPERTY(EditAnywhere, Category = "Camera")
+	FName FirstPersonCameraComponentName = TEXT("FirstCamera");
 
 	FTimerHandle EscapedSequenceTimerHandle;
 	bool bEscapedSequenceStarted = false;
