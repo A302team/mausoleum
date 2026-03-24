@@ -781,6 +781,25 @@ void AMyPlayerController::ShowResultScreen(const FText& Title, const FText& Desc
 	}
 }
 
+void AMyPlayerController::ShowItemDescription(const FText& ItemName, const FText& Description, float DisplaySeconds)
+{
+	if (AHUD* GameHUD = GetHUD())
+	{
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("ShowItemDescription")))
+		{
+			struct FParams
+			{
+				FText InItemName;
+				FText InDescription;
+				float InDisplaySeconds;
+			};
+
+			FParams Params { ItemName, Description, DisplaySeconds };
+			GameHUD->ProcessEvent(Func, &Params);
+		}
+	}
+}
+
 void AMyPlayerController::ToggleVoiceChatCapture()
 {
 	EnsureLocalVoiceComponent();
