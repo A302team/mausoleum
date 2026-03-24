@@ -17,11 +17,16 @@ enum class EQTEDirection : uint8
 
 class ACharacter;
 class AMyCharacter;
+class AActor;
 class UUserWidget;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnQTEStarted, const TArray<EQTEDirection>&, TargetKeys);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnQTEProgressUpdated, int32, CurrentIndex);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnQTEEnded, bool, bWasSuccessful);
+
+// 홀드 상호작용 (UI 통신용 델리게이트)
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnHoldInteractionStarted, class AActor*, TargetActor);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnHoldInteractionEnded);
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class A302SHARED_API UInteractComponent : public UActorComponent
@@ -38,6 +43,7 @@ public:
 	
 	// 홀드 입력
 	void OnInteractHoldProgress(const FInputActionValue& Value);
+	void HandleInteractHoldStarted();   // 처음 누르는 순간 (UI 등)
 	bool HandleInteractHoldProgress(float DeltaTime); // 누르는 중 (Hold 게이지용)
 	void HandleInteractHoldComplete();  // 완료 (결과 처리)
 	void OnInteractHoldCanceled(const FInputActionValue& Value);
@@ -58,6 +64,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
 	float GetInteractionProgressRatio() const { return InteractionProgressRatio; }
 
+	// -- Sync Hold Progress --
+	UFUNCTION(Server, Reliable, WithValidation)
+	void Server_SyncHoldProgress(AActor* InteractTarget, float DeltaTime);
+
+	float AccumulatedHoldSyncTime = 0.0f;
+
 	UPROPERTY(EditAnywhere, Category = "Interaction")
 	float MaxHoldTime = 2.0f;
 	
@@ -68,6 +80,9 @@ public:
 	TSoftClassPtr<UUserWidget> InteractionWidgetClass;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
+	TSoftClassPtr<class UStatueProgressWidget> StatueProgressWidgetClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
 	TSoftClassPtr<UUserWidget> CrosshairWidgetClass;
     
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
@@ -76,6 +91,18 @@ public:
 	// 디버그 드로우 토글
 	UPROPERTY(EditAnywhere, Category = "Interaction|Debug")
 	bool bDrawDebug = true;
+
+	UPROPERTY(EditAnywhere, Category = "Interaction|Highlight", meta = (ClampMin = "0.0"))
+	float NearbyHighlightRadius = 600.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Interaction|Highlight", meta = (ClampMin = "0", ClampMax = "255"))
+	int32 NearbyHighlightStencilValue = 1;
+
+	UPROPERTY(EditAnywhere, Category = "Interaction|Highlight", meta = (ClampMin = "0", ClampMax = "255"))
+	int32 FocusedHighlightStencilValue = 2;
+
+	UPROPERTY(EditAnywhere, Category = "Interaction|Highlight", meta = (ClampMin = "0", ClampMax = "255"))
+	int32 NearbyAndFocusedHighlightStencilValue = 3;
 	
 	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")
 	FOnQTEStarted OnQTEStarted;
@@ -86,12 +113,20 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")
 	FOnQTEEnded OnQTEEnded;
 
+	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")
+	FOnHoldInteractionStarted OnHoldInteractionStarted;
+
+	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")
+	FOnHoldInteractionEnded OnHoldInteractionEnded;
+
 private:
 	bool TryInitializeLocalUIWidgets();
 	ACharacter* GetOwnerCharacter() const;
 	AMyCharacter* GetOwnerCharacterBridge() const;
 	void CheckForInteractables();
-	void ToggleHighlight(AActor* TargetActor, bool bIsOn) const;
+	void UpdateNearbyHighlights();
+	void RefreshHighlightState(AActor* TargetActor) const;
+	void SetHighlightVisual(AActor* TargetActor, bool bIsOn, int32 StencilValue) const;
 
 	float InteractionProgressRatio = 0.0f;
     
@@ -105,6 +140,9 @@ private:
 	TObjectPtr<UUserWidget> InteractionWidgetInstance = nullptr;
 
 	UPROPERTY()
+	TObjectPtr<class UStatueProgressWidget> StatueProgressWidgetInstance = nullptr;
+
+	UPROPERTY()
 	TObjectPtr<UUserWidget> CrosshairWidgetInstance = nullptr;
     
 	UPROPERTY()
@@ -114,6 +152,8 @@ private:
 	TObjectPtr<ACharacter> CachedOwnerCharacter = nullptr;
 
 	bool bLocalUIInitialized = false;
+
+	TSet<TWeakObjectPtr<AActor>> NearbyHighlightedActors;
 	
 	// -- QTE --
 	UPROPERTY(BlueprintReadOnly, Category = "Interaction|QTE", meta = (AllowPrivateAccess = "true"))

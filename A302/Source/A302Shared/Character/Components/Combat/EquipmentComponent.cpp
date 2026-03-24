@@ -61,6 +61,11 @@ void UEquipmentComponent::EquipWeapon(TSubclassOf<AWeaponActor> WeaponClass)
 	ACharacter* OwnerCharacter = GetOwnerCharacter();
 	if (!OwnerCharacter) return;
 
+	if (!OwnerCharacter->HasAuthority())
+	{
+		return;
+	}
+
 	UE_LOG(LogTemp, Warning, TEXT("EquipWeapon called in EquipmentComponent"));
 
 	if (!WeaponClass)

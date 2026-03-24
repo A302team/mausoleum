@@ -22,7 +22,7 @@ public:
 	UPROPERTY(BlueprintAssignable, Category="Malice")
 	FOnMaliceChanged OnMaliceChanged;
 	
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Malice")
+	UPROPERTY(ReplicatedUsing=OnRep_ItemizeMalice, VisibleAnywhere, BlueprintReadOnly, Category = "Malice")
 	int32 ItemizeMalice = 0;
 	
 	UFUNCTION(BlueprintCallable, Category = "Malice")
@@ -56,4 +56,7 @@ public:
 private:
 	UFUNCTION()
 	void OnRep_MaliceCount();
+
+	UFUNCTION()
+	void OnRep_ItemizeMalice();
 };
