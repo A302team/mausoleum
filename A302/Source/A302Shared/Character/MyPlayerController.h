@@ -24,6 +24,7 @@ class UUserWidget;
 class UBasePersonalEvent;
 class UMaliceBGMComponent; // Added
 class UGameBGMComponent;  // Added
+class UCursedSwordBGMComponent; // Added
 
 UCLASS()
 class A302SHARED_API AMyPlayerController : public APlayerController
@@ -62,6 +63,11 @@ public:
 	TObjectPtr<UGameBGMComponent> GameBGMComp;
 	// End Added
 
+	// Added: CursedSword BGM Component (최우선 BGM 관리)
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UCursedSwordBGMComponent> CursedSwordBGMComp;
+	// End Added
+
 	// UI 위젯 속성은 모두 AA302GameHUD로 이동되었습니다.
 
 	UFUNCTION(Client, Reliable)
@@ -93,6 +99,9 @@ public:
 
 	UFUNCTION(Client, Reliable)
 	void Client_ShowResultScreen(const FText& Title, const FText& Description, float DisplaySeconds);
+
+	UFUNCTION(Client, Reliable)
+	void Client_RemoveQuickSlotItemByServer(int32 SlotIndex, FName ExpectedItemId);
 
 
 	UFUNCTION(Server, Reliable)

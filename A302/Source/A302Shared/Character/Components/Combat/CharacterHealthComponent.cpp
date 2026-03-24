@@ -1,6 +1,10 @@
 #include "Character/Components/Combat/CharacterHealthComponent.h"
 #include "Character/MyCharacter.h"
+#include "Character/MyPlayerController.h"
+#include "Character/Components/Combat/CombatStatusComponent.h"
 #include "Character/Components/Inventory/QuickSlotComponent.h"
+#include "GameData/Items/ItemDefinition.h"
+#include "GameFramework/Controller.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerState.h"
 #include "GameMode/A302PlayerState.h"
@@ -64,14 +68,56 @@ float UCharacterHealthComponent::TakeDamage(float DamageAmount, const FDamageEve
 		}
 	}
 
+	UCombatStatusComponent* CombatStatusComponent = OwnerCharacter->FindComponentByClass<UCombatStatusComponent>();
+	const int32 PreviousShieldCount = CombatStatusComponent ? CombatStatusComponent->ShieldBlockCount : 0;
+
 	UQuickSlotComponent* QuickSlotComponent = OwnerCharacter->FindComponentByClass<UQuickSlotComponent>();
-	if (QuickSlotComponent && QuickSlotComponent->TryAutoUseItem())
+	UItemDefinition* AutoUsedItemDefinition = nullptr;
+	int32 AutoUsedSlotIndex = INDEX_NONE;
+	bool bAutoUseBecameEmpty = false;
+	if (QuickSlotComponent && QuickSlotComponent->TryAutoUseItem(&AutoUsedItemDefinition, &AutoUsedSlotIndex, &bAutoUseBecameEmpty))
 	{
+		// In some pickup/use paths, auto-use can succeed while shield count replication lags.
+		// Ensure the defended hit always consumes one shield stack on authority.
+		if (CombatStatusComponent &&
+			PreviousShieldCount > 0 &&
+			CombatStatusComponent->ShieldBlockCount >= PreviousShieldCount)
+		{
+			CombatStatusComponent->TryConsumeShieldToBlock();
+		}
+
+		if (bAutoUseBecameEmpty && AutoUsedSlotIndex != INDEX_NONE)
+		{
+			if (AMyPlayerController* OwnerPlayerController = Cast<AMyPlayerController>(OwnerCharacter->GetController()))
+			{
+				const FName ExpectedItemId = AutoUsedItemDefinition ? AutoUsedItemDefinition->ItemId : NAME_None;
+				OwnerPlayerController->Client_RemoveQuickSlotItemByServer(AutoUsedSlotIndex, ExpectedItemId);
+			}
+		}
+
 		LogAndScreenHealthMessage(TEXT("[MyCharacter] Blocked by auto-used shield"), FColor::Green, 1.5f);
 		return 0.f;
 	}
 
 	HandleDead();
+
+	// Timed kill events (e.g., cursed sword) are confirmed only when an actual kill happens.
+	AMyCharacter* KillerCharacter = EventInstigator ? Cast<AMyCharacter>(EventInstigator->GetCharacter()) : nullptr;
+	if (!KillerCharacter && DamageCauser)
+	{
+		KillerCharacter = Cast<AMyCharacter>(DamageCauser);
+	}
+	if (!KillerCharacter && DamageCauser)
+	{
+		KillerCharacter = Cast<AMyCharacter>(DamageCauser->GetOwner());
+	}
+	if (KillerCharacter)
+	{
+		if (KillerCharacter != OwnerCharacter)
+		{
+			KillerCharacter->NotifyKilledCharacter();
+		}
+	}
 
 	// Note: We bypass Super::TakeDamage since UActorComponent doesn't have it.
 	// In the original, AMyCharacter called Super::TakeDamage, which affects ACharacter and AActor base processing.

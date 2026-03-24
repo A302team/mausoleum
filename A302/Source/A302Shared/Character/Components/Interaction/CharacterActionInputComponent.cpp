@@ -7,8 +7,8 @@
 #include "Character/Components/Interaction/CharacterRewardComponent.h"
 #include "Character/Components/Interaction/InteractComponent.h"
 #include "Character/Components/Combat/EquipmentComponent.h"
-#include "Animation/MyAnimInstance.h"
 #include "Animation/AnimMontage.h"
+#include "Animation/MyAnimInstance.h"
 #include "Interface/A302AnimationBridge.h"
 #include "GamePlay/Items/BaseItem.h"
 #include "GamePlay/Items/ItemCursedSword.h"
@@ -18,6 +18,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "GameFramework/CharacterMovementComponent.h"
 
 UCharacterActionInputComponent::UCharacterActionInputComponent()
 {
@@ -227,6 +228,19 @@ void UCharacterActionInputComponent::OnAttack(const FInputActionValue& Value)
 			}
 
 			bIsCursedSword ? Anim->PlayTimeKnifeAnimation() : Anim->PlayAttackAnimation();
+
+			if (UMyAnimInstance* MyAnimInstance = Cast<UMyAnimInstance>(OwnerCharacter->GetMesh()->GetAnimInstance()))
+			{
+				UAnimMontage* AttackMontage = bIsCursedSword ? MyAnimInstance->TimeKnifeMontage : MyAnimInstance->AttackMontage;
+				if (AttackMontage)
+				{
+					FOnMontageEnded MontageEndedDelegate;
+					MontageEndedDelegate.BindUObject(this, &UCharacterActionInputComponent::HandleAttackMontageEnded);
+					MyAnimInstance->Montage_SetEndDelegate(MontageEndedDelegate, AttackMontage);
+
+					BeginAttackInputLock();
+				}
+			}
 		}
 
 		ScheduleAttackCameraRecovery(OwnerCharacter, bIsCursedSword);
@@ -309,4 +323,81 @@ void UCharacterActionInputComponent::HandleAttackCameraRecovery()
 	}
 
 	PendingCameraRecoveryOwner.Reset();
+}
+
+void UCharacterActionInputComponent::BeginAttackInputLock()
+{
+	AMyCharacter* OwnerCharacter = GetOwnerCharacter();
+	if (!OwnerCharacter)
+	{
+		return;
+	}
+
+	APlayerController* PC = Cast<APlayerController>(OwnerCharacter->GetController());
+	if (!PC)
+	{
+		return;
+	}
+
+	bAttackInputLocked = true;
+
+	if (UCharacterMovementComponent* MovementComponent = OwnerCharacter->GetCharacterMovement())
+	{
+		MovementComponent->StopMovementImmediately();
+	}
+
+	if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()))
+	{
+		if (OwnerCharacter->IMC_Default)
+		{
+			Subsystem->RemoveMappingContext(OwnerCharacter->IMC_Default);
+		}
+
+		if (OwnerCharacter->IMC_AttackLock)
+		{
+			Subsystem->AddMappingContext(OwnerCharacter->IMC_AttackLock, 1);
+		}
+	}
+}
+
+void UCharacterActionInputComponent::EndAttackInputLock()
+{
+	if (!bAttackInputLocked)
+	{
+		return;
+	}
+
+	AMyCharacter* OwnerCharacter = GetOwnerCharacter();
+	if (!OwnerCharacter)
+	{
+		bAttackInputLocked = false;
+		return;
+	}
+
+	APlayerController* PC = Cast<APlayerController>(OwnerCharacter->GetController());
+	if (!PC)
+	{
+		bAttackInputLocked = false;
+		return;
+	}
+
+	if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()))
+	{
+		if (OwnerCharacter->IMC_AttackLock)
+		{
+			Subsystem->RemoveMappingContext(OwnerCharacter->IMC_AttackLock);
+		}
+
+		if (OwnerCharacter->IMC_Default)
+		{
+			Subsystem->AddMappingContext(OwnerCharacter->IMC_Default, 0);
+		}
+	}
+
+	bAttackInputLocked = false;
+}
+
+void UCharacterActionInputComponent::HandleAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+	EndAttackInputLock();
 }

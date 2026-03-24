@@ -2,6 +2,7 @@
 
 #include "Character/MyCharacter.h"
 #include "Character/MyPlayerController.h"
+#include "Character/Components/Audio/CursedSwordBGMComponent.h" // Added
 #include "Character/Components/Interaction/CharacterRewardComponent.h"
 #include "Character/Components/Inventory/ItemManagerComponent.h"
 #include "Character/Components/PlayerEventComponent.h"
@@ -124,6 +125,16 @@ void UPersonalEventCursedSword::OnEventResolved(ACharacter* InstigatorCharacter,
 	GrantedSlotIndex = AddedSlotIndex;
 	bIsActive = true;
 	bCountdownPaused = false;
+
+	// Added: 저주받은 검 BGM 재생 시작
+	if (AMyPlayerController* PlayerController = Cast<AMyPlayerController>(InstigatorCharacter->GetController()))
+	{
+		if (PlayerController->CursedSwordBGMComp)
+		{
+			PlayerController->CursedSwordBGMComp->OnCursedSwordAcquired();
+		}
+	}
+	// End Added
 
 	if (AMyPlayerController* PlayerController = Cast<AMyPlayerController>(InstigatorCharacter->GetController()))
 	{
@@ -287,6 +298,16 @@ void UPersonalEventCursedSword::StopCountdown(bool bHideTimer)
 			{
 				ItemManagerComponent->RemoveFirstItemByItemId(GrantedItemId, RemovedSlotIndex);
 			}
+
+			// Added: 저주받은 검 제거 시 BGM 복귀
+			if (AMyPlayerController* PlayerController = Cast<AMyPlayerController>(Character->GetController()))
+			{
+				if (PlayerController->CursedSwordBGMComp)
+				{
+					PlayerController->CursedSwordBGMComp->OnCursedSwordUsed();
+				}
+			}
+			// End Added
 		}
 
 		if (bHideTimer)
