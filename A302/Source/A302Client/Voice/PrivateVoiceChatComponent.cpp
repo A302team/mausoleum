@@ -90,8 +90,11 @@ void UPrivateVoiceChatComponent::BeginPlay()
     if (!DistanceStrategy)
         DistanceStrategy = NewObject<UDistanceVoiceChatStrategy>(this);
 
+    const float EffectiveHearingDistance =
+        FMath::IsNearlyEqual(DefaultInGameHearingDistance, 1800.f) ? 4200.f : FMath::Max(100.f, DefaultInGameHearingDistance);
+
     if (DistanceStrategy)
-        DistanceStrategy->SetHearingDistance(DefaultInGameHearingDistance);
+        DistanceStrategy->SetHearingDistance(EffectiveHearingDistance);
 
     // 현재 월드가 로비인지 인게임인지에 따라 보이스 모드를 결정
     // Lobby → 로비 모드 (전체 통화)
@@ -105,8 +108,8 @@ void UPrivateVoiceChatComponent::BeginPlay()
         }
         else
         {
-            SetDistanceMode(DefaultInGameHearingDistance);
-            UE_LOG(LogVoiceChat, Log, TEXT("[Voice] GameMode=InGame → 거리 보이스 모드 적용 (%.0f)"), DefaultInGameHearingDistance);
+            SetDistanceMode(EffectiveHearingDistance);
+            UE_LOG(LogVoiceChat, Log, TEXT("[Voice] GameMode=InGame → 거리 보이스 모드 적용 (%.0f)"), EffectiveHearingDistance);
         }
     }
 
@@ -434,34 +437,13 @@ void UPrivateVoiceChatComponent::OnNetworkBinaryMessageReceived(const FString& I
     // 발화자 미확인/전략 차단 시 재생 금지
     if (!bSpeakerFound || !TargetReceiver || !SpeakerCodec) return;
 
-    // =========================================================================
-    // 비동기 디코딩 (Async Pipeline)
-    // - opus_decode는 UObject 미접근 → 백그라운드 스레드에서 실행 가능
-    // - PlayVoice(QueueAudio)는 GameThread에서 실행 필수
-    // =========================================================================
-    TWeakObjectPtr<UVoiceCodec> WeakCodec = SpeakerCodec;
-    TWeakObjectPtr<UVoiceAudioReceiver> WeakReceiver = TargetReceiver;
-    TArray<uint8> VoiceCopy = VoiceData;
-
-    AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask,
-        [WeakCodec, WeakReceiver, VoiceCopy = MoveTemp(VoiceCopy)]()
+    // 동일 화자 코덱을 여러 스레드에서 동시에 디코드하면 Opus 상태가 꼬일 수 있으므로,
+    // 수신 순서대로 단일 스레드(GameThread)에서 디코드/재생합니다.
+    TArray<uint8> PCMData;
+    if (!SpeakerCodec->Decode(VoiceData, PCMData) || PCMData.Num() == 0)
     {
-        if (!WeakCodec.IsValid()) return;
+        return; // 디코딩 실패 → 깨진 패킷 드롭
+    }
 
-        TArray<uint8> PCMData;
-        if (!WeakCodec->Decode(VoiceCopy, PCMData) || PCMData.Num() == 0)
-        {
-            return; // 디코딩 실패 → 깨진 패킷 드롭
-        }
-
-        // 디코딩된 PCM을 GameThread로 전달하여 재생
-        AsyncTask(ENamedThreads::GameThread,
-            [WeakReceiver, PCMData = MoveTemp(PCMData)]()
-        {
-            if (WeakReceiver.IsValid())
-            {
-                WeakReceiver->PlayVoice(PCMData);
-            }
-        });
-    });
+    TargetReceiver->PlayVoice(PCMData);
 }

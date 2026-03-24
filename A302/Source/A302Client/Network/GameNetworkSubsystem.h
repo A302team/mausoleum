@@ -17,6 +17,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPacketReceived, const FString&, M
 
 // C++ 전용 델리게이트 (바이너리 패킷/Protobuf 등 수신용)
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnBinaryPacketReceived, const TArray<uint8>&);
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnUdpBinaryPacketReceived, const TArray<uint8>&);
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnWebSocketBinaryPacketReceived, const TArray<uint8>&);
 
 /**
  * 전역 네트워크 상태를 관리하는 서브시스템 (GameInstance 종속)
@@ -76,6 +78,8 @@ public:
 	FOnPacketReceived OnPacketReceived;
 
 	FOnBinaryPacketReceived OnBinaryPacketReceived;
+	FOnUdpBinaryPacketReceived OnUdpBinaryPacketReceived;
+	FOnWebSocketBinaryPacketReceived OnWebSocketBinaryPacketReceived;
 
 private:
 	UPROPERTY()
