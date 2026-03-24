@@ -209,7 +209,7 @@ void UPlayerHUDComponent::ShowPersonalEventUI(TSubclassOf<UPersonalEventWidget> 
 	PersonalEventWidgetInstance->SetupEventUI(EventID, EventTitle, EventDescription, Choices);
 	if (!PersonalEventWidgetInstance->IsInViewport())
 	{
-		PersonalEventWidgetInstance->AddToViewport(120);
+		PersonalEventWidgetInstance->AddToViewport(150);
 	}
 
 	PersonalEventWidgetInstance->SetVisibility(ESlateVisibility::Visible);
