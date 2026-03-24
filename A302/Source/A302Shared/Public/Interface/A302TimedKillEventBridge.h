@@ -17,4 +17,6 @@ class A302SHARED_API IA302TimedKillEventBridge
 public:
 	virtual void NotifyTimedKillConfirmed() = 0;
 	virtual void CancelTimedKillCountdown() = 0;
+	virtual void PauseTimedKillCountdown() = 0;
+	virtual void ResumeTimedKillCountdown() = 0;
 };

@@ -7,6 +7,7 @@
 #include "Interface/A302TimedKillEventBridge.h"
 #include "GameFramework/HUD.h"
 #include "GameFramework/Character.h"
+#include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerState.h"
 #include "GamePlay/Events/BaseEvent.h"
 #include "GamePlay/Events/GroupEvents/BaseGroupEvent.h"
@@ -50,11 +51,13 @@ void UPlayerEventComponent::ShowInspectMaliceSelectionWidgetWithConfig(float Sel
 
 void UPlayerEventComponent::OpenGroupEventVote(FName EventID, const FText& EventTitle, const FText& EventDescription, float VoteDuration)
 {
+	PauseTimedKillCountdownForVote();
 	Client_OpenGroupEventVote(EventID, EventTitle, EventDescription, VoteDuration);
 }
 
 void UPlayerEventComponent::FinishGroupEventVote(FName EventID, const FText& ResultText)
 {
+	ResumeTimedKillCountdownForVote();
 	Client_FinishGroupEventVote(EventID, ResultText);
 }
 
@@ -108,6 +111,76 @@ void UPlayerEventComponent::ClearTimedKillEvent(UObject* EventInstance)
 	if (!EventInstance || ActiveTimedKnifeEventObject == EventInstance)
 	{
 		ActiveTimedKnifeEventObject = nullptr;
+	}
+}
+
+void UPlayerEventComponent::PauseActiveTimedKillCountdown()
+{
+	if (IA302TimedKillEventBridge* TimedKillBridge = Cast<IA302TimedKillEventBridge>(ActiveTimedKnifeEventObject))
+	{
+		TimedKillBridge->PauseTimedKillCountdown();
+	}
+}
+
+void UPlayerEventComponent::ResumeActiveTimedKillCountdown()
+{
+	if (IA302TimedKillEventBridge* TimedKillBridge = Cast<IA302TimedKillEventBridge>(ActiveTimedKnifeEventObject))
+	{
+		TimedKillBridge->ResumeTimedKillCountdown();
+	}
+}
+
+void UPlayerEventComponent::PauseTimedKillCountdownForVote()
+{
+	if (GroupVotePauseDepth == 0)
+	{
+		PauseActiveTimedKillCountdown();
+
+		if (AMyPlayerController* OwnerController = GetOwnerController())
+		{
+			if (APawn* ControlledPawn = OwnerController->GetPawn())
+			{
+				if (UPlayerEventComponent* PawnEventComponent = ControlledPawn->FindComponentByClass<UPlayerEventComponent>())
+				{
+					if (PawnEventComponent != this)
+					{
+						PawnEventComponent->PauseActiveTimedKillCountdown();
+					}
+				}
+			}
+		}
+	}
+
+	++GroupVotePauseDepth;
+}
+
+void UPlayerEventComponent::ResumeTimedKillCountdownForVote()
+{
+	if (GroupVotePauseDepth <= 0)
+	{
+		return;
+	}
+
+	--GroupVotePauseDepth;
+	if (GroupVotePauseDepth > 0)
+	{
+		return;
+	}
+
+	ResumeActiveTimedKillCountdown();
+
+	if (AMyPlayerController* OwnerController = GetOwnerController())
+	{
+		if (APawn* ControlledPawn = OwnerController->GetPawn())
+		{
+			if (UPlayerEventComponent* PawnEventComponent = ControlledPawn->FindComponentByClass<UPlayerEventComponent>())
+			{
+				if (PawnEventComponent != this)
+				{
+					PawnEventComponent->ResumeActiveTimedKillCountdown();
+				}
+			}
+		}
 	}
 }
 
