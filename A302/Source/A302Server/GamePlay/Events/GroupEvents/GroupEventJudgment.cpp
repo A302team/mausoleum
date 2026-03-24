@@ -1,19 +1,18 @@
-#include "GamePlay/Events/GroupEvents/GroupEventConfiscate.h"
+#include "GamePlay/Events/GroupEvents/GroupEventJudgment.h"
 
+#include "Character/MyCharacter.h"
 #include "Character/MyPlayerController.h"
-#include "Character/Components/Inventory/ItemManagerComponent.h"
+#include "Character/Components/Combat/CharacterHealthComponent.h"
+#include "Character/Components/MaliceComponent.h"
 #include "Engine/World.h"
-#include "GameData/Events/GroupEvents/GroupEventConfiscateDefinition.h"
+#include "GameData/Events/GroupEvents/GroupEventJudgmentDefinition.h"
 #include "GameData/RewardDefinition.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerState.h"
-#include "TimerManager.h"
 
 namespace
 {
-	constexpr float ConfiscationExecuteDelaySeconds = 1.0f;
-
 	FString ResolveVotePlayerName(const APlayerController* PlayerController)
 	{
 		if (!PlayerController)
@@ -34,7 +33,7 @@ namespace
 	}
 }
 
-void UGroupEventConfiscate::ExecuteEvent_Implementation(ACharacter* InstigatorCharacter)
+void UGroupEventJudgment::ExecuteEvent_Implementation(ACharacter* InstigatorCharacter)
 {
 	if (!InstigatorCharacter || !InstigatorCharacter->HasAuthority() || !GetWorld() || bResolved)
 	{
@@ -67,10 +66,14 @@ void UGroupEventConfiscate::ExecuteEvent_Implementation(ACharacter* InstigatorCh
 	const URewardDefinition* EventRewardDefinition = GetRewardDefinition();
 	const FText Title = EventRewardDefinition && !EventRewardDefinition->DisplayName.IsEmpty()
 		? EventRewardDefinition->DisplayName
-		: FText::FromString(TEXT("Vote"));
-	const FText Description = EventRewardDefinition && !EventRewardDefinition->Description.IsEmpty()
-		? EventRewardDefinition->Description
-		: FText::FromString(TEXT("가장 많은 선택을 받은 유저의 모든 아이템을 몰수합니다."));
+		: FText::FromString(TEXT("Judgment"));
+	const int32 MaliceThreshold = ResolveMaliceThreshold();
+	const FText Description = FText::FromString(
+		FString::Printf(
+			TEXT("선택된 자에게 악의가 %d개 이상이라면 그자는 죽습니다."),
+			MaliceThreshold
+		)
+	);
 	const float VoteDuration = static_cast<float>(ResolveVoteDurationSeconds());
 
 	for (APlayerController* PlayerController : Participants)
@@ -85,13 +88,13 @@ void UGroupEventConfiscate::ExecuteEvent_Implementation(ACharacter* InstigatorCh
 	GetWorld()->GetTimerManager().SetTimer(
 		VoteTimerHandle,
 		this,
-		&UGroupEventConfiscate::ResolveVote,
+		&UGroupEventJudgment::ResolveVote,
 		VoteDuration,
 		false
 	);
 }
 
-bool UGroupEventConfiscate::SubmitVote(APlayerController* VotingPlayerController, int32 TargetPlayerId)
+bool UGroupEventJudgment::SubmitVote(APlayerController* VotingPlayerController, int32 TargetPlayerId)
 {
 	if (bResolved || !VotingPlayerController || !Participants.Contains(VotingPlayerController))
 	{
@@ -129,7 +132,7 @@ bool UGroupEventConfiscate::SubmitVote(APlayerController* VotingPlayerController
 	return true;
 }
 
-void UGroupEventConfiscate::ResolveVote()
+void UGroupEventJudgment::ResolveVote()
 {
 	if (bResolved)
 	{
@@ -145,7 +148,7 @@ void UGroupEventConfiscate::ResolveVote()
 
 	if (SubmittedVotes.Num() == 0)
 	{
-		FinishEvent(FText::FromString(TEXT("아무도 투표하지 않아 몰수가 진행되지 않습니다.")));
+		FinishEvent(FText::FromString(TEXT("아무도 투표하지 않아 심판이 무효 처리되었습니다.")));
 		return;
 	}
 
@@ -173,7 +176,7 @@ void UGroupEventConfiscate::ResolveVote()
 
 	if (TopPlayerIds.Num() == 0)
 	{
-		FinishEvent(FText::FromString(TEXT("몰수 대상을 결정하지 못했습니다.")));
+		FinishEvent(FText::FromString(TEXT("심판 대상을 결정하지 못했습니다.")));
 		return;
 	}
 
@@ -192,58 +195,65 @@ void UGroupEventConfiscate::ResolveVote()
 
 	if (!TargetPlayerController)
 	{
-		FinishEvent(FText::FromString(TEXT("몰수 대상을 찾지 못했습니다.")));
+		FinishEvent(FText::FromString(TEXT("심판 대상을 찾지 못했습니다.")));
 		return;
 	}
 
-	const FString TargetName = ResolveVotePlayerName(TargetPlayerController);
-	const FText ResultText = FText::FromString(
-		FString::Printf(
-			TEXT("%s님이 선택되었습니다.\n%s님의 모든 아이템을 몰수합니다."),
-			*TargetName,
-			*TargetName
-		)
-	);
+	const int32 MaliceThreshold = ResolveMaliceThreshold();
+	int32 TargetMaliceCount = 0;
+	bool bKilledByJudgment = false;
 
-	FinishEvent(ResultText);
-
-	if (UWorld* World = GetWorld())
+	if (ACharacter* TargetCharacter = Cast<ACharacter>(TargetPlayerController->GetPawn()))
 	{
-		const TWeakObjectPtr<APlayerController> WeakTargetPlayerController = TargetPlayerController;
-		FTimerDelegate DelayedConfiscationDelegate;
-		DelayedConfiscationDelegate.BindLambda([WeakTargetPlayerController]()
+		if (const UMaliceComponent* MaliceComponent = TargetCharacter->FindComponentByClass<UMaliceComponent>())
 		{
-			APlayerController* DelayedTargetPlayerController = WeakTargetPlayerController.Get();
-			if (!DelayedTargetPlayerController)
-			{
-				return;
-			}
+			TargetMaliceCount = MaliceComponent->GetMaliceCount();
+		}
 
-			if (ACharacter* TargetCharacter = Cast<ACharacter>(DelayedTargetPlayerController->GetPawn()))
+		if (TargetMaliceCount >= MaliceThreshold)
+		{
+			if (AMyCharacter* TargetMyCharacter = Cast<AMyCharacter>(TargetCharacter))
 			{
-				if (UItemManagerComponent* ItemManager = TargetCharacter->FindComponentByClass<UItemManagerComponent>())
-				{
-					ItemManager->RemoveAllItems();
-				}
+				TargetMyCharacter->ForceDeathByPersonalEvent();
+				bKilledByJudgment = true;
 			}
-
-			if (AMyPlayerController* ClientEventBridge = Cast<AMyPlayerController>(DelayedTargetPlayerController))
+			else if (UCharacterHealthComponent* HealthComponent = TargetCharacter->FindComponentByClass<UCharacterHealthComponent>())
 			{
-				ClientEventBridge->ApplyConfiscationToLocalInventory();
+				HealthComponent->ForceDeathByPersonalEvent();
+				bKilledByJudgment = true;
 			}
-		});
+		}
+	}
 
-		FTimerHandle DelayedConfiscationHandle;
-		World->GetTimerManager().SetTimer(
-			DelayedConfiscationHandle,
-			DelayedConfiscationDelegate,
-			ConfiscationExecuteDelaySeconds,
-			false
+	FText ResultText;
+	if (bKilledByJudgment)
+	{
+		ResultText = FText::FromString(
+			FString::Printf(
+				TEXT("%s 님이 선택되었고 악의가 %d개 이상이라 죽었습니다."),
+				*ResolveVotePlayerName(TargetPlayerController),
+				MaliceThreshold
+			)
 		);
 	}
+	else if (TargetMaliceCount <= 1)
+	{
+		ResultText = FText::FromString(TEXT("아무일도 일어나지 않았습니다."));
+	}
+	else
+	{
+		ResultText = FText::FromString(
+			FString::Printf(
+				TEXT("%s 님이 선택되었습니다."),
+				*ResolveVotePlayerName(TargetPlayerController)
+			)
+		);
+	}
+
+	FinishEvent(ResultText);
 }
 
-void UGroupEventConfiscate::FinishEvent(const FText& ResultText)
+void UGroupEventJudgment::FinishEvent(const FText& ResultText)
 {
 	for (APlayerController* Participant : Participants)
 	{
@@ -258,14 +268,26 @@ void UGroupEventConfiscate::FinishEvent(const FText& ResultText)
 	SubmittedVotes.Reset();
 }
 
-int32 UGroupEventConfiscate::ResolveVoteDurationSeconds() const
+int32 UGroupEventJudgment::ResolveVoteDurationSeconds() const
 {
-	const UGroupEventConfiscateDefinition* EventDefinition =
-		Cast<UGroupEventConfiscateDefinition>(const_cast<URewardDefinition*>(GetRewardDefinition()));
+	const UGroupEventJudgmentDefinition* EventDefinition =
+		Cast<UGroupEventJudgmentDefinition>(const_cast<URewardDefinition*>(GetRewardDefinition()));
 	if (!EventDefinition)
 	{
 		return 10;
 	}
 
 	return FMath::Max(1, FMath::RoundToInt(EventDefinition->Payload.VoteDurationSeconds));
+}
+
+int32 UGroupEventJudgment::ResolveMaliceThreshold() const
+{
+	const UGroupEventJudgmentDefinition* EventDefinition =
+		Cast<UGroupEventJudgmentDefinition>(const_cast<URewardDefinition*>(GetRewardDefinition()));
+	if (!EventDefinition)
+	{
+		return 2;
+	}
+
+	return FMath::Max(1, EventDefinition->Payload.MaliceThreshold);
 }
