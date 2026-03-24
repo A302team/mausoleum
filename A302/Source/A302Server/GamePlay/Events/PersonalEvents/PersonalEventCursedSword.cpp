@@ -14,7 +14,7 @@
 
 namespace
 {
-	constexpr int32 VisibleQuickSlotCount = 5;
+	constexpr int32 VisibleQuickSlotCount = 6;
 
 	FText BuildCursedSwordCountdownContext(float RemainingSeconds)
 	{
