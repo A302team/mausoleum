@@ -181,8 +181,25 @@ bool UQuickSlotComponent::TryUseSelectedItem(UItemDefinition*& OutUsedItemDefini
 	return true;
 }
 
-bool UQuickSlotComponent::TryAutoUseItem()
+bool UQuickSlotComponent::TryAutoUseItem(
+	UItemDefinition** OutUsedItemDefinition,
+	int32* OutUsedSlotIndex,
+	bool* bOutBecameEmpty
+)
 {
+	if (OutUsedItemDefinition)
+	{
+		*OutUsedItemDefinition = nullptr;
+	}
+	if (OutUsedSlotIndex)
+	{
+		*OutUsedSlotIndex = INDEX_NONE;
+	}
+	if (bOutBecameEmpty)
+	{
+		*bOutBecameEmpty = false;
+	}
+
 	ACharacter* OwnerCharacter = GetOwnerCharacter();
 	UItemManagerComponent* ItemManager = GetItemManager();
 	if (!OwnerCharacter || !ItemManager)
@@ -198,6 +215,19 @@ bool UQuickSlotComponent::TryAutoUseItem()
 	if (!ItemManager->TryAutoUseFirst(OwnerCharacter, EmptyTargetData, UsedItemDefinition, UsedSlotIndex, bBecameEmpty))
 	{
 		return false;
+	}
+
+	if (OutUsedItemDefinition)
+	{
+		*OutUsedItemDefinition = UsedItemDefinition;
+	}
+	if (OutUsedSlotIndex)
+	{
+		*OutUsedSlotIndex = UsedSlotIndex;
+	}
+	if (bOutBecameEmpty)
+	{
+		*bOutBecameEmpty = bBecameEmpty;
 	}
 
 	const FString ItemName = (UsedItemDefinition && !UsedItemDefinition->DisplayName.IsEmpty())

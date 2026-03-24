@@ -86,6 +86,9 @@ public:
 	TObjectPtr<UInputMappingContext> IMC_QTE = nullptr;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TObjectPtr<UInputMappingContext> IMC_AttackLock = nullptr;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> IA_Move = nullptr;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")

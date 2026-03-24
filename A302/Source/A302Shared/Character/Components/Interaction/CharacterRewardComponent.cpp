@@ -2,13 +2,11 @@
 #include "Character/MyCharacter.h"
 #include "Character/MyPlayerController.h"
 #include "Character/Components/Inventory/ItemManagerComponent.h"
-#include "Character/Components/Combat/CombatStatusComponent.h"
 #include "GameData/RewardDefinition.h"
 #include "GameData/Items/ItemInstance.h"
 #include "GameData/Items/ItemDefinition.h"
 #include "GameData/Events/PersonalEvents/Equipment/PersonalEventCursedSwordDefinition.h"
 #include "GamePlay/Items/BaseItem.h"
-#include "GamePlay/Items/ItemShield.h"
 #include "GamePlay/Items/ItemCursedSword.h"
 #include "GamePlay/Events/PersonalEvents/BasePersonalEvent.h"
 #include "GamePlay/Events/GroupEvents/BaseGroupEvent.h"
@@ -140,27 +138,9 @@ bool UCharacterRewardComponent::HandleRewardPickup(AActor* InteractedActor, cons
 		return false;
 	}
 
-	// [ItemEffectComponent] Reward 획득 알림 - 모든 타입의 Reward에 대해 브로드캐스트
-	OnRewardAcquired.Broadcast(RewardDefinition);
+	const ERewardCategory EffectiveCategory = ResolveEffectiveRewardCategory(RewardDefinition);
 
-	ERewardCategory EffectiveCategory = RewardDefinition->RewardCategory;
-	UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass();
-	if (LogicClass)
-	{
-		const bool bIsLegacyPersonalEventClass =
-			RewardDefinition->RewardCategory != ERewardCategory::BasicItem &&
-			LogicClass->IsChildOf(UItemCursedSword::StaticClass());
-
-		if (LogicClass->IsChildOf(UBasePersonalEvent::StaticClass()) || bIsLegacyPersonalEventClass)
-		{
-			EffectiveCategory = ERewardCategory::PersonalEvent;
-		}
-		else if (LogicClass->IsChildOf(UBaseGroupEvent::StaticClass()))
-		{
-			EffectiveCategory = ERewardCategory::GroupEvent;
-		}
-	}
-
+	bool bRewardHandled = false;
 	switch (EffectiveCategory)
 	{
 	case ERewardCategory::BasicItem:
@@ -171,19 +151,30 @@ bool UCharacterRewardComponent::HandleRewardPickup(AActor* InteractedActor, cons
 			UE_LOG(LogTemp, Warning, TEXT("[Reward] Basic item pickup failed: reward is not UItemDefinition. item=%s"), *GetNameSafe(RewardDefinition));
 			return false;
 		}
-		return HandleBasicItemPickup(InteractedActor, ItemDefinition);
+		bRewardHandled = HandleBasicItemPickup(InteractedActor, ItemDefinition);
+		break;
 	}
 
 	case ERewardCategory::PersonalEvent:
-		return HandlePersonalEventPickup(InteractedActor, RewardDefinition);
+		bRewardHandled = HandlePersonalEventPickup(InteractedActor, RewardDefinition);
+		break;
 
 	case ERewardCategory::GroupEvent:
-		return HandleGroupEventPickup(InteractedActor, RewardDefinition);
+		bRewardHandled = HandleGroupEventPickup(InteractedActor, RewardDefinition);
+		break;
 
 	default:
 		UE_LOG(LogTemp, Warning, TEXT("[Reward] Unknown category. item=%s"), *GetNameSafe(RewardDefinition));
 		return false;
 	}
+
+	// [ItemEffectComponent] Reward 획득 알림 - 실제 보상이 반영된 경우에만 브로드캐스트
+	if (bRewardHandled)
+	{
+		OnRewardAcquired.Broadcast(RewardDefinition);
+	}
+
+	return bRewardHandled;
 }
 
 ERewardCategory UCharacterRewardComponent::ResolveEffectiveRewardCategory(const URewardDefinition* RewardDefinition) const
@@ -193,23 +184,27 @@ ERewardCategory UCharacterRewardComponent::ResolveEffectiveRewardCategory(const 
 		return ERewardCategory::BasicItem;
 	}
 
-	ERewardCategory EffectiveCategory = RewardDefinition->RewardCategory;
 	if (UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass())
 	{
-		const bool bIsLegacyPersonalEventClass =
-			LogicClass->IsChildOf(UItemCursedSword::StaticClass());
-
-		if (LogicClass->IsChildOf(UBasePersonalEvent::StaticClass()) || bIsLegacyPersonalEventClass)
+		// Item logic classes should always be handled as inventory items,
+		// even when legacy data category is mismatched.
+		if (LogicClass->IsChildOf(UBaseItem::StaticClass()))
 		{
-			EffectiveCategory = ERewardCategory::PersonalEvent;
+			return ERewardCategory::BasicItem;
 		}
-		else if (LogicClass->IsChildOf(UBaseGroupEvent::StaticClass()))
+
+		if (LogicClass->IsChildOf(UBasePersonalEvent::StaticClass()))
 		{
-			EffectiveCategory = ERewardCategory::GroupEvent;
+			return ERewardCategory::PersonalEvent;
+		}
+
+		if (LogicClass->IsChildOf(UBaseGroupEvent::StaticClass()))
+		{
+			return ERewardCategory::GroupEvent;
 		}
 	}
 
-	return EffectiveCategory;
+	return RewardDefinition->RewardCategory;
 }
 
 bool UCharacterRewardComponent::ShouldGrantRewardLocally(const URewardDefinition* RewardDefinition) const
@@ -219,7 +214,7 @@ bool UCharacterRewardComponent::ShouldGrantRewardLocally(const URewardDefinition
 		return false;
 	}
 
-	return RewardDefinition->RewardCategory == ERewardCategory::BasicItem;
+	return ResolveEffectiveRewardCategory(RewardDefinition) == ERewardCategory::BasicItem;
 }
 
 void UCharacterRewardComponent::ResolveInteractionRewardOnServer(ABaseInteractable* Interactable)
@@ -243,6 +238,10 @@ void UCharacterRewardComponent::ResolveInteractionRewardOnServer(ABaseInteractab
 		return;
 	}
 
+	const ERewardCategory EffectiveCategory = ResolveEffectiveRewardCategory(RewardDefinition);
+
+	if (EffectiveCategory == ERewardCategory::BasicItem)
+	{
 	if (UItemManagerComponent* ItemManagerComponent = OwnerCharacter->FindComponentByClass<UItemManagerComponent>())
 	{
 		const bool bInventoryFull = ItemManagerComponent->FindFirstEmptySlotIndex() == INDEX_NONE;
@@ -265,51 +264,49 @@ void UCharacterRewardComponent::ResolveInteractionRewardOnServer(ABaseInteractab
 			return;
 		}
 	}
+	}
 
 	if (!Interactable->TryConsumeInteraction())
 	{
 		return;
 	}
 
-	if (RewardDefinition)
+	bool bRewardHandled = false;
+	const bool bNeedsClientMirrorGrant =
+		!OwnerCharacter->IsLocallyControlled() &&
+		Cast<AMyPlayerController>(OwnerCharacter->GetController()) != nullptr;
+
+	if (EffectiveCategory == ERewardCategory::BasicItem)
 	{
-		const ERewardCategory EffectiveCategory = ResolveEffectiveRewardCategory(RewardDefinition);
-		bool bRewardHandled = false;
-
-		const bool bNeedsClientMirrorGrant =
-			!OwnerCharacter->IsLocallyControlled() &&
-			Cast<AMyPlayerController>(OwnerCharacter->GetController()) != nullptr;
-
-		if (RewardDefinition->RewardCategory == ERewardCategory::BasicItem)
-		{
-			const bool bServerGranted = HandleRewardPickup(Interactable, RewardDefinition);
-			bRewardHandled = bServerGranted;
-			if (bServerGranted && bNeedsClientMirrorGrant && ShouldGrantRewardLocally(RewardDefinition))
-			{
-				Client_GrantInteractionReward(const_cast<URewardDefinition*>(RewardDefinition));
-			}
-		}
-		else if (bNeedsClientMirrorGrant && ShouldGrantRewardLocally(RewardDefinition))
+		const bool bServerGranted = HandleRewardPickup(Interactable, RewardDefinition);
+		bRewardHandled = bServerGranted;
+		if (bServerGranted && bNeedsClientMirrorGrant && ShouldGrantRewardLocally(RewardDefinition))
 		{
 			Client_GrantInteractionReward(const_cast<URewardDefinition*>(RewardDefinition));
-			bRewardHandled = true;
 		}
-		else
-		{
-			bRewardHandled = HandleRewardPickup(Interactable, RewardDefinition);
-		}
+	}
+	else
+	{
+		bRewardHandled = HandleRewardPickup(Interactable, RewardDefinition);
+	}
 
-		if (bRewardHandled)
+	if (bRewardHandled)
+	{
+		if (IA302ServerRewardBridge* RewardBridge = Cast<IA302ServerRewardBridge>(GetWorld() ? GetWorld()->GetAuthGameMode() : nullptr))
 		{
-			if (IA302ServerRewardBridge* RewardBridge = Cast<IA302ServerRewardBridge>(GetWorld() ? GetWorld()->GetAuthGameMode() : nullptr))
-			{
-				RewardBridge->NotifyInteractionRewardResolved(OwnerCharacter, RewardDefinition, EffectiveCategory);
-			}
+			RewardBridge->NotifyInteractionRewardResolved(OwnerCharacter, RewardDefinition, EffectiveCategory);
 		}
 	}
 
+	if (bRewardHandled)
+	{
+		Interactable->ForceNetUpdate();
+		Interactable->Destroy();
+		return;
+	}
+
+	Interactable->RestoreInteraction();
 	Interactable->ForceNetUpdate();
-	Interactable->Destroy();
 }
 
 void UCharacterRewardComponent::Server_RequestInteractionReward_Implementation(ABaseInteractable* Interactable)
@@ -493,23 +490,24 @@ bool UCharacterRewardComponent::HandleBasicItemPickup(AActor* InteractedActor, c
 	UItemDefinition* MutableDefinition = const_cast<UItemDefinition*>(RewardDefinition);
 	if (ItemManagerComponent->TryAddItemToFirstEmptySlot(MutableDefinition, 1, AddedSlotIndex))
 	{
-		UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass();
-		
-		if (LogicClass && LogicClass->IsChildOf(UBaseItem::StaticClass()))
+		UBaseItem* ItemLogic = ItemManagerComponent->GetItemLogicAtSlot(AddedSlotIndex);
+		if (!ItemLogic)
 		{
-			if (const UBaseItem* BaseItemLogic = Cast<UBaseItem>(LogicClass->GetDefaultObject()))
+			// Fallback for partially initialized slots: keep legacy behavior as a safe guard.
+			if (UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass();
+				LogicClass && LogicClass->IsChildOf(UBaseItem::StaticClass()))
 			{
-				BaseItemLogic->OnItemAcquired(OwnerCharacter);
+				ItemLogic = Cast<UBaseItem>(LogicClass->GetDefaultObject());
 			}
 		}
-		
-		const bool bIsShieldItem = RewardDefinition && LogicClass && LogicClass->IsChildOf(UItemShield::StaticClass());
-		if (bIsShieldItem)
+
+		if (ItemLogic)
 		{
-			if (UCombatStatusComponent* CombatStatusComponent = OwnerCharacter->FindComponentByClass<UCombatStatusComponent>())
-			{
-				CombatStatusComponent->AddShield(FMath::Max(1, RewardDefinition->Payload.BlockCount));
-			}
+			ItemLogic->OnItemAcquired(OwnerCharacter);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[Reward] Item logic missing after pickup. item=%s slot=%d"), *GetNameSafe(RewardDefinition), AddedSlotIndex);
 		}
 
 		return true;

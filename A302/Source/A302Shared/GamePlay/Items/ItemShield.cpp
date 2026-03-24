@@ -1,10 +1,33 @@
 #include "GamePlay/Items/ItemShield.h"
 #include "Character/Components/Combat/CombatStatusComponent.h"
 #include "GameData/Items/ItemInstance.h"
+#include "GameData/Items/ItemDefinition.h"
 #include "GameFramework/Character.h"
 #include "Character/MyCharacter.h"
 #include "Animation/MyAnimInstance.h"
 #include "Character/Components/Combat/EquipmentComponent.h"
+
+void UItemShield::OnItemAcquired(ACharacter* OwnerCharacter) const
+{
+    Super::OnItemAcquired(OwnerCharacter);
+
+    if (!OwnerCharacter || !OwnerCharacter->HasAuthority())
+    {
+        return;
+    }
+
+	const UItemDefinition* Definition = GetDefinition();
+	if (!Definition)
+	{
+		return;
+	}
+
+	if (UCombatStatusComponent* Combat = OwnerCharacter->FindComponentByClass<UCombatStatusComponent>())
+	{
+		const int32 AddedShieldCount = FMath::Max(1, Definition->Payload.BlockCount);
+		Combat->AddShield(AddedShieldCount);
+	}
+}
 
 bool UItemShield::CanUse_Implementation(ACharacter* Instigator, const FItemTargetData& /*TargetData*/) const
 {

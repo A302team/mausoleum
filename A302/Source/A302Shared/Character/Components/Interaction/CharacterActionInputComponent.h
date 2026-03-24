@@ -7,6 +7,7 @@
 
 class UInputComponent;
 class UEnhancedInputComponent;
+class UAnimMontage;
 struct FInputActionValue;
 class AMyCharacter;
 
@@ -52,4 +53,10 @@ private:
 
 	TWeakObjectPtr<AMyCharacter> PendingCameraRecoveryOwner;
 	FTimerHandle AttackCameraRecoveryTimerHandle;
+
+	void BeginAttackInputLock();
+	void EndAttackInputLock();
+	void HandleAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+
+	bool bAttackInputLocked = false;
 };

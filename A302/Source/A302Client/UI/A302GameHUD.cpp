@@ -120,6 +120,14 @@ void AA302GameHUD::InitializeClientInGameWidgets()
 	}
 }
 
+void AA302GameHUD::RefreshQuickSlotBinding()
+{
+	if (PlayerHUDComponent)
+	{
+		PlayerHUDComponent->RefreshQuickSlotBinding();
+	}
+}
+
 void AA302GameHUD::InitializeChatWidget()
 {
 	if (ChatWidgetInstance)
