@@ -90,7 +90,7 @@ void UPlayerEventComponent::RequestSubmitGroupVote(FName EventID, int32 TargetPl
 
 void UPlayerEventComponent::NotifyKilledCharacter()
 {
-	if (ActiveTimedKnifeEventObject && bTimedKnifeAttackInProgress)
+	if (ActiveTimedKnifeEventObject)
 	{
 		if (IA302TimedKillEventBridge* TimedKillBridge = Cast<IA302TimedKillEventBridge>(ActiveTimedKnifeEventObject))
 		{
@@ -99,7 +99,7 @@ void UPlayerEventComponent::NotifyKilledCharacter()
 		return;
 	}
 
-	if (bTimedKnifeAttackInProgress && !ActiveTimedKnifeItemId.IsNone() && TimedKnifeRemainingSeconds > 0.0f)
+	if (!ActiveTimedKnifeItemId.IsNone() && TimedKnifeRemainingSeconds > 0.0f)
 	{
 		StopTimedKnifeCountdown(true, true);
 	}
