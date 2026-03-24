@@ -13,6 +13,7 @@
 #include "Interface/A302AnimationBridge.h"
 #include "Object/BaseInteractable.h"
 #include "A302RuntimeGuards.h"
+#include "Character/Components/TraceHelper.h"
 
 UInteractComponent::UInteractComponent()
 {
@@ -132,9 +133,10 @@ void UInteractComponent::CheckForInteractables()
 	{
 		return;
 	}
-    
-	const FVector Start = OwnerCharacter->GetPawnViewLocation();
-	const FVector ForwardVector = OwnerCharacter->GetViewRotation().Vector();
+
+	FVector Start = OwnerCharacter->GetPawnViewLocation();
+	FVector ForwardVector = OwnerCharacter->GetViewRotation().Vector();
+	TraceHelper::TryGetCrosshairTrace(OwnerCharacter, Start, ForwardVector);
 	const FVector End = Start + (ForwardVector * InteractionDistance);
 
 	// 디버그 옵션이 켜져 있을 때만 라인을 그립니다.

@@ -10,6 +10,7 @@
 #include "Character/MyCharacter.h"
 #include "Kismet/GameplayStatics.h"
 #include "A302GameplayGuards.h"
+#include "Character/Components/TraceHelper.h"
 #include "Character/Components/Combat/EquipmentComponent.h"
 
 bool UItemKnife::CanUse_Implementation(ACharacter* Instigator, const FItemTargetData& TargetData) const
@@ -190,7 +191,9 @@ bool UItemKnife::HasLineOfSight(ACharacter* Instigator, AActor* Target) const
         return false;
     }
 
-    const FVector Start = Instigator->GetActorLocation();
+    FVector Start = Instigator->GetActorLocation();
+    FVector UnusedDirection = FVector::ForwardVector;
+    TraceHelper::TryGetCrosshairTrace(Instigator, Start, UnusedDirection);
     const FVector End = Target->GetActorLocation();
 
     FHitResult Hit;
