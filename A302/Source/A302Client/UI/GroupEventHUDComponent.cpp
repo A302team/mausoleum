@@ -113,7 +113,6 @@ void UGroupEventHUDComponent::ShowGroupEventVoteUI(TSubclassOf<UUserWidget> Grou
 	GroupEventVoteWidgetInstance->SetVisibility(ESlateVisibility::Visible);
 
 	FInputModeUIOnly InputMode;
-	InputMode.SetWidgetToFocus(GroupEventVoteWidgetInstance->TakeWidget());
 	OwnerController->SetInputMode(InputMode);
 	OwnerController->bShowMouseCursor = true;
 	OwnerController->bEnableClickEvents = true;
@@ -220,14 +219,16 @@ void UGroupEventHUDComponent::PopulateGroupEventVoteCandidates()
 
 	APlayerState* LocalPlayerState = OwnerController->PlayerState;
 	int32 CandidateIndex = 0;
+
 	for (APlayerState* CandidatePlayerState : GameState->PlayerArray)
 	{
-		if (!CandidatePlayerState || CandidatePlayerState == LocalPlayerState)
+		if (!CandidatePlayerState)
 		{
 			continue;
 		}
 
-		if (!A302RoomScope::ArePlayersInSameLogicalRoom(LocalPlayerState, CandidatePlayerState))
+		const bool bSameLogicalRoom = A302RoomScope::ArePlayersInSameLogicalRoom(LocalPlayerState, CandidatePlayerState);
+		if (!bSameLogicalRoom)
 		{
 			continue;
 		}
