@@ -257,11 +257,11 @@ void AA302GameHUD::SetItemTimerVisible(bool bVisible)
 	if (PlayerHUDComponent) PlayerHUDComponent->SetItemTimerVisible(bVisible);
 }
 
-void AA302GameHUD::ConfigureMatchTimer(float MatchStartServerTime, float DurationSeconds, bool bVisible)
+void AA302GameHUD::ConfigureMatchTimer(float MatchStartServerTime, float DurationSeconds, uint8 bVisibleInt)
 {
 	if (PlayerHUDComponent)
 	{
-		PlayerHUDComponent->ConfigureMatchTimer(MatchStartServerTime, DurationSeconds, bVisible);
+		PlayerHUDComponent->ConfigureMatchTimer(MatchStartServerTime, DurationSeconds, bVisibleInt != 0);
 	}
 }
 

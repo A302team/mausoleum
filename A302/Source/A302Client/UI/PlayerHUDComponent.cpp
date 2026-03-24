@@ -51,9 +51,7 @@ namespace
 	FText BuildClockText(float RemainingSeconds)
 	{
 		const int32 SafeSeconds = FMath::Max(0, FMath::CeilToInt(RemainingSeconds));
-		const int32 Minutes = SafeSeconds / 60;
-		const int32 Seconds = SafeSeconds % 60;
-		return FText::FromString(FString::Printf(TEXT("%02d:%02d"), Minutes, Seconds));
+		return FText::FromString(FString::Printf(TEXT("%d"), SafeSeconds));
 	}
 
 	FString ClampNicknameForUi(const FString& Name)
@@ -467,6 +465,10 @@ void UPlayerHUDComponent::ConfigureMatchTimer(float MatchStartServerTime, float 
 	{
 		World->GetTimerManager().ClearTimer(MatchTimerTickHandle);
 	}
+
+	UTextBlock* FoundText = FindMatchTimerText();
+	UE_LOG(LogTemp, Warning, TEXT("[MatchTimerDebug] ConfigureMatchTimer called. start=%f, duration=%f, visible=%d. WidgetFound=%d"), 
+		MatchTimerStartServerTime, MatchTimerDurationSeconds, bVisible, FoundText != nullptr);
 
 	if (!bMatchTimerVisible)
 	{

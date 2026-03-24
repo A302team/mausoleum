@@ -58,6 +58,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
 	float GetInteractionProgressRatio() const { return InteractionProgressRatio; }
 
+	// -- Sync Hold Progress --
+	UFUNCTION(Server, Reliable, WithValidation)
+	void Server_SyncHoldProgress(AActor* InteractTarget, float DeltaTime);
+
+	float AccumulatedHoldSyncTime = 0.0f;
+
 	UPROPERTY(EditAnywhere, Category = "Interaction")
 	float MaxHoldTime = 2.0f;
 	

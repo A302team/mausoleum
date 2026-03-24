@@ -32,7 +32,16 @@ public:
     UPROPERTY(Replicated, BlueprintReadOnly)
     float PhaseChangedServerTime = 0.0f;
 
+    /** 쾬 시작 시간(서버 절대시간). 클라이언트는 이 값으로 남은 시간을 계산합니다. */
+    UPROPERTY(Replicated, BlueprintReadOnly)
+    float MatchStartServerTime = 0.0f;
+
+    /** 전체 게임 제한 시간(서버 설정 기준). */
+    UPROPERTY(Replicated, BlueprintReadOnly)
+    float MatchTimeLimitSeconds = 0.0f;
+
     void SetGamePhase(EGamePhase NewGamePhase, float ChangedServerTime);
+    void SetMatchTimer(float StartServerTime, float TimeLimitSeconds);
 
     virtual void GetLifetimeReplicatedProps(
         TArray<FLifetimeProperty>& OutLifetimeProps) const override;
