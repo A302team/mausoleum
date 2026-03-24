@@ -56,7 +56,7 @@ public:
     FString roomCode;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voice|Mode", meta=(ClampMin="100.0"))
-    float DefaultInGameHearingDistance = 1800.f;
+    float DefaultInGameHearingDistance = 4200.f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voice|Server")
     bool bAutoConnectOnBeginPlay = true;
