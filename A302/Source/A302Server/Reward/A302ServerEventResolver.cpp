@@ -4,9 +4,11 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/GameModeBase.h"
 #include "GameData/Events/GroupEvents/GroupEventConfiscateDefinition.h"
+#include "GameData/Events/GroupEvents/GroupEventJudgmentDefinition.h"
 #include "GameData/RewardDefinition.h"
 #include "GamePlay/Events/GroupEvents/BaseGroupEvent.h"
 #include "GamePlay/Events/GroupEvents/GroupEventConfiscate.h"
+#include "GamePlay/Events/GroupEvents/GroupEventJudgment.h"
 #include "GamePlay/Events/PersonalEvents/BasePersonalEvent.h"
 
 bool FA302ServerEventResolver::TryHandlePersonalEventReward(
@@ -74,6 +76,10 @@ bool FA302ServerEventResolver::TryHandleGroupEventReward(
 		if (Cast<UGroupEventConfiscateDefinition>(MutableRewardDefinition))
 		{
 			GroupEventClass = UGroupEventConfiscate::StaticClass();
+		}
+		else if (Cast<UGroupEventJudgmentDefinition>(MutableRewardDefinition))
+		{
+			GroupEventClass = UGroupEventJudgment::StaticClass();
 		}
 	}
 
