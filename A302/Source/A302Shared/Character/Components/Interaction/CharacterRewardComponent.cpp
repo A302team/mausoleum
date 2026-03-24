@@ -230,12 +230,47 @@ void UCharacterRewardComponent::ResolveInteractionRewardOnServer(ABaseInteractab
 		return;
 	}
 
+	const URewardDefinition* RewardDefinition = Interactable->GetRewardDefinition();
+	if (!RewardDefinition)
+	{
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("[Interaction] Reward blocked: interactable has no reward definition. player=%s actor=%s"),
+			*GetNameSafe(OwnerCharacter),
+			*GetNameSafe(Interactable)
+		);
+		return;
+	}
+
+	if (UItemManagerComponent* ItemManagerComponent = OwnerCharacter->FindComponentByClass<UItemManagerComponent>())
+	{
+		const bool bInventoryFull = ItemManagerComponent->FindFirstEmptySlotIndex() == INDEX_NONE;
+		if (bInventoryFull)
+		{
+			UE_LOG(
+				LogTemp,
+				Warning,
+				TEXT("[Interaction] Reward blocked: inventory full. player=%s actor=%s reward=%s"),
+				*GetNameSafe(OwnerCharacter),
+				*GetNameSafe(Interactable),
+				*GetNameSafe(RewardDefinition)
+			);
+
+			if (AMyPlayerController* OwnerPlayerController = Cast<AMyPlayerController>(OwnerCharacter->GetController()))
+			{
+				OwnerPlayerController->Client_ReceiveSystemMessage(TEXT("Inventory is full. Interaction reward was not granted."));
+			}
+
+			return;
+		}
+	}
+
 	if (!Interactable->TryConsumeInteraction())
 	{
 		return;
 	}
 
-	const URewardDefinition* RewardDefinition = Interactable->GetRewardDefinition();
 	if (RewardDefinition)
 	{
 		const ERewardCategory EffectiveCategory = ResolveEffectiveRewardCategory(RewardDefinition);
