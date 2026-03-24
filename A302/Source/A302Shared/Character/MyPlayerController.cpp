@@ -230,7 +230,6 @@ void AMyPlayerController::OnRep_Pawn()
 {
 	Super::OnRep_Pawn();
 	EnsureLocalVoiceComponent();
-	NotifyLocalGameplayPawnReady();
 
 #if !UE_SERVER
 	if (IsLocalController() && ShouldAttemptGameplayHUDInitialization())
