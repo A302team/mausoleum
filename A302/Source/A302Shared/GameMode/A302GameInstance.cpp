@@ -33,6 +33,12 @@ namespace
 	constexpr TCHAR RoomListPopupClassPath[] = TEXT("/Game/PersonalWorkSpace/sikk806/WBP_RoomListPopup.WBP_RoomListPopup_C");
 	constexpr TCHAR LoadingWidgetClassPath[] = TEXT("/Game/WorkSpace/UI/WBP_Loading.WBP_Loading_C");
 	constexpr TCHAR TestLevelMapName[] = TEXT("testLevel");
+	constexpr float StreamingProgressStart = 0.55f;
+	constexpr float StreamingProgressCap = 0.93f;
+	constexpr float WaitingForPawnProgressCap = 0.97f;
+	constexpr float WaitingForFinalizeProgressCap = 0.99f;
+	constexpr float LocalPawnReadyHoldSeconds = 2.0f;
+	constexpr float FinalProgressFillDuration = 0.2f;
 	constexpr const TCHAR* LoadingProgressFunctionCandidates[] = {
 		TEXT("SetLoadingProgress"),
 		TEXT("UpdateLoadingProgress")
@@ -172,8 +178,16 @@ void UA302GameInstance::OnMapLoaded(UWorld* LoadedWorld)
 	LoadedWorld->GetTimerManager().ClearTimer(LoadingWidgetRetryTimerHandle);
 	LoadedWorld->GetTimerManager().ClearTimer(StartGameLoadingTransitionTimeoutTimerHandle);
 	LoadedWorld->GetTimerManager().ClearTimer(FinalizeLoadingProgressTimerHandle);
+	LoadedWorld->GetTimerManager().ClearTimer(LoadingCompletionDelayTimerHandle);
 	LoadedWorld->GetTimerManager().ClearTimer(RoomStreamingReadyPollTimerHandle);
 	bStartGameLoadingTransitionActive = false;
+	bRoomStreamingReady = false;
+	bLocalGameplayPawnReady = false;
+	bLoadingCompletionDelayActive = false;
+	RoomStreamingReadyTime = 0.0f;
+	LoadingCompletionDelayStartTime = 0.0f;
+	LoadingCompletionDelayStartProgress = WaitingForPawnProgressCap;
+	FinalizeLoadingProgressTarget = 1.0f;
 
 	if (A302RuntimeGuards::IsLoadingWorld(LoadedWorld))
 	{
@@ -195,6 +209,13 @@ void UA302GameInstance::OnMapLoaded(UWorld* LoadedWorld)
 		LocalRoomStreamingLevel = nullptr;
 		LocalRoomStreamingRoomCode.Reset();
 		bWaitingForRoomStreamingReady = !ResolvedRoomCode.IsEmpty();
+		bRoomStreamingReady = false;
+		bLocalGameplayPawnReady = false;
+		bLoadingCompletionDelayActive = false;
+		RoomStreamingReadyTime = 0.0f;
+		LoadingCompletionDelayStartTime = 0.0f;
+		LoadingCompletionDelayStartProgress = WaitingForPawnProgressCap;
+		FinalizeLoadingProgressTarget = 1.0f;
 
 		if (!bWaitingForRoomStreamingReady)
 		{
@@ -217,7 +238,7 @@ void UA302GameInstance::OnMapLoaded(UWorld* LoadedWorld)
 		}
 
 		EnsureLocalRoomLevelInstance(LoadedWorld);
-		SetLoadingProgressValue(0.55f);
+		SetLoadingProgressValue(StreamingProgressStart);
 		LoadedWorld->GetTimerManager().SetTimer(
 			RoomStreamingReadyPollTimerHandle,
 			this,
@@ -693,6 +714,13 @@ void UA302GameInstance::PushLoadingProgressToWidget() const
 void UA302GameInstance::HideLoadingWidget()
 {
 	LoadingProgress = 0.0f;
+	bRoomStreamingReady = false;
+	bLocalGameplayPawnReady = false;
+	bLoadingCompletionDelayActive = false;
+	RoomStreamingReadyTime = 0.0f;
+	LoadingCompletionDelayStartTime = 0.0f;
+	LoadingCompletionDelayStartProgress = WaitingForPawnProgressCap;
+	FinalizeLoadingProgressTarget = 1.0f;
 	if (LoadingWidget)
 	{
 		LoadingWidget->RemoveFromParent();
@@ -721,7 +749,7 @@ void UA302GameInstance::PollRoomStreamingReady()
 	}
 	const float ElapsedSinceStreamingStarted = FMath::Max(World->GetTimeSeconds() - LoadingProgressPhaseStartTime, 0.0f);
 	const float NormalizedProgress = FMath::Clamp(ElapsedSinceStreamingStarted / 6.0f, 0.0f, 1.0f);
-	const float SmoothedProgress = FMath::InterpEaseInOut(0.55f, 0.88f, NormalizedProgress, 2.0f);
+	const float SmoothedProgress = FMath::InterpEaseInOut(StreamingProgressStart, StreamingProgressCap, NormalizedProgress, 2.0f);
 	SetLoadingProgressValue(FMath::Max(LoadingProgress, SmoothedProgress));
 
 	if (!LocalRoomStreamingLevel)
@@ -738,10 +766,48 @@ void UA302GameInstance::PollRoomStreamingReady()
 		return;
 	}
 
-	if (!World->GetTimerManager().IsTimerActive(FinalizeLoadingProgressTimerHandle))
+	if (!bRoomStreamingReady)
+	{
+		bRoomStreamingReady = true;
+		RoomStreamingReadyTime = World->GetTimeSeconds();
+		UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] Local room streaming level became visible. Waiting for local pawn readiness. room=%s"), *LocalRoomStreamingRoomCode);
+	}
+
+	if (!bLocalGameplayPawnReady)
+	{
+		const float ElapsedSinceRoomVisible = FMath::Max(World->GetTimeSeconds() - RoomStreamingReadyTime, 0.0f);
+		const float PawnWaitAlpha = FMath::Clamp(ElapsedSinceRoomVisible / 0.5f, 0.0f, 1.0f);
+		const float PawnWaitProgress = FMath::InterpEaseInOut(StreamingProgressCap, WaitingForPawnProgressCap, PawnWaitAlpha, 2.0f);
+		SetLoadingProgressValue(FMath::Max(LoadingProgress, PawnWaitProgress));
+		return;
+	}
+
+	if (!bLoadingCompletionDelayActive)
+	{
+		bLoadingCompletionDelayActive = true;
+		LoadingCompletionDelayStartTime = World->GetTimeSeconds();
+		LoadingCompletionDelayStartProgress = FMath::Max(LoadingProgress, WaitingForPawnProgressCap);
+		World->GetTimerManager().ClearTimer(LoadingCompletionDelayTimerHandle);
+		World->GetTimerManager().SetTimer(
+			LoadingCompletionDelayTimerHandle,
+			this,
+			&UA302GameInstance::HandleLoadingCompletionDelayElapsed,
+			LocalPawnReadyHoldSeconds,
+			false
+		);
+		UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] Local pawn ready. Holding loading UI for %.2fs before completion."), LocalPawnReadyHoldSeconds);
+	}
+
+	const float CompletionDelayElapsed = FMath::Max(World->GetTimeSeconds() - LoadingCompletionDelayStartTime, 0.0f);
+	const float CompletionDelayAlpha = FMath::Clamp(CompletionDelayElapsed / LocalPawnReadyHoldSeconds, 0.0f, 1.0f);
+	const float CompletionDelayProgress = FMath::InterpEaseInOut(LoadingCompletionDelayStartProgress, WaitingForFinalizeProgressCap, CompletionDelayAlpha, 2.0f);
+	SetLoadingProgressValue(FMath::Max(LoadingProgress, CompletionDelayProgress));
+
+	if (!World->GetTimerManager().IsTimerActive(FinalizeLoadingProgressTimerHandle) && !World->GetTimerManager().IsTimerActive(LoadingCompletionDelayTimerHandle))
 	{
 		FinalizeLoadingProgressStartTime = World->GetTimeSeconds();
-		FinalizeLoadingProgressStartValue = FMath::Max(LoadingProgress, 0.9f);
+		FinalizeLoadingProgressStartValue = FMath::Max(LoadingProgress, WaitingForFinalizeProgressCap);
+		FinalizeLoadingProgressTarget = 1.0f;
 		SetLoadingProgressValue(FinalizeLoadingProgressStartValue);
 		World->GetTimerManager().ClearTimer(RoomStreamingReadyPollTimerHandle);
 		World->GetTimerManager().SetTimer(
@@ -751,8 +817,8 @@ void UA302GameInstance::PollRoomStreamingReady()
 			0.05f,
 			true
 		);
+		UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] Loading completion delay elapsed. Finalizing loading progress. room=%s"), *LocalRoomStreamingRoomCode);
 	}
-	UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] Local room streaming level loaded. Finalizing loading progress. room=%s"), *LocalRoomStreamingRoomCode);
 }
 
 void UA302GameInstance::FinalizeLoadingProgress()
@@ -764,9 +830,9 @@ void UA302GameInstance::FinalizeLoadingProgress()
 	}
 
 	const float Elapsed = FMath::Max(World->GetTimeSeconds() - FinalizeLoadingProgressStartTime, 0.0f);
-	const float Alpha = FMath::Clamp(Elapsed / 0.45f, 0.0f, 1.0f);
+	const float Alpha = FMath::Clamp(Elapsed / FinalProgressFillDuration, 0.0f, 1.0f);
 	const float SmoothedAlpha = FMath::InterpEaseInOut(0.0f, 1.0f, Alpha, 2.0f);
-	SetLoadingProgressValue(FMath::Lerp(FinalizeLoadingProgressStartValue, 1.0f, SmoothedAlpha));
+	SetLoadingProgressValue(FMath::Lerp(FinalizeLoadingProgressStartValue, FinalizeLoadingProgressTarget, SmoothedAlpha));
 
 	if (Alpha < 1.0f)
 	{
@@ -774,6 +840,7 @@ void UA302GameInstance::FinalizeLoadingProgress()
 	}
 
 	World->GetTimerManager().ClearTimer(FinalizeLoadingProgressTimerHandle);
+	World->GetTimerManager().ClearTimer(LoadingCompletionDelayTimerHandle);
 	HideLoadingWidget();
 	bWaitingForRoomStreamingReady = false;
 	if (APlayerController* LocalPC = World->GetFirstPlayerController())
@@ -783,6 +850,46 @@ void UA302GameInstance::FinalizeLoadingProgress()
 		LocalPC->bEnableClickEvents = false;
 	}
 	UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] Local room streaming level is ready. room=%s"), *LocalRoomStreamingRoomCode);
+}
+
+void UA302GameInstance::HandleLoadingCompletionDelayElapsed()
+{
+	UWorld* World = GetWorld();
+	if (!World || !bWaitingForRoomStreamingReady)
+	{
+		return;
+	}
+
+	bLoadingCompletionDelayActive = false;
+	FinalizeLoadingProgressTarget = 1.0f;
+	FinalizeLoadingProgressStartTime = World->GetTimeSeconds();
+	FinalizeLoadingProgressStartValue = FMath::Max(LoadingProgress, WaitingForFinalizeProgressCap);
+	SetLoadingProgressValue(FinalizeLoadingProgressStartValue);
+	World->GetTimerManager().ClearTimer(RoomStreamingReadyPollTimerHandle);
+	World->GetTimerManager().SetTimer(
+		FinalizeLoadingProgressTimerHandle,
+		this,
+		&UA302GameInstance::FinalizeLoadingProgress,
+		0.05f,
+		true
+	);
+	UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] Loading completion delay elapsed. Finalizing to full progress. room=%s"), *LocalRoomStreamingRoomCode);
+}
+
+void UA302GameInstance::NotifyLocalGameplayPawnReady()
+{
+	UWorld* World = GetWorld();
+	if (!World || A302RuntimeGuards::IsDedicatedServerWorld(World) || A302RuntimeGuards::IsLobbyWorld(World))
+	{
+		return;
+	}
+
+	bLocalGameplayPawnReady = true;
+
+	if (A302RuntimeGuards::IsLoadingWorld(World) && bRoomStreamingReady && !bLoadingCompletionDelayActive && !World->GetTimerManager().IsTimerActive(FinalizeLoadingProgressTimerHandle))
+	{
+		LoadingCompletionDelayStartTime = World->GetTimeSeconds();
+	}
 }
 
 TSubclassOf<UUserWidget> UA302GameInstance::ResolveLoadingWidgetClass()
@@ -843,6 +950,13 @@ void UA302GameInstance::BeginStartGameLoadingTransition(float TimeoutSeconds)
 	}
 
 	bStartGameLoadingTransitionActive = true;
+	bRoomStreamingReady = false;
+	bLocalGameplayPawnReady = false;
+	bLoadingCompletionDelayActive = false;
+	RoomStreamingReadyTime = 0.0f;
+	LoadingCompletionDelayStartTime = 0.0f;
+	LoadingCompletionDelayStartProgress = WaitingForPawnProgressCap;
+	FinalizeLoadingProgressTarget = 1.0f;
 	SetLoadingProgressValue(0.05f);
 	TryCreateLoadingWidget(World);
 
@@ -880,6 +994,9 @@ void UA302GameInstance::CancelStartGameLoadingTransition()
 	}
 
 	World->GetTimerManager().ClearTimer(StartGameLoadingTransitionTimeoutTimerHandle);
+	World->GetTimerManager().ClearTimer(LoadingCompletionDelayTimerHandle);
+	World->GetTimerManager().ClearTimer(FinalizeLoadingProgressTimerHandle);
+	World->GetTimerManager().ClearTimer(RoomStreamingReadyPollTimerHandle);
 	if (!bStartGameLoadingTransitionActive)
 	{
 		return;
