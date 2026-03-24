@@ -2,6 +2,17 @@
 #include "Character/Components/Combat/CombatStatusComponent.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Net/UnrealNetwork.h"
+
+void UMyAnimInstance::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+    DOREPLIFETIME(UMyAnimInstance, bIsAttacking);
+    DOREPLIFETIME(UMyAnimInstance, bIsBlocking);
+    DOREPLIFETIME(UMyAnimInstance, bIsInteracting);
+    DOREPLIFETIME(UMyAnimInstance, bIsDead);
+}
 
 void UMyAnimInstance::NativeInitializeAnimation()
 {
@@ -65,7 +76,7 @@ void UMyAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
     {
         int32 CurrentShieldCount = CachedCombatComponent->ShieldBlockCount;
 
-        if (CurrentShieldCount < PreviousShieldCount)
+        if (CurrentShieldCount < PreviousShieldCount && CachedCharacter->HasAuthority())
         {
             PlayBlockMontage();
         }
