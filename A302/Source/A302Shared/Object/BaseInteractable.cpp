@@ -73,7 +73,23 @@ void ABaseInteractable::OnInteractionSuccess(ACharacter* PlayerCharacter)
 		return;
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("[Interaction] Success. actor=%s player=%s reward=%s"), *GetName(), *GetNameSafe(PlayerCharacter), *GetNameSafe(RewardDefinition));
+	FString RewardLabel = TEXT("None");
+	if (RewardDefinition)
+	{
+		RewardLabel = !RewardDefinition->DisplayName.IsEmpty()
+			? RewardDefinition->DisplayName.ToString()
+			: RewardDefinition->ItemId.ToString();
+	}
+
+	UE_LOG(
+		LogTemp,
+		Log,
+		TEXT("[Interaction] Success. reward=%s rewardAsset=%s actor=%s player=%s"),
+		*RewardLabel,
+		*GetNameSafe(RewardDefinition),
+		*GetName(),
+		*GetNameSafe(PlayerCharacter)
+	);
 }
 
 void ABaseInteractable::ApplyStageRewardPoolDefinition(UStageRewardPoolDefinition* StageRewardPoolDefinition)
@@ -96,12 +112,23 @@ void ABaseInteractable::ApplyStageRewardPoolDefinition(UStageRewardPoolDefinitio
 
 FString ABaseInteractable::GetInteractText()
 {
-	if (RewardDefinition && !RewardDefinition->DisplayName.IsEmpty())
+	if (RewardDefinition)
 	{
-		return FString::Printf(TEXT("%s (Interact)"), *RewardDefinition->DisplayName.ToString());
+		if (!RewardDefinition->DisplayName.IsEmpty())
+		{
+			return FString::Printf(TEXT("%s (Interact)"), *RewardDefinition->DisplayName.ToString());
+		}
+
+		if (!RewardDefinition->ItemId.IsNone())
+		{
+			return FString::Printf(TEXT("%s (Interact)"), *RewardDefinition->ItemId.ToString());
+		}
+
+		return FString::Printf(TEXT("%s (Interact)"), *GetNameSafe(RewardDefinition));
 	}
 
-	return FString::Printf(TEXT("%s (Interact)"), *GetName());
+	// Reward replication is not ready yet (or not assigned): avoid exposing actor instance names like BaseInteractable_1.
+	return TEXT("Reward Pending (Interact)");
 }
 
 EInteractType ABaseInteractable::GetInteractType()
