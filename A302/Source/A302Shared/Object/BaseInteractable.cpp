@@ -11,6 +11,8 @@
 #include "Net/UnrealNetwork.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
+#include "Kismet/GameplayStatics.h"
+#include "Sound/SoundBase.h"
 
 ABaseInteractable::ABaseInteractable()
 {
@@ -138,7 +140,7 @@ void ABaseInteractable::OnInteractionSuccess(ACharacter* PlayerCharacter)
 		*GetNameSafe(PlayerCharacter)
 	);
 
-	// VFX 재생 (메시의 AssetUserData에서 조회)
+	// VFX/Sound 재생 (메시의 AssetUserData에서 조회)
 	if (Mesh)
 	{
 		UStaticMesh* StaticMesh = Mesh->GetStaticMesh();
@@ -146,10 +148,20 @@ void ABaseInteractable::OnInteractionSuccess(ACharacter* PlayerCharacter)
 		{
 			if (UInteractableVFXData* VFXData = StaticMesh->GetAssetUserData<UInteractableVFXData>())
 			{
-				if (UNiagaraSystem* VFXSystem = VFXData->DisappearVFX.Get())
+				UNiagaraSystem* VFXSystem = VFXData->DisappearVFX.Get();
+				float Scale = VFXData->VFXScale > 0.0f ? VFXData->VFXScale : 1.0f;
+
+				USoundBase* Sound = VFXData->DisappearSound.Get();
+				float VolumeMultiplier = VFXData->SoundVolumeMultiplier > 0.0f ? VFXData->SoundVolumeMultiplier : 1.0f;
+
+				if (VFXSystem || Sound)
 				{
-					float Scale = VFXData->VFXScale > 0.0f ? VFXData->VFXScale : 1.0f;
-					Multicast_PlayDisappearVFX(Mesh->GetComponentLocation(), Mesh->GetComponentRotation(), VFXSystem, Scale);
+					Multicast_PlayDisappearVFX(
+						Mesh->GetComponentLocation(),
+						Mesh->GetComponentRotation(),
+						VFXSystem, Scale,
+						Sound, VolumeMultiplier
+					);
 				}
 			}
 		}
@@ -160,30 +172,35 @@ void ABaseInteractable::Multicast_PlayDisappearVFX_Implementation(
 	FVector Location,
 	FRotator Rotation,
 	UNiagaraSystem* VFXSystem,
-	float Scale)
+	float Scale,
+	USoundBase* Sound,
+	float VolumeMultiplier)
 {
-	if (!VFXSystem)
-	{
-		return;
-	}
-
 	UWorld* World = GetWorld();
 	if (!World)
 	{
 		return;
 	}
 
-	UNiagaraFunctionLibrary::SpawnSystemAtLocation(
-		World,
-		VFXSystem,
-		Location,
-		Rotation,
-		FVector(Scale),
-		true,
-		true,
-		ENCPoolMethod::None,
-		true
-	);
+	if (VFXSystem)
+	{
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+			World,
+			VFXSystem,
+			Location,
+			Rotation,
+			FVector(Scale),
+			true,
+			true,
+			ENCPoolMethod::None,
+			true
+		);
+	}
+
+	if (Sound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(World, Sound, Location, VolumeMultiplier);
+	}
 }
 
 void ABaseInteractable::ApplyStageRewardPoolDefinition(UStageRewardPoolDefinition* StageRewardPoolDefinition)
