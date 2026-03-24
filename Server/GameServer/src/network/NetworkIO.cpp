@@ -1,7 +1,17 @@
 #include "network/NetworkIO.h"
 #include <algorithm>
 #include <chrono>
+#include <unordered_map>
+#include <unordered_set>
+#ifndef _WIN32
+#include <sys/epoll.h>
+#include <cerrno>
+#endif
 #include "network/platform/SocketPlatform.h"
+
+namespace {
+constexpr int kIoWaitTimeoutMs = 100;
+}
 
 NetworkIO::NetworkIO(ConnectionRegistry& connections,
                      ConcurrentQueue<NetPacket>& inbound,
@@ -130,138 +140,264 @@ bool NetworkIO::addTcpListener(int port) {
 }
 
 void NetworkIO::udpLoop() {
+#ifdef _WIN32
     while (running_) {
         if (udpEndpoints_.empty()) {
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
             continue;
         }
 
-        fd_set readfds;
-        FD_ZERO(&readfds);
-        SocketType maxfd = 0;
+        std::vector<WSAPOLLFD> pollfds;
+        pollfds.reserve(udpEndpoints_.size());
         for (const auto& ep : udpEndpoints_) {
-            FD_SET(ep.sock, &readfds);
-            if (ep.sock > maxfd) maxfd = ep.sock;
+            WSAPOLLFD pfd{};
+            pfd.fd = ep.sock;
+            pfd.events = POLLRDNORM;
+            pollfds.push_back(pfd);
         }
 
-        timeval tv{};
-        tv.tv_sec = 0;
-        tv.tv_usec = 100000; // 100ms
-
-        int ready = select(static_cast<int>(maxfd + 1), &readfds, nullptr, nullptr, &tv);
+        int ready = WSAPoll(pollfds.data(), static_cast<ULONG>(pollfds.size()), kIoWaitTimeoutMs);
         if (ready == SOCK_ERROR) {
             int err = GetSocketPlatform().lastError();
-            LOG_ERROR("NetworkIO", "UDP select 오류: " << err);
+            LOG_ERROR("NetworkIO", "UDP WSAPoll 오류: " << err);
             continue;
         }
         if (ready == 0) continue;
 
-        for (const auto& ep : udpEndpoints_) {
-            if (!FD_ISSET(ep.sock, &readfds)) continue;
+        for (size_t i = 0; i < pollfds.size(); ++i) {
+            if ((pollfds[i].revents & POLLRDNORM) == 0) continue;
+            const auto& ep = udpEndpoints_[i];
 
-            std::vector<char> buffer;
-            buffer.resize(ep.maxPacketSize);
+            while (running_) {
+                std::vector<char> buffer;
+                buffer.resize(ep.maxPacketSize);
 
-            sockaddr_in sender{};
-            SockLenType addrLen = sizeof(sender);
-            int bytesRecv = recvfrom(ep.sock, buffer.data(), static_cast<int>(buffer.size()),
-                                     0, reinterpret_cast<sockaddr*>(&sender), &addrLen);
-            if (bytesRecv == SOCK_ERROR) {
-                int err = GetSocketPlatform().lastError();
-                if (err == ERR_CONNRESET || err == ERR_WOULDBLOCK) continue;
-                LOG_ERROR("NetworkIO", "UDP 수신 실패: " << err);
-                continue;
+                sockaddr_in sender{};
+                SockLenType addrLen = sizeof(sender);
+                int bytesRecv = recvfrom(ep.sock, buffer.data(), static_cast<int>(buffer.size()),
+                                         0, reinterpret_cast<sockaddr*>(&sender), &addrLen);
+                if (bytesRecv == SOCK_ERROR) {
+                    int err = GetSocketPlatform().lastError();
+                    if (err == ERR_CONNRESET || err == ERR_WOULDBLOCK) break;
+                    LOG_ERROR("NetworkIO", "UDP 수신 실패: " << err);
+                    break;
+                }
+
+                buffer.resize(bytesRecv);
+                NetPacket packet;
+                packet.protocol = NetProtocol::Udp;
+                packet.addr = sender;
+                packet.data = std::move(buffer);
+                inboundQueue_.push(std::move(packet));
             }
-
-            buffer.resize(bytesRecv);
-            NetPacket packet;
-            packet.protocol = NetProtocol::Udp;
-            packet.addr = sender;
-            packet.data = std::move(buffer);
-            inboundQueue_.push(std::move(packet));
         }
     }
-}
+#else
+    int epollFd = epoll_create1(0);
+    if (epollFd == -1) {
+        LOG_ERROR("NetworkIO", "UDP epoll 생성 실패: " << errno);
+        return;
+    }
 
-void NetworkIO::tcpLoop() {
+    std::unordered_set<SocketType> registeredFds;
+    std::vector<epoll_event> events(64);
+
+    auto registerUdp = [&](const UdpEndpoint& endpoint) {
+        if (!registeredFds.insert(endpoint.sock).second) {
+            return;
+        }
+
+        epoll_event ev{};
+        ev.events = EPOLLIN;
+        ev.data.fd = endpoint.sock;
+        if (epoll_ctl(epollFd, EPOLL_CTL_ADD, endpoint.sock, &ev) == -1 && errno != EEXIST) {
+            LOG_ERROR("NetworkIO", "UDP epoll_ctl(ADD) 실패 fd=" << endpoint.sock << " err=" << errno);
+            registeredFds.erase(endpoint.sock);
+        }
+    };
+
     while (running_) {
-        if (tcpListeners_.empty()) {
+        if (udpEndpoints_.empty()) {
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
             continue;
         }
 
-        fd_set readfds;
-        FD_ZERO(&readfds);
-        SocketType maxfd = 0;
-
-        for (const auto& listener : tcpListeners_) {
-            FD_SET(listener.sock, &readfds);
-            if (listener.sock > maxfd) maxfd = listener.sock;
+        for (const auto& ep : udpEndpoints_) {
+            registerUdp(ep);
+        }
+        if (events.size() < udpEndpoints_.size() * 2) {
+            events.resize((std::max<size_t>)(64, udpEndpoints_.size() * 2));
         }
 
-        auto clients = connections_.snapshot();
-        for (const auto& client : clients) {
-            FD_SET(client.sock, &readfds);
-            if (client.sock > maxfd) maxfd = client.sock;
-        }
-
-        timeval tv{};
-        tv.tv_sec = 0;
-        tv.tv_usec = 100000;
-
-        int ready = select(static_cast<int>(maxfd + 1), &readfds, nullptr, nullptr, &tv);
-        if (ready == SOCK_ERROR) {
-            int err = GetSocketPlatform().lastError();
-            LOG_ERROR("NetworkIO", "TCP select 오류: " << err);
+        int ready = epoll_wait(epollFd, events.data(), static_cast<int>(events.size()), kIoWaitTimeoutMs);
+        if (ready == -1) {
+            if (errno == EINTR) continue;
+            LOG_ERROR("NetworkIO", "UDP epoll_wait 오류: " << errno);
             continue;
         }
         if (ready == 0) continue;
 
-        for (const auto& listener : tcpListeners_) {
-            if (!FD_ISSET(listener.sock, &readfds)) continue;
-
-            sockaddr_in clientAddr{};
-            SockLenType addrLen = sizeof(clientAddr);
-            SocketType clientSock = accept(listener.sock,
-                                           reinterpret_cast<sockaddr*>(&clientAddr),
-                                           &addrLen);
-            if (clientSock == INVALID_SOCK) {
-                int err = GetSocketPlatform().lastError();
-                if (err == ERR_WOULDBLOCK) continue;
-                LOG_ERROR("NetworkIO", "TCP accept 실패: " << err);
+        for (int i = 0; i < ready; ++i) {
+            SocketType sock = events[i].data.fd;
+            auto it = std::find_if(udpEndpoints_.begin(), udpEndpoints_.end(),
+                                   [sock](const UdpEndpoint& ep) { return ep.sock == sock; });
+            if (it == udpEndpoints_.end()) {
                 continue;
             }
 
-            if (!setNonBlocking(clientSock)) {
-                CLOSE_SOCKET(clientSock);
-                continue;
-            }
+            while (running_) {
+                std::vector<char> buffer;
+                buffer.resize(it->maxPacketSize);
 
-            ConnectionId id = connections_.add(clientSock, clientAddr);
-            LOG_INFO("NetworkIO", "TCP 연결 수락: id=" << id);
+                sockaddr_in sender{};
+                SockLenType addrLen = sizeof(sender);
+                int bytesRecv = recvfrom(it->sock, buffer.data(), static_cast<int>(buffer.size()),
+                                         0, reinterpret_cast<sockaddr*>(&sender), &addrLen);
+                if (bytesRecv == SOCK_ERROR) {
+                    int err = GetSocketPlatform().lastError();
+                    if (err == ERR_CONNRESET || err == ERR_WOULDBLOCK) break;
+                    LOG_ERROR("NetworkIO", "UDP 수신 실패: " << err);
+                    break;
+                }
+
+                buffer.resize(bytesRecv);
+                NetPacket packet;
+                packet.protocol = NetProtocol::Udp;
+                packet.addr = sender;
+                packet.data = std::move(buffer);
+                inboundQueue_.push(std::move(packet));
+            }
         }
+    }
+
+    CLOSE_SOCKET(epollFd);
+#endif
+}
+
+void NetworkIO::tcpLoop() {
+#ifdef _WIN32
+    while (running_) {
+        auto clients = connections_.snapshot();
+        if (tcpListeners_.empty() && clients.empty()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            continue;
+        }
+
+        struct PollEntry {
+            bool isListener = false;
+            ConnectionId connectionId = 0;
+            SocketType sock = INVALID_SOCK;
+            sockaddr_in addr{};
+        };
+
+        std::vector<WSAPOLLFD> pollfds;
+        std::vector<PollEntry> entries;
+        pollfds.reserve(tcpListeners_.size() + clients.size());
+        entries.reserve(tcpListeners_.size() + clients.size());
+
+        for (const auto& listener : tcpListeners_) {
+            WSAPOLLFD pfd{};
+            pfd.fd = listener.sock;
+            pfd.events = POLLRDNORM;
+            pollfds.push_back(pfd);
+
+            PollEntry entry{};
+            entry.isListener = true;
+            entry.sock = listener.sock;
+            entries.push_back(entry);
+        }
+
+        for (const auto& client : clients) {
+            WSAPOLLFD pfd{};
+            pfd.fd = client.sock;
+            pfd.events = POLLRDNORM;
+            pollfds.push_back(pfd);
+
+            PollEntry entry{};
+            entry.isListener = false;
+            entry.connectionId = client.id;
+            entry.sock = client.sock;
+            entry.addr = client.addr;
+            entries.push_back(entry);
+        }
+
+        int ready = WSAPoll(pollfds.data(), static_cast<ULONG>(pollfds.size()), kIoWaitTimeoutMs);
+        if (ready == SOCK_ERROR) {
+            int err = GetSocketPlatform().lastError();
+            LOG_ERROR("NetworkIO", "TCP WSAPoll 오류: " << err);
+            continue;
+        }
+        if (ready == 0) continue;
 
         std::vector<ConnectionId> toRemove;
-        for (const auto& client : clients) {
-            if (!FD_ISSET(client.sock, &readfds)) continue;
+        for (size_t i = 0; i < pollfds.size(); ++i) {
+            const SHORT revents = pollfds[i].revents;
+            if (revents == 0) continue;
 
-            std::vector<char> buffer;
-            buffer.resize(4096);
-            int bytesRecv = recv(client.sock, buffer.data(), static_cast<int>(buffer.size()), 0);
-            if (bytesRecv <= 0) {
-                toRemove.push_back(client.id);
+            const PollEntry& entry = entries[i];
+            if (entry.isListener) {
+                while (running_) {
+                    sockaddr_in clientAddr{};
+                    SockLenType addrLen = sizeof(clientAddr);
+                    SocketType clientSock = accept(entry.sock,
+                                                   reinterpret_cast<sockaddr*>(&clientAddr),
+                                                   &addrLen);
+                    if (clientSock == INVALID_SOCK) {
+                        int err = GetSocketPlatform().lastError();
+                        if (err == ERR_WOULDBLOCK) break;
+                        LOG_ERROR("NetworkIO", "TCP accept 실패: " << err);
+                        break;
+                    }
+
+                    if (!setNonBlocking(clientSock)) {
+                        CLOSE_SOCKET(clientSock);
+                        continue;
+                    }
+
+                    ConnectionId id = connections_.add(clientSock, clientAddr);
+                    LOG_INFO("NetworkIO", "TCP 연결 수락: id=" << id);
+                }
                 continue;
             }
 
-            buffer.resize(bytesRecv);
-            NetPacket packet;
-            packet.protocol = NetProtocol::Tcp;
-            packet.connectionId = client.id;
-            packet.addr = client.addr;
-            packet.data = std::move(buffer);
-            inboundQueue_.push(std::move(packet));
+            bool disconnected = (revents & (POLLHUP | POLLERR | POLLNVAL)) != 0;
+            if (!disconnected && (revents & POLLRDNORM) != 0) {
+                while (running_) {
+                    std::vector<char> buffer;
+                    buffer.resize(4096);
+                    int bytesRecv = recv(entry.sock, buffer.data(), static_cast<int>(buffer.size()), 0);
+                    if (bytesRecv > 0) {
+                        buffer.resize(bytesRecv);
+                        NetPacket packet;
+                        packet.protocol = NetProtocol::Tcp;
+                        packet.connectionId = entry.connectionId;
+                        packet.addr = entry.addr;
+                        packet.data = std::move(buffer);
+                        inboundQueue_.push(std::move(packet));
+                        continue;
+                    }
+
+                    if (bytesRecv == 0) {
+                        disconnected = true;
+                        break;
+                    }
+
+                    int err = GetSocketPlatform().lastError();
+                    if (err == ERR_WOULDBLOCK) {
+                        break;
+                    }
+                    disconnected = true;
+                    break;
+                }
+            }
+
+            if (disconnected) {
+                toRemove.push_back(entry.connectionId);
+            }
         }
 
+        std::sort(toRemove.begin(), toRemove.end());
+        toRemove.erase(std::unique(toRemove.begin(), toRemove.end()), toRemove.end());
         for (ConnectionId id : toRemove) {
             ConnectionRegistry::TcpClient c{};
             if (connections_.get(id, c)) {
@@ -271,6 +407,171 @@ void NetworkIO::tcpLoop() {
             LOG_INFO("NetworkIO", "TCP 연결 종료: id=" << id);
         }
     }
+#else
+    int epollFd = epoll_create1(0);
+    if (epollFd == -1) {
+        LOG_ERROR("NetworkIO", "TCP epoll 생성 실패: " << errno);
+        return;
+    }
+
+    std::unordered_set<SocketType> listenerFds;
+    std::unordered_map<SocketType, ConnectionId> clientFdToId;
+    std::unordered_map<SocketType, sockaddr_in> clientFdToAddr;
+    std::vector<epoll_event> events(128);
+
+    auto addToEpoll = [&](SocketType sock, uint32_t eventMask) -> bool {
+        epoll_event ev{};
+        ev.events = eventMask;
+        ev.data.fd = sock;
+        if (epoll_ctl(epollFd, EPOLL_CTL_ADD, sock, &ev) == -1) {
+            if (errno == EEXIST) return true;
+            LOG_ERROR("NetworkIO", "TCP epoll_ctl(ADD) 실패 fd=" << sock << " err=" << errno);
+            return false;
+        }
+        return true;
+    };
+
+    while (running_) {
+        auto clients = connections_.snapshot();
+        if (tcpListeners_.empty() && clients.empty()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            continue;
+        }
+
+        for (const auto& listener : tcpListeners_) {
+            if (!listenerFds.insert(listener.sock).second) continue;
+            addToEpoll(listener.sock, EPOLLIN);
+        }
+
+        std::unordered_set<SocketType> snapshotClientFds;
+        snapshotClientFds.reserve(clients.size());
+        for (const auto& client : clients) {
+            snapshotClientFds.insert(client.sock);
+            auto [it, inserted] = clientFdToId.emplace(client.sock, client.id);
+            if (inserted) {
+                addToEpoll(client.sock, EPOLLIN | EPOLLRDHUP | EPOLLHUP | EPOLLERR);
+            } else {
+                it->second = client.id;
+            }
+            clientFdToAddr[client.sock] = client.addr;
+        }
+
+        for (auto it = clientFdToId.begin(); it != clientFdToId.end();) {
+            if (!snapshotClientFds.contains(it->first)) {
+                epoll_ctl(epollFd, EPOLL_CTL_DEL, it->first, nullptr);
+                clientFdToAddr.erase(it->first);
+                it = clientFdToId.erase(it);
+                continue;
+            }
+            ++it;
+        }
+
+        const size_t desiredEventCount = (std::max<size_t>)(128, (tcpListeners_.size() + clients.size()) * 2);
+        if (events.size() < desiredEventCount) {
+            events.resize(desiredEventCount);
+        }
+
+        int ready = epoll_wait(epollFd, events.data(), static_cast<int>(events.size()), kIoWaitTimeoutMs);
+        if (ready == -1) {
+            if (errno == EINTR) continue;
+            LOG_ERROR("NetworkIO", "TCP epoll_wait 오류: " << errno);
+            continue;
+        }
+        if (ready == 0) continue;
+
+        std::vector<ConnectionId> toRemove;
+        for (int i = 0; i < ready; ++i) {
+            SocketType fd = events[i].data.fd;
+            const uint32_t eventMask = events[i].events;
+
+            if (listenerFds.contains(fd)) {
+                while (running_) {
+                    sockaddr_in clientAddr{};
+                    SockLenType addrLen = sizeof(clientAddr);
+                    SocketType clientSock = accept(fd, reinterpret_cast<sockaddr*>(&clientAddr), &addrLen);
+                    if (clientSock == INVALID_SOCK) {
+                        int err = GetSocketPlatform().lastError();
+                        if (err == ERR_WOULDBLOCK) break;
+                        LOG_ERROR("NetworkIO", "TCP accept 실패: " << err);
+                        break;
+                    }
+
+                    if (!setNonBlocking(clientSock)) {
+                        CLOSE_SOCKET(clientSock);
+                        continue;
+                    }
+
+                    ConnectionId id = connections_.add(clientSock, clientAddr);
+                    clientFdToId[clientSock] = id;
+                    clientFdToAddr[clientSock] = clientAddr;
+                    addToEpoll(clientSock, EPOLLIN | EPOLLRDHUP | EPOLLHUP | EPOLLERR);
+                    LOG_INFO("NetworkIO", "TCP 연결 수락: id=" << id);
+                }
+                continue;
+            }
+
+            auto mapIt = clientFdToId.find(fd);
+            if (mapIt == clientFdToId.end()) {
+                continue;
+            }
+
+            ConnectionId id = mapIt->second;
+            bool disconnected = (eventMask & (EPOLLHUP | EPOLLERR | EPOLLRDHUP)) != 0;
+            if (!disconnected && (eventMask & EPOLLIN) != 0) {
+                while (running_) {
+                    std::vector<char> buffer;
+                    buffer.resize(4096);
+                    int bytesRecv = recv(fd, buffer.data(), static_cast<int>(buffer.size()), 0);
+                    if (bytesRecv > 0) {
+                        buffer.resize(bytesRecv);
+                        NetPacket packet;
+                        packet.protocol = NetProtocol::Tcp;
+                        packet.connectionId = id;
+                        auto addrIt = clientFdToAddr.find(fd);
+                        if (addrIt != clientFdToAddr.end()) {
+                            packet.addr = addrIt->second;
+                        }
+                        packet.data = std::move(buffer);
+                        inboundQueue_.push(std::move(packet));
+                        continue;
+                    }
+
+                    if (bytesRecv == 0) {
+                        disconnected = true;
+                        break;
+                    }
+
+                    int err = GetSocketPlatform().lastError();
+                    if (err == ERR_WOULDBLOCK) {
+                        break;
+                    }
+                    disconnected = true;
+                    break;
+                }
+            }
+
+            if (disconnected) {
+                toRemove.push_back(id);
+            }
+        }
+
+        std::sort(toRemove.begin(), toRemove.end());
+        toRemove.erase(std::unique(toRemove.begin(), toRemove.end()), toRemove.end());
+        for (ConnectionId id : toRemove) {
+            ConnectionRegistry::TcpClient c{};
+            if (connections_.get(id, c)) {
+                epoll_ctl(epollFd, EPOLL_CTL_DEL, c.sock, nullptr);
+                clientFdToId.erase(c.sock);
+                clientFdToAddr.erase(c.sock);
+                CLOSE_SOCKET(c.sock);
+            }
+            connections_.remove(id);
+            LOG_INFO("NetworkIO", "TCP 연결 종료: id=" << id);
+        }
+    }
+
+    CLOSE_SOCKET(epollFd);
+#endif
 }
 
 void NetworkIO::sendLoop() {
