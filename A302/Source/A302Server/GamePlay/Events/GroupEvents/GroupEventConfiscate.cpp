@@ -1,15 +1,19 @@
 #include "GamePlay/Events/GroupEvents/GroupEventConfiscate.h"
 
+#include "Character/MyPlayerController.h"
 #include "Character/Components/Inventory/ItemManagerComponent.h"
 #include "Engine/World.h"
 #include "GameData/Events/GroupEvents/GroupEventConfiscateDefinition.h"
+#include "GameData/RewardDefinition.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerState.h"
-#include "Character/MyPlayerController.h"
+#include "TimerManager.h"
 
 namespace
 {
+	constexpr float ConfiscationExecuteDelaySeconds = 1.0f;
+
 	FString ResolveVotePlayerName(const APlayerController* PlayerController)
 	{
 		if (!PlayerController)
@@ -28,7 +32,6 @@ namespace
 
 		return PlayerController->GetName();
 	}
-
 }
 
 void UGroupEventConfiscate::ExecuteEvent_Implementation(ACharacter* InstigatorCharacter)
@@ -49,14 +52,6 @@ void UGroupEventConfiscate::ExecuteEvent_Implementation(ACharacter* InstigatorCh
 		AMyPlayerController* ClientEventBridge = Cast<AMyPlayerController>(PlayerController);
 		if (!PlayerController || !Character || !ClientEventBridge || !IsParticipantEligible(PlayerController))
 		{
-			UE_LOG(
-				LogTemp,
-				Warning,
-				TEXT("[GroupEventVote] Skipped participant. controller=%s pawn=%s playerState=%s"),
-				*GetNameSafe(PlayerController),
-				*GetNameSafe(Character),
-				*GetNameSafe(PlayerController ? PlayerController->GetPlayerState<APlayerState>() : nullptr)
-			);
 			continue;
 		}
 
@@ -66,11 +61,8 @@ void UGroupEventConfiscate::ExecuteEvent_Implementation(ACharacter* InstigatorCh
 
 	if (Participants.Num() == 0)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[GroupEventVote] No participants found for event %s"), *EventID.ToString());
 		return;
 	}
-
-	UE_LOG(LogTemp, Log, TEXT("[GroupEventVote] Starting vote. participants=%d event=%s"), Participants.Num(), *EventID.ToString());
 
 	const URewardDefinition* EventRewardDefinition = GetRewardDefinition();
 	const FText Title = EventRewardDefinition && !EventRewardDefinition->DisplayName.IsEmpty()
@@ -153,7 +145,7 @@ void UGroupEventConfiscate::ResolveVote()
 
 	if (SubmittedVotes.Num() == 0)
 	{
-		FinishEvent(FText::FromString(TEXT("아무도 투표하지 않아 몰수가 진행되지 않았습니다.")));
+		FinishEvent(FText::FromString(TEXT("아무도 투표하지 않아 몰수가 진행되지 않습니다.")));
 		return;
 	}
 
@@ -204,29 +196,51 @@ void UGroupEventConfiscate::ResolveVote()
 		return;
 	}
 
-	int32 RemovedItemCount = 0;
-	if (ACharacter* TargetCharacter = Cast<ACharacter>(TargetPlayerController->GetPawn()))
-	{
-		if (UItemManagerComponent* ItemManager = TargetCharacter->FindComponentByClass<UItemManagerComponent>())
-		{
-			RemovedItemCount = ItemManager->RemoveAllItems();
-		}
-	}
-
-	if (AMyPlayerController* ClientEventBridge = Cast<AMyPlayerController>(TargetPlayerController))
-	{
-		ClientEventBridge->ApplyConfiscationToLocalInventory();
-	}
-
+	const FString TargetName = ResolveVotePlayerName(TargetPlayerController);
 	const FText ResultText = FText::FromString(
 		FString::Printf(
-			TEXT("%s의 퀵슬롯 아이템 %d개를 몰수했습니다."),
-			*ResolveVotePlayerName(TargetPlayerController),
-			RemovedItemCount
+			TEXT("%s님이 선택되었습니다.\n%s님의 모든 아이템을 몰수합니다."),
+			*TargetName,
+			*TargetName
 		)
 	);
 
 	FinishEvent(ResultText);
+
+	if (UWorld* World = GetWorld())
+	{
+		const TWeakObjectPtr<APlayerController> WeakTargetPlayerController = TargetPlayerController;
+		FTimerDelegate DelayedConfiscationDelegate;
+		DelayedConfiscationDelegate.BindLambda([WeakTargetPlayerController]()
+		{
+			APlayerController* DelayedTargetPlayerController = WeakTargetPlayerController.Get();
+			if (!DelayedTargetPlayerController)
+			{
+				return;
+			}
+
+			if (ACharacter* TargetCharacter = Cast<ACharacter>(DelayedTargetPlayerController->GetPawn()))
+			{
+				if (UItemManagerComponent* ItemManager = TargetCharacter->FindComponentByClass<UItemManagerComponent>())
+				{
+					ItemManager->RemoveAllItems();
+				}
+			}
+
+			if (AMyPlayerController* ClientEventBridge = Cast<AMyPlayerController>(DelayedTargetPlayerController))
+			{
+				ClientEventBridge->ApplyConfiscationToLocalInventory();
+			}
+		});
+
+		FTimerHandle DelayedConfiscationHandle;
+		World->GetTimerManager().SetTimer(
+			DelayedConfiscationHandle,
+			DelayedConfiscationDelegate,
+			ConfiscationExecuteDelaySeconds,
+			false
+		);
+	}
 }
 
 void UGroupEventConfiscate::FinishEvent(const FText& ResultText)
