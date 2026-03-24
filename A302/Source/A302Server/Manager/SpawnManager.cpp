@@ -4,11 +4,14 @@
 #include "Manager/SpawnManager.h"
 #include "GameMode/A302PlayerState.h"
 #include "Object/SpawnArea.h"
+#include "Object/PhaseSpawnPoint.h"
 #include "Room/RoomWorldOffset.h"
 #include "GameFramework/Character.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
+#include "Algo/RandomShuffle.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
 
@@ -280,4 +283,121 @@ bool ASpawnManager::IsSpawnAreaInRoomSpace(const ASpawnArea* SpawnArea, const FS
     const double DistanceX = FMath::Abs(SpawnArea->GetActorLocation().X - RoomOffset.X);
     const double AcceptRangeX = A302RoomWorldOffset::DefaultOffsetStepX * 0.45;
     return DistanceX <= AcceptRangeX;
+}
+
+bool ASpawnManager::IsPointInRoomSpace(const FVector& Location, const FString& RoomCode) const
+{
+    const FVector RoomOffset = GetRoomOffset(RoomCode);
+    const double DistanceX = FMath::Abs(Location.X - RoomOffset.X);
+    const double AcceptRangeX = A302RoomWorldOffset::DefaultOffsetStepX * 0.45;
+    return DistanceX <= AcceptRangeX;
+}
+
+void ASpawnManager::TeleportPlayersToPhaseSpawnPoints(
+    const TArray<APlayerController*>& Players,
+    const FString& RoomCode,
+    EGamePhase NewPhase
+)
+{
+    if (Players.Num() == 0)
+    {
+        UE_LOG(LogTemp, Log, TEXT("[SpawnManager] TeleportToPhase skipped: no players. room=%s"), *RoomCode);
+        return;
+    }
+
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    // 1. 레벨 내 모든 APhaseSpawnPoint 수집
+    TArray<AActor*> FoundActors;
+    UGameplayStatics::GetAllActorsOfClass(World, APhaseSpawnPoint::StaticClass(), FoundActors);
+
+    // 2. 룸 X오프셋 필터 + 페이즈 필터
+    TArray<APhaseSpawnPoint*> ValidPoints;
+    for (AActor* Actor : FoundActors)
+    {
+        APhaseSpawnPoint* Point = Cast<APhaseSpawnPoint>(Actor);
+        if (!Point)
+        {
+            continue;
+        }
+        if (Point->PhaseTarget != NewPhase)
+        {
+            continue;
+        }
+        if (!IsPointInRoomSpace(Point->GetActorLocation(), RoomCode))
+        {
+            continue;
+        }
+        ValidPoints.Add(Point);
+    }
+
+    if (ValidPoints.Num() == 0)
+    {
+        UE_LOG(
+            LogTemp,
+            Warning,
+            TEXT("[SpawnManager] TeleportToPhase: no PhaseSpawnPoints found for phase=%d room=%s. Place APhaseSpawnPoint actors in the level."),
+            static_cast<int32>(NewPhase),
+            *RoomCode
+        );
+        return;
+    }
+
+    // 3. 랜덤 셔플 → 중복 없는 배정
+    Algo::RandomShuffle(ValidPoints);
+
+    UE_LOG(
+        LogTemp,
+        Log,
+        TEXT("[SpawnManager] TeleportToPhase phase=%d room=%s players=%d points=%d"),
+        static_cast<int32>(NewPhase),
+        *RoomCode,
+        Players.Num(),
+        ValidPoints.Num()
+    );
+
+    // 4. 플레이어 순회 → 모듈로 인덱스로 포인트 배정
+    for (int32 i = 0; i < Players.Num(); ++i)
+    {
+        APlayerController* PC = Players[i];
+        if (!PC)
+        {
+            continue;
+        }
+
+        ACharacter* Character = Cast<ACharacter>(PC->GetPawn());
+        if (!Character)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("[SpawnManager] TeleportToPhase: player %s has no Character pawn, skipping."), *GetNameSafe(PC));
+            continue;
+        }
+
+        const int32 PointIndex = i % ValidPoints.Num();
+        const APhaseSpawnPoint* TargetPoint = ValidPoints[PointIndex];
+        const FVector TargetLocation = TargetPoint->GetActorLocation();
+        const FRotator TargetRotation = TargetPoint->GetActorRotation();
+
+        // TeleportTo: 충돌 감지 포함 이동 (SetActorLocation보다 안전)
+        const bool bSuccess = Character->TeleportTo(TargetLocation, TargetRotation, false, false);
+
+        // 이동 속도 초기화: 이전 속도 잔류 방지
+        if (UCharacterMovementComponent* Movement = Character->GetCharacterMovement())
+        {
+            Movement->StopMovementImmediately();
+        }
+
+        UE_LOG(
+            LogTemp,
+            Log,
+            TEXT("[SpawnManager] TeleportToPhase player=%s pointIndex=%d location=(%.0f, %.0f, %.0f) success=%s"),
+            *GetNameSafe(PC),
+            PointIndex,
+            TargetLocation.X, TargetLocation.Y, TargetLocation.Z,
+            bSuccess ? TEXT("true") : TEXT("false")
+        );
+    }
 }

@@ -80,7 +80,7 @@ public:
 	void SetItemTimerVisible(bool bVisible);
 
 	UFUNCTION()
-	void ConfigureMatchTimer(float MatchStartServerTime, float DurationSeconds, bool bVisible);
+	void ConfigureMatchTimer(float MatchStartServerTime, float DurationSeconds, uint8 bVisibleInt);
 
 	UFUNCTION()
 	void ShowPersonalEvent(FName EventID, const FText& EventTitle, const FText& EventDescription, const TArray<FText>& Choices);

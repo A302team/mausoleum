@@ -496,6 +496,18 @@ void AA302GameMode::HandleRoomPhaseChanged(const FString& RoomCode, EGamePhase N
 		return;
 	}
 
+    // Phase1, Phase2 전환 시 해당 구역 스폰 포인트로 텔레포트
+    if (NewPhase == EGamePhase::Phase1 || NewPhase == EGamePhase::Phase2)
+    {
+        if (RoomMembershipRegistry && GetWorld() && EnsureSpawnManager())
+        {
+            TArray<APlayerController*> RoomPlayers;
+            RoomMembershipRegistry->GatherPlayersInRoom(GetWorld(), NormalizedRoomCode, RoomPlayers);
+            SpawnManager->TeleportPlayersToPhaseSpawnPoints(RoomPlayers, NormalizedRoomCode, NewPhase);
+        }
+        return;
+    }
+
     if (NewPhase != EGamePhase::Ended)
     {
         return;
@@ -614,6 +626,25 @@ void AA302GameMode::SpawnPlayersInRoom(const FString& RoomCode)
 		PlayerSubsystem->UpdatePlayerGameplayFlag(RoomPlayer, true);
 		PlayerSubsystem->QueueSpawnPlayer(RoomPlayer, true);
 	}
+
+    // 캐릭터 스폰 완료를 대기하기 위해 짧은 딜레이 후 타이머 시작
+    if (PhaseSubsystem)
+    {
+        FTimerHandle TimerHandle;
+        TWeakObjectPtr<UA302ServerPhaseSubsystem> WeakPhaseSubsystem(PhaseSubsystem);
+        World->GetTimerManager().SetTimer(
+            TimerHandle,
+            FTimerDelegate::CreateLambda([WeakPhaseSubsystem, NormalizedRoomCode]()
+            {
+                if (WeakPhaseSubsystem.IsValid())
+                {
+                    WeakPhaseSubsystem->NotifyRoomMatchTimerStart(NormalizedRoomCode);
+                }
+            }),
+            1.5f, // 캐릭터 스폰 Warmup 시간 고려
+            false
+        );
+    }
 }
 
 

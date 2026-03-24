@@ -19,6 +19,12 @@ void AA302GameState::SetGamePhase(EGamePhase NewGamePhase, float ChangedServerTi
     PhaseChangedServerTime = ChangedServerTime;
 }
 
+void AA302GameState::SetMatchTimer(float StartServerTime, float TimeLimitSeconds)
+{
+    MatchStartServerTime = StartServerTime;
+    MatchTimeLimitSeconds = TimeLimitSeconds;
+}
+
 void AA302GameState::OnRep_GamePhase()
 {
 }
@@ -30,4 +36,6 @@ void AA302GameState::GetLifetimeReplicatedProps(
     DOREPLIFETIME(AA302GameState, GamePhase);
     DOREPLIFETIME(AA302GameState, AlivePlayerCount);
     DOREPLIFETIME(AA302GameState, PhaseChangedServerTime);
+    DOREPLIFETIME(AA302GameState, MatchStartServerTime);
+    DOREPLIFETIME(AA302GameState, MatchTimeLimitSeconds);
 }

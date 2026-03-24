@@ -210,6 +210,13 @@ bool UInteractComponent::HandleInteractHoldProgress(float DeltaTime)
 	{
 		if (Interactable->GetInteractType() == EInteractType::Hold)
 		{
+			AccumulatedHoldSyncTime += DeltaTime;
+			if (AccumulatedHoldSyncTime >= 0.25f)
+			{
+				Server_SyncHoldProgress(LastInteractableActor, AccumulatedHoldSyncTime);
+				AccumulatedHoldSyncTime = 0.0f;
+			}
+
 			InteractionProgressRatio += (DeltaTime / MaxHoldTime);
           
 			if (InteractionProgressRatio >= 1.0f)
@@ -234,6 +241,11 @@ void UInteractComponent::HandleInteractHoldComplete()
 		if (Interactable->GetInteractType() == EInteractType::Hold)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("[Interaction] Hold 상호작용 성공!"));
+			if (AccumulatedHoldSyncTime > 0.0f)
+			{
+				Server_SyncHoldProgress(LastInteractableActor, AccumulatedHoldSyncTime);
+				AccumulatedHoldSyncTime = 0.0f;
+			}
 			Interactable->Interact(OwnerCharacter);
 			LastInteractedActor = LastInteractableActor;
 		}
@@ -243,6 +255,7 @@ void UInteractComponent::HandleInteractHoldComplete()
 void UInteractComponent::HandleInteractHoldCanceled()
 {
 	InteractionProgressRatio = 0.0f;
+	AccumulatedHoldSyncTime = 0.0f;
 }
 
 void UInteractComponent::OnInteractHoldProgress(const FInputActionValue& Value)
@@ -258,6 +271,19 @@ void UInteractComponent::OnInteractHoldProgress(const FInputActionValue& Value)
 void UInteractComponent::OnInteractHoldCanceled(const FInputActionValue& Value)
 {
 	HandleInteractHoldCanceled();
+}
+
+void UInteractComponent::Server_SyncHoldProgress_Implementation(AActor* InteractTarget, float DeltaTime)
+{
+	if (IInteractableInterface* Interactable = Cast<IInteractableInterface>(InteractTarget))
+	{
+		Interactable->OnServerHoldProgress(DeltaTime, GetOwnerCharacter());
+	}
+}
+
+bool UInteractComponent::Server_SyncHoldProgress_Validate(AActor* InteractTarget, float DeltaTime)
+{
+	return true;
 }
 
 void UInteractComponent::OnQTEInteractStarted()
