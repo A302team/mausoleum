@@ -14,7 +14,7 @@ namespace
 {
 	constexpr float ConfiscationExecuteDelaySeconds = 1.0f;
 
-	FString ResolveVotePlayerName(const APlayerController* PlayerController)
+	FString ResolveConfiscateVotePlayerName(const APlayerController* PlayerController)
 	{
 		if (!PlayerController)
 		{
@@ -196,7 +196,7 @@ void UGroupEventConfiscate::ResolveVote()
 		return;
 	}
 
-	const FString TargetName = ResolveVotePlayerName(TargetPlayerController);
+	const FString TargetName = ResolveConfiscateVotePlayerName(TargetPlayerController);
 	const FText ResultText = FText::FromString(
 		FString::Printf(
 			TEXT("%s님이 선택되었습니다.\n%s님의 모든 아이템을 몰수합니다."),

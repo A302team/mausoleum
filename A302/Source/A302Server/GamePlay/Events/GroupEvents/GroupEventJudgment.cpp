@@ -13,7 +13,7 @@
 
 namespace
 {
-	FString ResolveVotePlayerName(const APlayerController* PlayerController)
+	FString ResolveJudgmentVotePlayerName(const APlayerController* PlayerController)
 	{
 		if (!PlayerController)
 		{
@@ -68,11 +68,9 @@ void UGroupEventJudgment::ExecuteEvent_Implementation(ACharacter* InstigatorChar
 		? EventRewardDefinition->DisplayName
 		: FText::FromString(TEXT("Judgment"));
 	const int32 MaliceThreshold = ResolveMaliceThreshold();
-	const FText Description = FText::FromString(
-		FString::Printf(
-			TEXT("선택된 자에게 악의가 %d개 이상이라면 그자는 죽습니다."),
-			MaliceThreshold
-		)
+	const FText Description = FText::Format(
+		FText::FromString(TEXT("선택된 자에게 악의가 {0}개 이상이라면 그자는 죽습니다.")),
+		FText::AsNumber(MaliceThreshold)
 	);
 	const float VoteDuration = static_cast<float>(ResolveVoteDurationSeconds());
 
@@ -228,12 +226,10 @@ void UGroupEventJudgment::ResolveVote()
 	FText ResultText;
 	if (bKilledByJudgment)
 	{
-		ResultText = FText::FromString(
-			FString::Printf(
-				TEXT("%s 님이 선택되었고 악의가 %d개 이상이라 죽었습니다."),
-				*ResolveVotePlayerName(TargetPlayerController),
-				MaliceThreshold
-			)
+		ResultText = FText::Format(
+			FText::FromString(TEXT("{0} 님이 선택되었고 악의가 {1}개 이상이라 죽었습니다.")),
+			FText::FromString(ResolveJudgmentVotePlayerName(TargetPlayerController)),
+			FText::AsNumber(MaliceThreshold)
 		);
 	}
 	else if (TargetMaliceCount <= 1)
@@ -242,11 +238,9 @@ void UGroupEventJudgment::ResolveVote()
 	}
 	else
 	{
-		ResultText = FText::FromString(
-			FString::Printf(
-				TEXT("%s 님이 선택되었습니다."),
-				*ResolveVotePlayerName(TargetPlayerController)
-			)
+		ResultText = FText::Format(
+			FText::FromString(TEXT("{0} 님이 선택되었습니다.")),
+			FText::FromString(ResolveJudgmentVotePlayerName(TargetPlayerController))
 		);
 	}
 
