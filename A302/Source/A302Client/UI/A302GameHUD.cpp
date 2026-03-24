@@ -5,6 +5,7 @@
 #include "Components/PanelWidget.h"
 #include "UI/PersonalEventWidget.h"
 #include "UI/PlayerHUDComponent.h"
+#include "UI/StatueProgressWidget.h"
 #include "UObject/ConstructorHelpers.h"
 #include "TimerManager.h"
 #include "Engine/World.h"
@@ -118,6 +119,20 @@ void AA302GameHUD::InitializeClientInGameWidgets()
 		}
 	}
 
+	if (StatueProgressWidgetClass && !StatueProgressWidgetInstance)
+	{
+		APlayerController* PC = GetOwningPlayerController();
+		if (PC)
+		{
+			StatueProgressWidgetInstance = CreateWidget<UStatueProgressWidget>(PC, StatueProgressWidgetClass);
+			if (StatueProgressWidgetInstance)
+			{
+				StatueProgressWidgetInstance->AddToViewport(15);
+				// Visibility는 내부 컴포넌트(StatueProgressWidget)가 알아서 처리함
+			}
+		}
+	}
+
 	InitializeChatWidget();
 
 	if (PlayerHUDComponent)
@@ -137,6 +152,16 @@ void AA302GameHUD::RefreshQuickSlotBinding()
 
 void AA302GameHUD::InitializeChatWidget()
 {
+	if (UWorld* World = GetWorld())
+	{
+		FString MapName = World->GetMapName();
+		// 로비(Lobby) 맵이 아니면 게임 중이므로 채팅 위젯을 생성하지 않음
+		if (!MapName.Contains(TEXT("Lobby"), ESearchCase::IgnoreCase))
+		{
+			return; // 게임 레벨에서는 채팅 꺼짐
+		}
+	}
+
 	if (ChatWidgetInstance)
 	{
 		return;
@@ -488,11 +513,11 @@ void AA302GameHUD::SetItemTimerVisible(bool bVisible)
 	if (PlayerHUDComponent) PlayerHUDComponent->SetItemTimerVisible(bVisible);
 }
 
-void AA302GameHUD::ConfigureMatchTimer(float MatchStartServerTime, float DurationSeconds, bool bVisible)
+void AA302GameHUD::ConfigureMatchTimer(float MatchStartServerTime, float DurationSeconds, uint8 bVisibleInt)
 {
 	if (PlayerHUDComponent)
 	{
-		PlayerHUDComponent->ConfigureMatchTimer(MatchStartServerTime, DurationSeconds, bVisible);
+		PlayerHUDComponent->ConfigureMatchTimer(MatchStartServerTime, DurationSeconds, bVisibleInt != 0);
 	}
 }
 
