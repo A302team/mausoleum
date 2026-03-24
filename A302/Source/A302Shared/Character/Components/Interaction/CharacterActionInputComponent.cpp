@@ -7,13 +7,17 @@
 #include "Character/Components/Interaction/CharacterRewardComponent.h"
 #include "Character/Components/Interaction/InteractComponent.h"
 #include "Character/Components/Combat/EquipmentComponent.h"
+#include "Animation/MyAnimInstance.h"
+#include "Animation/AnimMontage.h"
 #include "Interface/A302AnimationBridge.h"
 #include "GamePlay/Items/BaseItem.h"
 #include "GamePlay/Items/ItemCursedSword.h"
 #include "GameData/Items/ItemDefinition.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Engine/Engine.h"
+#include "Engine/World.h"
 
 UCharacterActionInputComponent::UCharacterActionInputComponent()
 {
@@ -175,6 +179,8 @@ void UCharacterActionInputComponent::OnAttack(const FInputActionValue& Value)
 	
 	if (QuickSlotComp->TryUseSelectedItem(UsedItemDefinition, UsedSlotIndex))
 	{
+		OwnerCharacter->SetCameraViewMode(EA302CameraViewMode::ThirdPerson);
+
 		// In network sessions, targeted item effects must also be resolved on server.
 		// Local use keeps immediate presentation/inventory feedback.
 		if (!OwnerCharacter->HasAuthority() && UsedItemDefinition)
@@ -203,6 +209,8 @@ void UCharacterActionInputComponent::OnAttack(const FInputActionValue& Value)
 		OwnerCharacter->BP_OnPrimaryItemUsed(UsedItemDefinition, UsedSlotIndex + 1);
 
 		UClass* UsedLogicClass = UsedItemDefinition ? UsedItemDefinition->ResolveRewardLogicClass() : nullptr;
+		const bool bIsCursedSword = UsedLogicClass && UsedLogicClass->IsChildOf(UItemCursedSword::StaticClass());
+
 		if (UsedLogicClass && UsedLogicClass->IsChildOf(UBaseItem::StaticClass()))
 		{
 			if (const UBaseItem* BaseItemLogic = Cast<UBaseItem>(UsedLogicClass->GetDefaultObject()))
@@ -213,8 +221,6 @@ void UCharacterActionInputComponent::OnAttack(const FInputActionValue& Value)
 		
 		if (IA302AnimationBridge* Anim = Cast<IA302AnimationBridge>(OwnerCharacter->GetMesh()->GetAnimInstance()))
 		{
-			const bool bIsCursedSword = UsedLogicClass && UsedLogicClass->IsChildOf(UItemCursedSword::StaticClass());
-			
 			if (EquipmentComp)
 			{
 				bIsCursedSword ? EquipmentComp->EquipCursedSwordWeapon() : EquipmentComp->EquipKnifeWeapon();
@@ -222,6 +228,8 @@ void UCharacterActionInputComponent::OnAttack(const FInputActionValue& Value)
 
 			bIsCursedSword ? Anim->PlayTimeKnifeAnimation() : Anim->PlayAttackAnimation();
 		}
+
+		ScheduleAttackCameraRecovery(OwnerCharacter, bIsCursedSword);
 	}
 }
 
@@ -256,4 +264,49 @@ void UCharacterActionInputComponent::OnQTEInput(const FInputActionValue& Value)
 	{
 		InteractionComponent->OnQTEInput(Value.Get<FVector2D>());
 	}
+}
+
+void UCharacterActionInputComponent::ScheduleAttackCameraRecovery(AMyCharacter* OwnerCharacter, bool bIsCursedSword)
+{
+	if (!OwnerCharacter)
+	{
+		return;
+	}
+
+	float RecoveryDelay = DefaultAttackCameraRecoveryDelay;
+
+	if (const USkeletalMeshComponent* MeshComponent = OwnerCharacter->GetMesh())
+	{
+		if (const UMyAnimInstance* MyAnimInstance = Cast<UMyAnimInstance>(MeshComponent->GetAnimInstance()))
+		{
+			const UAnimMontage* AttackMontage = bIsCursedSword ? MyAnimInstance->TimeKnifeMontage : MyAnimInstance->AttackMontage;
+			if (AttackMontage)
+			{
+				RecoveryDelay = FMath::Max(DefaultAttackCameraRecoveryDelay, AttackMontage->GetPlayLength());
+			}
+		}
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		PendingCameraRecoveryOwner = OwnerCharacter;
+		World->GetTimerManager().ClearTimer(AttackCameraRecoveryTimerHandle);
+		World->GetTimerManager().SetTimer(
+			AttackCameraRecoveryTimerHandle,
+			this,
+			&UCharacterActionInputComponent::HandleAttackCameraRecovery,
+			RecoveryDelay,
+			false
+		);
+	}
+}
+
+void UCharacterActionInputComponent::HandleAttackCameraRecovery()
+{
+	if (PendingCameraRecoveryOwner.IsValid())
+	{
+		PendingCameraRecoveryOwner->SetCameraViewMode(EA302CameraViewMode::FirstPersonChest);
+	}
+
+	PendingCameraRecoveryOwner.Reset();
 }
