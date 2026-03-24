@@ -15,6 +15,8 @@ enum class EGamePhase : uint8
     Ended
 };
 
+DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnGamePhaseChangedNative, EGamePhase, EGamePhase, float);
+
 UCLASS()
 class A302SHARED_API AA302GameState : public AGameState
 {
@@ -43,10 +45,15 @@ public:
     void SetGamePhase(EGamePhase NewGamePhase, float ChangedServerTime);
     void SetMatchTimer(float StartServerTime, float TimeLimitSeconds);
 
+    FOnGamePhaseChangedNative& OnGamePhaseChanged() { return GamePhaseChangedDelegate; }
+
     virtual void GetLifetimeReplicatedProps(
         TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 private:
     UFUNCTION()
     void OnRep_GamePhase();
+
+    EGamePhase LastNotifiedGamePhase = EGamePhase::Phase0;
+    FOnGamePhaseChangedNative GamePhaseChangedDelegate;
 };

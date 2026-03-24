@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "GameMode/A302GameState.h"
 #include "GameFramework/PlayerController.h"
 #include "TimerManager.h"
 #include "MyPlayerController.generated.h"
@@ -25,6 +26,7 @@ class UBasePersonalEvent;
 class UMaliceBGMComponent; // Added
 class UGameBGMComponent;  // Added
 class UCursedSwordBGMComponent; // Added
+class AA302GameState;
 
 UCLASS()
 class A302SHARED_API AMyPlayerController : public APlayerController
@@ -92,6 +94,9 @@ public:
 	void Client_UpdateItemTimer(float RemainingSeconds);
 
 	UFUNCTION(Client, Reliable)
+	void Client_UpdateMaliceCount(int32 MaliceCount);
+
+	UFUNCTION(Client, Reliable)
 	void Client_SetItemTimerVisible(bool bVisible);
 
 	UFUNCTION(Client, Reliable)
@@ -129,12 +134,21 @@ private:
 	void TryInitializeInGameHUD();
 	void PollDeferredHUDInitialization();
 	void ApplyMatchTimerConfigToHUD();
+    void BindToReplicatedGamePhase();
+    void HandleReplicatedGamePhaseChanged(EGamePhase PreviousPhase, EGamePhase NewPhase, float PhaseChangedServerTime);
+    void QueuePhaseTransition(EGamePhase NewPhase, float PhaseChangedServerTime);
+    void FlushQueuedPhaseTransition();
+	void NotifyLocalGameplayPawnReady();
     void EnsureLocalVoiceComponent();
 	bool bInGameHUDInitialized = false;
 	bool bHasPendingMatchTimerConfig = false;
+	bool bHasQueuedPhaseTransition = false;
 	bool bPendingMatchTimerVisible = false;
 	float PendingMatchTimerStartServerTime = 0.0f;
 	float PendingMatchTimerDurationSeconds = 0.0f;
+	float QueuedPhaseChangedServerTime = 0.0f;
+	EGamePhase QueuedPhaseTransition = EGamePhase::Phase0;
+	TWeakObjectPtr<AA302GameState> BoundGameState;
 	FTimerHandle DeferredHUDInitTimerHandle;
 	FTimerHandle VoiceRoomCodeRetryTimerHandle;
 	int32 VoiceRoomCodeRetryCount = 0;

@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "TimerManager.h"
 #include "CharacterActionInputComponent.generated.h"
 
 class UInputComponent;
@@ -43,6 +44,16 @@ private:
 	void OnEscPressed(const FInputActionValue& Value);
 	
 	void OnQTEInput(const FInputActionValue& Value);
+
+	void ScheduleAttackCameraRecovery(AMyCharacter* OwnerCharacter, bool bIsCursedSword);
+	void HandleAttackCameraRecovery();
+
+	UPROPERTY(EditAnywhere, Category = "Camera", meta = (ClampMin = "0.0"))
+	float DefaultAttackCameraRecoveryDelay = 0.6f;
+
+	TWeakObjectPtr<AMyCharacter> PendingCameraRecoveryOwner;
+	FTimerHandle AttackCameraRecoveryTimerHandle;
+
 	void BeginAttackInputLock();
 	void EndAttackInputLock();
 	void HandleAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted);

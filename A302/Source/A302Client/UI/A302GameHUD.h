@@ -5,8 +5,17 @@
 #include "A302GameHUD.generated.h"
 
 class UPersonalEventWidget;
+class UBorder;
 class UUserWidget;
 class UStatueProgressWidget;
+
+enum class EA302PhaseTransitionState : uint8
+{
+	Idle,
+	FadeToBlack,
+	HoldBlack,
+	FadeFromBlack
+};
 
 UCLASS()
 class A302CLIENT_API AA302GameHUD : public AHUD
@@ -27,6 +36,9 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, Category = "UI|Event")
 	TSubclassOf<UUserWidget> TitleCardWidgetClass;
+
+	UPROPERTY(EditDefaultsOnly, Category = "UI|Event")
+	TSubclassOf<UUserWidget> PhaseTransitionWidgetClass;
 
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<UUserWidget> QuickSlotBarClass;
@@ -49,6 +61,9 @@ public:
 
 	UFUNCTION()
 	void HideTitleCard();
+
+	UFUNCTION()
+	void StartPhaseTransition(const FText& Title, const FText& Context, float FadeOutSeconds, float HoldSeconds, float FadeInSeconds, float TitleDisplaySeconds);
 
 	void InitializeChatWidget();
 
@@ -116,11 +131,32 @@ protected:
 	TObjectPtr<UUserWidget> TitleCardWidgetInstance;
 
 	UPROPERTY(Transient)
+	TObjectPtr<UUserWidget> PhaseTransitionWidgetInstance;
+
+	UPROPERTY(Transient)
 	TObjectPtr<UUserWidget> ResultWidgetInstance;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UStatueProgressWidget> StatueProgressWidgetInstance;
 
 private:
+	void TickPhaseTransition();
+	void BeginPhaseTransitionStep(EA302PhaseTransitionState NewState, float DurationSeconds);
+	void FinishPhaseTransition();
+	void SetPhaseTransitionOverlayOpacity(float Opacity);
+	void SetPhaseTransitionInputLocked(bool bLocked);
+	UBorder* FindPhaseTransitionBlackOverlay() const;
+
+	FTimerHandle PhaseTransitionTickTimerHandle;
+	FTimerHandle PhaseTransitionInputRestoreTimerHandle;
 	FTimerHandle TitleCardHideTimerHandle;
+	EA302PhaseTransitionState PhaseTransitionState = EA302PhaseTransitionState::Idle;
+	float PhaseTransitionStepDuration = 0.0f;
+	float PhaseTransitionStepStartTime = 0.0f;
+	float PendingPhaseHoldSeconds = 0.0f;
+	float PendingPhaseFadeInSeconds = 0.0f;
+	float PendingPhaseTitleDisplaySeconds = 0.0f;
+	bool bPhaseTransitionInputLocked = false;
+	FText PendingPhaseTransitionTitle;
+	FText PendingPhaseTransitionContext;
 };

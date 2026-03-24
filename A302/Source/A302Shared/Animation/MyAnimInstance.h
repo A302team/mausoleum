@@ -36,16 +36,16 @@ public:
 
     // Combat State
 
-    UPROPERTY(BlueprintReadOnly, Category="Combat")
+    UPROPERTY(BlueprintReadOnly, Replicated, Category="Combat")
     bool bIsAttacking = false;
 
-    UPROPERTY(BlueprintReadOnly, Category="Combat")
+    UPROPERTY(BlueprintReadOnly, Replicated, Category="Combat")
     bool bIsBlocking = false;
 
-    UPROPERTY(BlueprintReadOnly, Category="Interaction")
+    UPROPERTY(BlueprintReadOnly, Replicated, Category="Interaction")
     bool bIsInteracting = false;
 
-    UPROPERTY(BlueprintReadOnly, Category="Combat")
+    UPROPERTY(BlueprintReadOnly, Replicated, Category="Combat")
     bool bIsDead = false;
 
 
@@ -89,6 +89,8 @@ public:
     virtual void PlayInteractAnimation() override;
     virtual void PlayDeathAnimation() override;
     virtual void PlayTimeKnifeAnimation() override;
+
+    virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 private:
 
