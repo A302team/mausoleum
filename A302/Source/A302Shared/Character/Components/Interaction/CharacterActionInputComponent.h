@@ -6,6 +6,7 @@
 
 class UInputComponent;
 class UEnhancedInputComponent;
+class UAnimMontage;
 struct FInputActionValue;
 class AMyCharacter;
 
@@ -42,4 +43,9 @@ private:
 	void OnEscPressed(const FInputActionValue& Value);
 	
 	void OnQTEInput(const FInputActionValue& Value);
+	void BeginAttackInputLock();
+	void EndAttackInputLock();
+	void HandleAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+
+	bool bAttackInputLocked = false;
 };

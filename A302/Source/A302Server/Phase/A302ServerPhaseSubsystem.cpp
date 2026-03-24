@@ -2,6 +2,8 @@
 
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
+#include "GameData/Events/PersonalEvents/Interactable/PersonalEventPhase1CollectDefinition.h"
+#include "GameData/RewardDefinition.h"
 #include "GameData/RewardTypes.h"
 #include "Character/MyPlayerController.h"
 #include "GameMode/A302GameMode.h"
@@ -134,7 +136,7 @@ bool UA302ServerPhaseSubsystem::IsRoomPhaseActive(const FString& RoomCode) const
     return false;
 }
 
-void UA302ServerPhaseSubsystem::NotifyRoomRewardResolved(const FString& RoomCode, ERewardCategory RewardCategory)
+void UA302ServerPhaseSubsystem::NotifyRoomRewardResolved(const FString& RoomCode, const URewardDefinition* RewardDefinition, ERewardCategory RewardCategory)
 {
     const FString NormalizedRoomCode = A302RoomWorldOffset::NormalizeRoomCode(RoomCode);
     FA302RoomPhaseState* RoomState = RoomPhaseStates.Find(NormalizedRoomCode);
@@ -161,7 +163,7 @@ void UA302ServerPhaseSubsystem::NotifyRoomRewardResolved(const FString& RoomCode
         }
         break;
     case EGamePhase::Phase1:
-        if (RewardCategory != ERewardCategory::GroupEvent)
+        if (Cast<UPersonalEventPhase1CollectDefinition>(const_cast<URewardDefinition*>(RewardDefinition)) != nullptr)
         {
             ++RoomState->Phase1ClearObjectCount;
             bCounted = true;

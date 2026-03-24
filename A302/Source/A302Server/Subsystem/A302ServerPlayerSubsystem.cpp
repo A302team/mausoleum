@@ -5,6 +5,7 @@
 #include "Room/RoomScopeRules.h"
 #include "Room/A302RoomRuntimeSubsystem.h"
 #include "Phase/A302ServerPhaseSubsystem.h"
+#include "Subsystem/A302ItemSpawnSubsystem.h"
 #include "Subsystem/A302RoomEventSubsystem.h"
 #include "Manager/SpawnManager.h"
 #include "GameFramework/PlayerController.h"
@@ -75,9 +76,19 @@ void UA302ServerPlayerSubsystem::HandlePlayerLogout(AController* Exiting)
             // 방에 남은 플레이어가 없으면 런타임 중지
             if (Registry->CountPlayersInRoom(GetWorld(), LeavingRoomCode) <= 0)
             {
-            if (UA302RoomRuntimeSubsystem* RoomRuntime = GetWorld()->GetGameInstance()->GetSubsystem<UA302RoomRuntimeSubsystem>())
+                if (UA302RoomRuntimeSubsystem* RoomRuntime = GetWorld()->GetGameInstance()->GetSubsystem<UA302RoomRuntimeSubsystem>())
                 {
                     RoomRuntime->StopRoomRuntime(LeavingRoomCode);
+                }
+
+                if (UA302ServerPhaseSubsystem* PhaseSubsystem = GetWorld()->GetGameInstance()->GetSubsystem<UA302ServerPhaseSubsystem>())
+                {
+                    PhaseSubsystem->StopRoomPhaseTimeline(LeavingRoomCode);
+                }
+
+                if (UA302ItemSpawnSubsystem* ItemSpawnSubsystem = GetWorld()->GetGameInstance()->GetSubsystem<UA302ItemSpawnSubsystem>())
+                {
+                    ItemSpawnSubsystem->ResetRoom(LeavingRoomCode);
                 }
             }
         }

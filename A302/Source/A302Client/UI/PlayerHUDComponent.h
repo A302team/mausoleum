@@ -131,6 +131,9 @@ private:
 	UFUNCTION()
 	void OnInspectMalicePlayer5Clicked();
 
+	UFUNCTION()
+	void OnInspectMaliceCloseClicked();
+
 	UPROPERTY(Transient)
 	TObjectPtr<UPersonalEventWidget> PersonalEventWidgetInstance;
 

@@ -1,14 +1,19 @@
 #include "Character/MyPlayerController.h"
 
 #include "Character/Components/PlayerEventComponent.h"
+#include "Character/Components/Inventory/ItemManagerComponent.h"
 // UI Widget 헤더들은 AA302GameHUD에서 관리합니다.
 #include "EnhancedInputSubsystems.h"
 #include "GameMode/A302GameInstance.h"
 #include "GameMode/A302PlayerState.h"
+#include "GameData/Items/ItemDefinition.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerState.h"
 #include "InputMappingContext.h"
 #include "UObject/ConstructorHelpers.h"
+#include "Character/Components/Audio/MaliceBGMComponent.h"      // Added
+#include "Character/Components/Audio/GameBGMComponent.h"         // Added
+#include "Character/Components/Audio/CursedSwordBGMComponent.h" // Added
 #include "A302RuntimeGuards.h"
 #include "GameFramework/HUD.h"
 #include "Room/RoomScopeRules.h"
@@ -116,6 +121,10 @@ AMyPlayerController::AMyPlayerController()
 	PlayerEventComponent = CreateDefaultSubobject<UPlayerEventComponent>(TEXT("PlayerEventComponent"));
 
 	// UI Widget 초기화 내용들은 AA302GameHUD로 이동되어 제거되었습니다.
+
+	MaliceBGMComp = CreateDefaultSubobject<UMaliceBGMComponent>(TEXT("MaliceBGMComponent")); // Added
+	GameBGMComp = CreateDefaultSubobject<UGameBGMComponent>(TEXT("GameBGMComponent"));       // Added
+	CursedSwordBGMComp = CreateDefaultSubobject<UCursedSwordBGMComponent>(TEXT("CursedSwordBGMComponent")); // Added
 }
 
 void AMyPlayerController::BeginPlay()
@@ -189,6 +198,21 @@ void AMyPlayerController::OnRep_Pawn()
 {
 	Super::OnRep_Pawn();
 	EnsureLocalVoiceComponent();
+
+#if !UE_SERVER
+	if (IsLocalController() && ShouldAttemptGameplayHUDInitialization())
+	{
+		TryInitializeInGameHUD();
+
+		if (AHUD* CurrentHUD = GetHUD())
+		{
+			if (UFunction* Func = CurrentHUD->FindFunction(TEXT("RefreshQuickSlotBinding")))
+			{
+				CurrentHUD->ProcessEvent(Func, nullptr);
+			}
+		}
+	}
+#endif
 }
 
 bool AMyPlayerController::ShouldAttemptGameplayHUDInitialization() const
@@ -501,6 +525,26 @@ void AMyPlayerController::UpdateMaliceCount(int32 MaliceCount)
 			GameHUD->ProcessEvent(Func, &Params);
 		}
 	}
+	// Added: Only play BGM on local player
+	if (!IsLocalController())
+	{
+		return;
+	}
+	// End Added
+
+	// Added: CursedSword BGM 상태 최우선 업데이트 — 검 보유 시 Malice 전환 차단
+	if (CursedSwordBGMComp)
+	{
+		CursedSwordBGMComp->HandleMaliceState(MaliceCount);
+	}
+	// End Added
+
+	// Added: 검 미보유 시에만 GameBGM ↔ MaliceBGM 전환 처리
+	if (GameBGMComp && (!CursedSwordBGMComp || !CursedSwordBGMComp->HasCursedSword()))
+	{
+		GameBGMComp->HandleMaliceState(MaliceCount);
+	}
+	// End Added
 }
 
 void AMyPlayerController::UpdateItemTimer(float RemainingSeconds)
@@ -709,3 +753,30 @@ void AMyPlayerController::Client_ShowResultScreen_Implementation(const FText& Ti
 	ShowResultScreen(Title, Description, DisplaySeconds);
 }
 
+void AMyPlayerController::Client_RemoveQuickSlotItemByServer_Implementation(int32 SlotIndex, FName ExpectedItemId)
+{
+	APawn* ControlledPawn = GetPawn();
+	if (!ControlledPawn)
+	{
+		return;
+	}
+
+	UItemManagerComponent* ItemManager = ControlledPawn->FindComponentByClass<UItemManagerComponent>();
+	if (!ItemManager || !ItemManager->IsValidSlotIndex(SlotIndex))
+	{
+		return;
+	}
+
+	const UItemDefinition* CurrentItemDefinition = ItemManager->GetItemDefinitionAtSlot(SlotIndex);
+	if (!CurrentItemDefinition)
+	{
+		return;
+	}
+
+	if (!ExpectedItemId.IsNone() && CurrentItemDefinition->ItemId != ExpectedItemId)
+	{
+		return;
+	}
+
+	ItemManager->RemoveItemFromSlot(SlotIndex);
+}

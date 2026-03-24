@@ -13,6 +13,7 @@ class A302SHARED_API UItemShield : public UBaseItem, public IUsableItem
     GENERATED_BODY()
 
 public:
+    virtual void OnItemAcquired(class ACharacter* OwnerCharacter) const override;
     virtual bool CanUse_Implementation(ACharacter* Instigator, const FItemTargetData& TargetData) const override;
     virtual bool Use_Implementation(ACharacter* Instigator, const FItemTargetData& TargetData) override;
 };

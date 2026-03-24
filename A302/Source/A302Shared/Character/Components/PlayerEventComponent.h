@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "TimerManager.h"
 #include "PlayerEventComponent.generated.h"
 
 class AMyPlayerController;
@@ -34,6 +35,8 @@ public:
 	void ClearTimedKillEvent(UObject* EventInstance);
 	void SetTimedKnifeAttackInProgress(bool bInProgress);
 	bool IsTimedKnifeAttackInProgress() const { return bTimedKnifeAttackInProgress; }
+	void StartTimedKnifeCountdown(float DurationSeconds, const FName& ItemId);
+	void StopTimedKnifeCountdown(bool bHideTimer, bool bConsumeItem);
 
 	UFUNCTION(Client, Reliable)
 	void Client_ShowPersonalEvent(FName EventID, const FText& Title, const FText& Description, const TArray<FText>& Choices);
@@ -61,6 +64,11 @@ public:
 
 private:
 	AMyPlayerController* GetOwnerController() const;
+	void PauseActiveTimedKillCountdown();
+	void ResumeActiveTimedKillCountdown();
+	void PauseTimedKillCountdownForVote();
+	void ResumeTimedKillCountdownForVote();
+	void HandleTimedKnifeCountdownTick();
 
 	UPROPERTY()
 	TObjectPtr<UBaseEvent> ActivePersonalEvent;
@@ -78,4 +86,8 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|Timed", meta = (AllowPrivateAccess = "true"))
 	FName ActiveTimedKnifeItemId = NAME_None;
+
+	FTimerHandle TimedKnifeCountdownTimerHandle;
+
+	int32 GroupVotePauseDepth = 0;
 };
