@@ -138,7 +138,23 @@ bool UCharacterRewardComponent::HandleRewardPickup(AActor* InteractedActor, cons
 		return false;
 	}
 
-	const ERewardCategory EffectiveCategory = ResolveEffectiveRewardCategory(RewardDefinition);
+	ERewardCategory EffectiveCategory = RewardDefinition->RewardCategory;
+	UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass();
+	if (LogicClass)
+	{
+		const bool bIsLegacyPersonalEventClass =
+			RewardDefinition->RewardCategory != ERewardCategory::BasicItem &&
+			LogicClass->IsChildOf(UItemCursedSword::StaticClass());
+
+		if (LogicClass->IsChildOf(UBasePersonalEvent::StaticClass()) || bIsLegacyPersonalEventClass)
+		{
+			EffectiveCategory = ERewardCategory::PersonalEvent;
+		}
+		else if (LogicClass->IsChildOf(UBaseGroupEvent::StaticClass()))
+		{
+			EffectiveCategory = ERewardCategory::GroupEvent;
+		}
+	}
 
 	bool bRewardHandled = false;
 	switch (EffectiveCategory)

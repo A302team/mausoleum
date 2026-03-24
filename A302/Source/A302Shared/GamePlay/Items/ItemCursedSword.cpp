@@ -5,6 +5,8 @@
 #include "Character/MyCharacter.h"
 #include "Character/Components/PlayerEventComponent.h"
 #include "GameData/Items/ItemDefinition.h"
+#include "Character/Components/PlayerEventComponent.h"
+#include "GameData/Items/ItemDefinition.h"
 #include "Character/Components/Combat/EquipmentComponent.h"
 
 void UItemCursedSword::OnItemAcquired(ACharacter* OwnerCharacter) const
