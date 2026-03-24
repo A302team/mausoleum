@@ -1,4 +1,5 @@
 #include "Object/BaseInteractable.h"
+#include "Object/VFX/InteractableVFXData.h"
 
 #include "Components/StaticMeshComponent.h"
 #include "UObject/ConstructorHelpers.h"
@@ -8,6 +9,8 @@
 #include "GameFramework/Character.h"
 #include "Math/UnrealMathUtility.h"
 #include "Net/UnrealNetwork.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraSystem.h"
 
 ABaseInteractable::ABaseInteractable()
 {
@@ -133,6 +136,53 @@ void ABaseInteractable::OnInteractionSuccess(ACharacter* PlayerCharacter)
 		*GetNameSafe(RewardDefinition),
 		*GetName(),
 		*GetNameSafe(PlayerCharacter)
+	);
+
+	// VFX 재생 (메시의 AssetUserData에서 조회)
+	if (Mesh)
+	{
+		UStaticMesh* StaticMesh = Mesh->GetStaticMesh();
+		if (StaticMesh)
+		{
+			if (UInteractableVFXData* VFXData = StaticMesh->GetAssetUserData<UInteractableVFXData>())
+			{
+				if (UNiagaraSystem* VFXSystem = VFXData->DisappearVFX.Get())
+				{
+					float Scale = VFXData->VFXScale > 0.0f ? VFXData->VFXScale : 1.0f;
+					Multicast_PlayDisappearVFX(Mesh->GetComponentLocation(), Mesh->GetComponentRotation(), VFXSystem, Scale);
+				}
+			}
+		}
+	}
+}
+
+void ABaseInteractable::Multicast_PlayDisappearVFX_Implementation(
+	FVector Location,
+	FRotator Rotation,
+	UNiagaraSystem* VFXSystem,
+	float Scale)
+{
+	if (!VFXSystem)
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+		World,
+		VFXSystem,
+		Location,
+		Rotation,
+		FVector(Scale),
+		true,
+		true,
+		ENCPoolMethod::None,
+		true
 	);
 }
 
