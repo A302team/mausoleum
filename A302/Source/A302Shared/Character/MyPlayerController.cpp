@@ -4,6 +4,7 @@
 #include "Character/Components/Inventory/ItemManagerComponent.h"
 // UI Widget 헤더들은 AA302GameHUD에서 관리합니다.
 #include "EnhancedInputSubsystems.h"
+#include "GameMode/A302GameState.h"
 #include "GameMode/A302GameInstance.h"
 #include "GameMode/A302PlayerState.h"
 #include "GameData/Items/ItemDefinition.h"
@@ -22,6 +23,10 @@
 namespace
 {
 	constexpr int32 MaxVoiceRoomCodeRetryCount = 8;
+	constexpr float PhaseTransitionFadeOutSeconds = 0.6f;
+	constexpr float PhaseTransitionHoldSeconds = 0.5f;
+	constexpr float PhaseTransitionFadeInSeconds = 0.6f;
+	constexpr float PhaseTransitionTitleDisplaySeconds = 3.0f;
 
 	UClass* LoadClientVoiceComponentClass()
 	{
@@ -98,6 +103,29 @@ namespace
 
 		return A302RoomScope::NormalizeRoomCode(FString::Printf(TEXT("PIE_LOCAL_%s"), *SafeMapName));
 	}
+
+	void BuildPhaseTransitionTexts(EGamePhase NewPhase, FText& OutTitle, FText& OutContext)
+	{
+		switch (NewPhase)
+		{
+		case EGamePhase::Phase0:
+			OutTitle = FText::FromString(TEXT("PHASE 1"));
+			OutContext = FText::FromString(TEXT("첫 번째 단계가 시작됩니다."));
+			break;
+		case EGamePhase::Phase1:
+			OutTitle = FText::FromString(TEXT("PHASE 2"));
+			OutContext = FText::FromString(TEXT("다음 단계가 시작됩니다."));
+			break;
+		case EGamePhase::Phase2:
+			OutTitle = FText::FromString(TEXT("PHASE 3"));
+			OutContext = FText::FromString(TEXT("마지막 단계가 시작됩니다."));
+			break;
+		default:
+			OutTitle = FText::GetEmpty();
+			OutContext = FText::GetEmpty();
+			break;
+		}
+	}
 }
 
 void AMyPlayerController::Server_RegisterPlayerDisplayName_Implementation(const FString& DesiredName)
@@ -159,6 +187,8 @@ void AMyPlayerController::BeginPlay()
 		return;
 	}
 
+	BindToReplicatedGamePhase();
+
 	if (ULocalPlayer* LP = GetLocalPlayer())
 	{
 		if (UEnhancedInputLocalPlayerSubsystem* Subsys = LP->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
@@ -171,6 +201,7 @@ void AMyPlayerController::BeginPlay()
 	}
 
 	EnsureLocalVoiceComponent();
+	NotifyLocalGameplayPawnReady();
 
 #if !UE_SERVER
 	if (IsLocalController() && ShouldAttemptGameplayHUDInitialization())
@@ -188,6 +219,7 @@ void AMyPlayerController::AcknowledgePossession(APawn* P)
 #if !UE_SERVER
 	if (IsLocalController() && ShouldAttemptGameplayHUDInitialization())
 	{
+		NotifyLocalGameplayPawnReady();
 		TryInitializeInGameHUD();
 	}
 #endif
@@ -198,6 +230,7 @@ void AMyPlayerController::OnRep_Pawn()
 {
 	Super::OnRep_Pawn();
 	EnsureLocalVoiceComponent();
+	NotifyLocalGameplayPawnReady();
 
 #if !UE_SERVER
 	if (IsLocalController() && ShouldAttemptGameplayHUDInitialization())
@@ -266,6 +299,8 @@ void AMyPlayerController::TryInitializeInGameHUD()
 				CurrentHUD->ProcessEvent(Func, nullptr);
 				bInGameHUDInitialized = true;
 				ApplyMatchTimerConfigToHUD();
+				BindToReplicatedGamePhase();
+				FlushQueuedPhaseTransition();
 			}
 			else
 			{
@@ -327,6 +362,126 @@ void AMyPlayerController::PollDeferredHUDInitialization()
 	GetWorldTimerManager().ClearTimer(DeferredHUDInitTimerHandle);
 	TryInitializeInGameHUD();
 #endif
+}
+
+void AMyPlayerController::BindToReplicatedGamePhase()
+{
+	if (!IsLocalController())
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	AA302GameState* GameState = World->GetGameState<AA302GameState>();
+	if (!GameState)
+	{
+		return;
+	}
+
+	if (BoundGameState.Get() == GameState)
+	{
+		return;
+	}
+
+	if (BoundGameState.IsValid())
+	{
+		BoundGameState->OnGamePhaseChanged().RemoveAll(this);
+	}
+
+	GameState->OnGamePhaseChanged().AddUObject(this, &AMyPlayerController::HandleReplicatedGamePhaseChanged);
+	BoundGameState = GameState;
+}
+
+void AMyPlayerController::HandleReplicatedGamePhaseChanged(EGamePhase PreviousPhase, EGamePhase NewPhase, float PhaseChangedServerTime)
+{
+	if (!IsLocalController() || PreviousPhase == NewPhase || NewPhase == EGamePhase::Ended)
+	{
+		return;
+	}
+
+	QueuePhaseTransition(NewPhase, PhaseChangedServerTime);
+	FlushQueuedPhaseTransition();
+}
+
+void AMyPlayerController::QueuePhaseTransition(EGamePhase NewPhase, float PhaseChangedServerTime)
+{
+	bHasQueuedPhaseTransition = true;
+	QueuedPhaseTransition = NewPhase;
+	QueuedPhaseChangedServerTime = PhaseChangedServerTime;
+}
+
+void AMyPlayerController::FlushQueuedPhaseTransition()
+{
+	if (!bHasQueuedPhaseTransition)
+	{
+		return;
+	}
+
+	AHUD* GameHUD = GetHUD();
+	if (!GameHUD)
+	{
+		TryInitializeInGameHUD();
+		return;
+	}
+
+	if (UFunction* Func = GameHUD->FindFunction(TEXT("StartPhaseTransition")))
+	{
+		FText PhaseTitle;
+		FText PhaseContext;
+		BuildPhaseTransitionTexts(QueuedPhaseTransition, PhaseTitle, PhaseContext);
+
+		struct FParams
+		{
+			FText InTitle;
+			FText InContext;
+			float InFadeOutSeconds;
+			float InHoldSeconds;
+			float InFadeInSeconds;
+			float InTitleDisplaySeconds;
+		};
+
+		FParams Params
+		{
+			PhaseTitle,
+			PhaseContext,
+			PhaseTransitionFadeOutSeconds,
+			PhaseTransitionHoldSeconds,
+			PhaseTransitionFadeInSeconds,
+			PhaseTransitionTitleDisplaySeconds
+		};
+		GameHUD->ProcessEvent(Func, &Params);
+		bHasQueuedPhaseTransition = false;
+	}
+}
+
+void AMyPlayerController::NotifyLocalGameplayPawnReady()
+{
+	if (!IsLocalController())
+	{
+		return;
+	}
+
+	APawn* ControlledPawn = GetPawn();
+	if (!ControlledPawn || !ControlledPawn->HasActorBegunPlay())
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World || A302RuntimeGuards::IsLobbyWorld(World) || A302RuntimeGuards::IsDedicatedServerWorld(World))
+	{
+		return;
+	}
+
+	if (UA302GameInstance* GameInstance = GetGameInstance<UA302GameInstance>())
+	{
+		GameInstance->NotifyLocalGameplayPawnReady();
+	}
 }
 
 // InitializeClientInGameWidgets, InitializeChatWidget은 AA302GameHUD로 이관되어 제거되었습니다.
@@ -516,6 +671,12 @@ void AMyPlayerController::UpdateShieldCount(int32 ShieldCount)
 
 void AMyPlayerController::UpdateMaliceCount(int32 MaliceCount)
 {
+	if (HasAuthority() && !IsLocalController())
+	{
+		Client_UpdateMaliceCount(MaliceCount);
+		return;
+	}
+
 	if (AHUD* GameHUD = GetHUD())
 	{
 		if (UFunction* Func = GameHUD->FindFunction(TEXT("UpdateMaliceCountText")))
@@ -736,6 +897,11 @@ void AMyPlayerController::Client_ShowPublicMaliceAnnouncement_Implementation(con
 void AMyPlayerController::Client_UpdateItemTimer_Implementation(float RemainingSeconds)
 {
 	UpdateItemTimer(RemainingSeconds);
+}
+
+void AMyPlayerController::Client_UpdateMaliceCount_Implementation(int32 MaliceCount)
+{
+	UpdateMaliceCount(MaliceCount);
 }
 
 void AMyPlayerController::Client_SetItemTimerVisible_Implementation(bool bVisible)

@@ -75,4 +75,7 @@ private:
 
 	void AssignRandomRewardDefinition();
 	URewardDefinition* PickWeightedRewardDefinition() const;
+
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_PlayDisappearVFX(FVector Location, FRotator Rotation, class UNiagaraSystem* VFXSystem, float Scale);
 };

@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "Net/UnrealNetwork.h"
 #include "CharacterHealthComponent.generated.h"
 
 class AMyCharacter;
@@ -16,6 +17,7 @@ class A302SHARED_API UCharacterHealthComponent : public UActorComponent
 
 public:	
 	UCharacterHealthComponent();
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	float TakeDamage(float DamageAmount, const FDamageEvent& DamageEvent, AController* EventInstigator, AActor* DamageCauser);
 	void HandleDead();
@@ -31,6 +33,9 @@ private:
 
 	void LogAndScreenHealthMessage(const FString& Message, const FColor& Color = FColor::Yellow, float Duration = 3.0f) const;
 
-	UPROPERTY(VisibleAnywhere, Category = "Health", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(ReplicatedUsing=OnRep_IsDead, VisibleAnywhere, Category = "Health", meta = (AllowPrivateAccess = "true"))
 	bool bIsDead = false;
+
+	UFUNCTION()
+	void OnRep_IsDead();
 };

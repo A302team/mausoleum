@@ -13,6 +13,7 @@
 #include "Character/Components/Interaction/CharacterActionInputComponent.h"
 #include "Character/Components/Interaction/InteractComponent.h"
 #include "Character/MyPlayerController.h"
+#include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/Engine.h"
 #include "EnhancedInputComponent.h"
@@ -48,6 +49,7 @@
 #include "Interface/A302TimedKillEventBridge.h"
 #include "A302GameplayGuards.h"
 #include "Character/Components/PlayerEventComponent.h"
+#include "GameFramework/SpringArmComponent.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogMyInput, Log, All);
 
@@ -101,6 +103,18 @@ AMyCharacter::AMyCharacter()
 	CharacterActionInputComponent = CreateDefaultSubobject<UCharacterActionInputComponent>(TEXT("CharacterActionInputComponent"));
 }
 
+void AMyCharacter::PossessedBy(AController* NewController)
+{
+	Super::PossessedBy(NewController);
+	ApplyCameraViewMode();
+}
+
+void AMyCharacter::OnRep_Controller()
+{
+	Super::OnRep_Controller();
+	ApplyCameraViewMode();
+}
+
 void AMyCharacter::BeginPlay()
 {
 	Super::BeginPlay();
@@ -127,6 +141,8 @@ void AMyCharacter::BeginPlay()
 	{
 		KnifeAutoTestComponent->StartAutoKnifeTest();
 	}
+
+	ApplyCameraViewMode();
 }
 
 void AMyCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -392,6 +408,136 @@ void AMyCharacter::SetTimedKnifeAttackInProgress(bool bInProgress)
 	if (PlayerEventComponent)
 	{
 		PlayerEventComponent->SetTimedKnifeAttackInProgress(bInProgress);
+	}
+}
+
+void AMyCharacter::SetCameraViewMode(EA302CameraViewMode NewMode)
+{
+	CameraViewMode = NewMode;
+	ApplyCameraViewMode();
+}
+
+UCameraComponent* AMyCharacter::ResolveCameraForMode(EA302CameraViewMode Mode) const
+{
+	TArray<UCameraComponent*> Cameras;
+	GetComponents<UCameraComponent>(Cameras);
+	if (Cameras.Num() == 0)
+	{
+		return nullptr;
+	}
+
+	auto NameMatches = [](const UCameraComponent* CameraComponent, const FName& TargetName) -> bool
+	{
+		if (!CameraComponent || TargetName.IsNone())
+		{
+			return false;
+		}
+		return CameraComponent->GetFName() == TargetName;
+	};
+
+	for (UCameraComponent* CameraComponent : Cameras)
+	{
+		if (Mode == EA302CameraViewMode::ThirdPerson && NameMatches(CameraComponent, ThirdPersonCameraComponentName))
+		{
+			return CameraComponent;
+		}
+		if (Mode == EA302CameraViewMode::FirstPersonChest && NameMatches(CameraComponent, FirstPersonCameraComponentName))
+		{
+			return CameraComponent;
+		}
+	}
+
+	auto IsThirdPersonCandidate = [](const UCameraComponent* CameraComponent) -> bool
+	{
+		if (!CameraComponent)
+		{
+			return false;
+		}
+
+		const FString ComponentName = CameraComponent->GetName();
+		if (ComponentName.Contains(TEXT("Third"), ESearchCase::IgnoreCase)
+			|| ComponentName.Contains(TEXT("Follow"), ESearchCase::IgnoreCase)
+			|| ComponentName.Contains(TEXT("TP"), ESearchCase::IgnoreCase))
+		{
+			return true;
+		}
+
+		return CameraComponent->GetAttachParent()
+			&& CameraComponent->GetAttachParent()->IsA<USpringArmComponent>();
+	};
+
+	auto IsFirstPersonCandidate = [](const UCameraComponent* CameraComponent) -> bool
+	{
+		if (!CameraComponent)
+		{
+			return false;
+		}
+
+		const FString ComponentName = CameraComponent->GetName();
+		return ComponentName.Contains(TEXT("First"), ESearchCase::IgnoreCase)
+			|| ComponentName.Contains(TEXT("Chest"), ESearchCase::IgnoreCase)
+			|| ComponentName.Contains(TEXT("FP"), ESearchCase::IgnoreCase);
+	};
+
+	for (UCameraComponent* CameraComponent : Cameras)
+	{
+		if (Mode == EA302CameraViewMode::ThirdPerson && IsThirdPersonCandidate(CameraComponent))
+		{
+			return CameraComponent;
+		}
+		if (Mode == EA302CameraViewMode::FirstPersonChest && IsFirstPersonCandidate(CameraComponent))
+		{
+			return CameraComponent;
+		}
+	}
+
+	if (Mode == EA302CameraViewMode::ThirdPerson)
+	{
+		return Cameras[0];
+	}
+
+	for (UCameraComponent* CameraComponent : Cameras)
+	{
+		if (!IsThirdPersonCandidate(CameraComponent))
+		{
+			return CameraComponent;
+		}
+	}
+
+	return Cameras[0];
+}
+
+void AMyCharacter::ApplyCameraViewMode()
+{
+	if (!IsLocallyControlled())
+	{
+		return;
+	}
+
+	TArray<UCameraComponent*> Cameras;
+	GetComponents<UCameraComponent>(Cameras);
+	if (Cameras.Num() == 0)
+	{
+		return;
+	}
+
+	UCameraComponent* TargetCamera = ResolveCameraForMode(CameraViewMode);
+	if (!TargetCamera)
+	{
+		return;
+	}
+
+	for (UCameraComponent* CameraComponent : Cameras)
+	{
+		if (CameraComponent)
+		{
+			CameraComponent->SetActive(CameraComponent == TargetCamera);
+		}
+	}
+
+	if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
+	{
+		PlayerController->SetViewTarget(this);
 	}
 }
 

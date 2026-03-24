@@ -6,6 +6,7 @@
 
 AA302GameState::AA302GameState()
 {
+    LastNotifiedGamePhase = GamePhase;
 }
 
 void AA302GameState::SetGamePhase(EGamePhase NewGamePhase, float ChangedServerTime)
@@ -17,6 +18,7 @@ void AA302GameState::SetGamePhase(EGamePhase NewGamePhase, float ChangedServerTi
 
     GamePhase = NewGamePhase;
     PhaseChangedServerTime = ChangedServerTime;
+    LastNotifiedGamePhase = GamePhase;
 }
 
 void AA302GameState::SetMatchTimer(float StartServerTime, float TimeLimitSeconds)
@@ -27,6 +29,13 @@ void AA302GameState::SetMatchTimer(float StartServerTime, float TimeLimitSeconds
 
 void AA302GameState::OnRep_GamePhase()
 {
+    const EGamePhase PreviousPhase = LastNotifiedGamePhase;
+    LastNotifiedGamePhase = GamePhase;
+
+    if (PreviousPhase != GamePhase)
+    {
+        GamePhaseChangedDelegate.Broadcast(PreviousPhase, GamePhase, PhaseChangedServerTime);
+    }
 }
 
 void AA302GameState::GetLifetimeReplicatedProps(
