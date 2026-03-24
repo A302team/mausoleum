@@ -87,6 +87,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Loading")
 	void CancelStartGameLoadingTransition();
 
+	void NotifyLocalGameplayPawnReady();
+
 	UFUNCTION(BlueprintPure, Category = "Loading")
 	bool IsWaitingForRoomStreamingReady() const { return bWaitingForRoomStreamingReady; }
 
@@ -187,6 +189,7 @@ private:
 	void SetLoadingProgressValue(float NewProgress);
 	void PushLoadingProgressToWidget() const;
 	void FinalizeLoadingProgress();
+	void HandleLoadingCompletionDelayElapsed();
 	void HideLoadingWidget();
 	void HandleStartGameLoadingTransitionTimeout();
 	void PollRoomStreamingReady();
@@ -203,16 +206,24 @@ private:
 
 	float LoadingProgress = 0.0f;
 	float LoadingProgressPhaseStartTime = 0.0f;
+	float RoomStreamingReadyTime = 0.0f;
+	float LoadingCompletionDelayStartTime = 0.0f;
+	float LoadingCompletionDelayStartProgress = 0.97f;
 	float FinalizeLoadingProgressStartTime = 0.0f;
 	float FinalizeLoadingProgressStartValue = 0.9f;
+	float FinalizeLoadingProgressTarget = 1.0f;
 
 	bool bStartGameLoadingTransitionActive = false;
 	bool bWaitingForRoomStreamingReady = false;
+	bool bRoomStreamingReady = false;
+	bool bLocalGameplayPawnReady = false;
+	bool bLoadingCompletionDelayActive = false;
 
 	FTimerHandle LobbyWidgetRetryTimerHandle;
 	FTimerHandle LoadingWidgetRetryTimerHandle;
 	FTimerHandle StartGameLoadingTransitionTimeoutTimerHandle;
 	FTimerHandle FinalizeLoadingProgressTimerHandle;
+	FTimerHandle LoadingCompletionDelayTimerHandle;
 	FTimerHandle RoomStreamingReadyPollTimerHandle;
 
 	bool bFallbackLobbyBindingsActive = false;
