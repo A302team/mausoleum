@@ -61,6 +61,10 @@ public:
 
 private:
 	AMyPlayerController* GetOwnerController() const;
+	void PauseActiveTimedKillCountdown();
+	void ResumeActiveTimedKillCountdown();
+	void PauseTimedKillCountdownForVote();
+	void ResumeTimedKillCountdownForVote();
 
 	UPROPERTY()
 	TObjectPtr<UBaseEvent> ActivePersonalEvent;
@@ -78,4 +82,6 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|Timed", meta = (AllowPrivateAccess = "true"))
 	FName ActiveTimedKnifeItemId = NAME_None;
+
+	int32 GroupVotePauseDepth = 0;
 };
