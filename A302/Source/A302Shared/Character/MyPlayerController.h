@@ -23,6 +23,7 @@ class UTextBlock;
 class UUserWidget;
 class UBasePersonalEvent;
 class UMaliceBGMComponent; // Added
+class UGameBGMComponent;  // Added
 
 UCLASS()
 class A302SHARED_API AMyPlayerController : public APlayerController
@@ -54,6 +55,11 @@ public:
 	// Added: Malice BGM Component
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Audio")
 	TObjectPtr<UMaliceBGMComponent> MaliceBGMComp;
+	// End Added
+
+	// Added: Game BGM Component (GameBGM <-> MaliceBGM 상태 전환)
+	UPROPERTY(VisibleAnywhere, Category = "Audio")
+	TObjectPtr<UGameBGMComponent> GameBGMComp;
 	// End Added
 
 	// UI 위젯 속성은 모두 AA302GameHUD로 이동되었습니다.
