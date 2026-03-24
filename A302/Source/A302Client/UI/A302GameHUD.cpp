@@ -5,6 +5,7 @@
 #include "Components/PanelWidget.h"
 #include "UI/PersonalEventWidget.h"
 #include "UI/PlayerHUDComponent.h"
+#include "UI/StatueProgressWidget.h"
 #include "UObject/ConstructorHelpers.h"
 #include "TimerManager.h"
 #include "Engine/World.h"
@@ -64,6 +65,12 @@ AA302GameHUD::AA302GameHUD()
 		PhaseTransitionWidgetClass = PhaseTransitionWidgetBPClass.Class;
 	}
 
+	static ConstructorHelpers::FClassFinder<UUserWidget> ItemDescriptionWidgetBPClass(TEXT("/Game/WorkSpace/UI/WBP_ItemDescription"));
+	if (ItemDescriptionWidgetBPClass.Succeeded())
+	{
+		ItemDescriptionWidgetClass = ItemDescriptionWidgetBPClass.Class;
+	}
+
 	static ConstructorHelpers::FClassFinder<UUserWidget> ResultWidgetBPClass(TEXT("/Game/WorkSpace/UI/WBP_Result"));
 	if (ResultWidgetBPClass.Succeeded())
 	{
@@ -118,6 +125,20 @@ void AA302GameHUD::InitializeClientInGameWidgets()
 		}
 	}
 
+	if (StatueProgressWidgetClass && !StatueProgressWidgetInstance)
+	{
+		APlayerController* PC = GetOwningPlayerController();
+		if (PC)
+		{
+			StatueProgressWidgetInstance = CreateWidget<UStatueProgressWidget>(PC, StatueProgressWidgetClass);
+			if (StatueProgressWidgetInstance)
+			{
+				StatueProgressWidgetInstance->AddToViewport(15);
+				// Visibility는 내부 컴포넌트(StatueProgressWidget)가 알아서 처리함
+			}
+		}
+	}
+
 	InitializeChatWidget();
 
 	if (PlayerHUDComponent)
@@ -137,6 +158,16 @@ void AA302GameHUD::RefreshQuickSlotBinding()
 
 void AA302GameHUD::InitializeChatWidget()
 {
+	if (UWorld* World = GetWorld())
+	{
+		FString MapName = World->GetMapName();
+		// 로비(Lobby) 맵이 아니면 게임 중이므로 채팅 위젯을 생성하지 않음
+		if (!MapName.Contains(TEXT("Lobby"), ESearchCase::IgnoreCase))
+		{
+			return; // 게임 레벨에서는 채팅 꺼짐
+		}
+	}
+
 	if (ChatWidgetInstance)
 	{
 		return;
@@ -231,6 +262,85 @@ void AA302GameHUD::HideTitleCard()
 	{
 		TitleCardWidgetInstance->RemoveFromParent();
 		TitleCardWidgetInstance = nullptr;
+	}
+}
+
+void AA302GameHUD::ShowItemDescription(const FText& ItemName, const FText& ItemDescription, float DisplaySeconds)
+{
+	APlayerController* PC = GetOwningPlayerController();
+	if (!PC)
+	{
+		return;
+	}
+
+	if (!ItemDescriptionWidgetClass)
+	{
+		if (UClass* LoadedItemDescriptionClass = LoadClass<UUserWidget>(nullptr, TEXT("/Game/WorkSpace/UI/WBP_ItemDescription.WBP_ItemDescription_C")))
+		{
+			ItemDescriptionWidgetClass = LoadedItemDescriptionClass;
+		}
+	}
+
+	if (!ItemDescriptionWidgetClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[A302GameHUD] Item description widget class is missing."));
+		return;
+	}
+
+	if (!ItemDescriptionWidgetInstance)
+	{
+		ItemDescriptionWidgetInstance = CreateWidget<UUserWidget>(PC, ItemDescriptionWidgetClass);
+	}
+
+	if (!ItemDescriptionWidgetInstance)
+	{
+		return;
+	}
+
+	auto SetFirstAvailableText = [&](const TArray<FName>& CandidateNames, const FText& InText)
+	{
+		for (const FName& CandidateName : CandidateNames)
+		{
+			if (UTextBlock* TextBlock = Cast<UTextBlock>(ItemDescriptionWidgetInstance->GetWidgetFromName(CandidateName)))
+			{
+				TextBlock->SetText(InText);
+				return;
+			}
+		}
+	};
+
+	SetFirstAvailableText({ TEXT("ItemName"), TEXT("TitleText"), TEXT("Txt_Title") }, ItemName);
+	SetFirstAvailableText({ TEXT("ItemDescription"), TEXT("DescriptionText"), TEXT("Txt_Description"), TEXT("BodyText") }, ItemDescription);
+
+	if (!ItemDescriptionWidgetInstance->IsInViewport())
+	{
+		ItemDescriptionWidgetInstance->AddToViewport(145);
+	}
+
+	ItemDescriptionWidgetInstance->SetVisibility(ESlateVisibility::HitTestInvisible);
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(ItemDescriptionHideTimerHandle);
+		if (DisplaySeconds > 0.0f)
+		{
+			World->GetTimerManager().SetTimer(
+				ItemDescriptionHideTimerHandle,
+				this,
+				&AA302GameHUD::HideItemDescription,
+				FMath::Max(0.5f, DisplaySeconds),
+				false
+			);
+		}
+	}
+}
+
+void AA302GameHUD::HideItemDescription()
+{
+	if (ItemDescriptionWidgetInstance)
+	{
+		ItemDescriptionWidgetInstance->RemoveFromParent();
+		ItemDescriptionWidgetInstance = nullptr;
 	}
 }
 
@@ -488,11 +598,11 @@ void AA302GameHUD::SetItemTimerVisible(bool bVisible)
 	if (PlayerHUDComponent) PlayerHUDComponent->SetItemTimerVisible(bVisible);
 }
 
-void AA302GameHUD::ConfigureMatchTimer(float MatchStartServerTime, float DurationSeconds, bool bVisible)
+void AA302GameHUD::ConfigureMatchTimer(float MatchStartServerTime, float DurationSeconds, uint8 bVisibleInt)
 {
 	if (PlayerHUDComponent)
 	{
-		PlayerHUDComponent->ConfigureMatchTimer(MatchStartServerTime, DurationSeconds, bVisible);
+		PlayerHUDComponent->ConfigureMatchTimer(MatchStartServerTime, DurationSeconds, bVisibleInt != 0);
 	}
 }
 

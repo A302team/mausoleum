@@ -330,14 +330,14 @@ void AMyPlayerController::ApplyMatchTimerConfigToHUD()
 			{
 				float InMatchStartServerTime;
 				float InDurationSeconds;
-				bool bInVisible;
+				uint8 bInVisible;
 			};
 
 			FParams Params
 			{
 				PendingMatchTimerStartServerTime,
 				PendingMatchTimerDurationSeconds,
-				bPendingMatchTimerVisible
+				static_cast<uint8>(bPendingMatchTimerVisible ? 1 : 0)
 			};
 			GameHUD->ProcessEvent(Func, &Params);
 		}
@@ -776,6 +776,25 @@ void AMyPlayerController::ShowResultScreen(const FText& Title, const FText& Desc
 			};
 
 			FParams Params { Title, Description, DisplaySeconds };
+			GameHUD->ProcessEvent(Func, &Params);
+		}
+	}
+}
+
+void AMyPlayerController::ShowItemDescription(const FText& ItemName, const FText& Description, float DisplaySeconds)
+{
+	if (AHUD* GameHUD = GetHUD())
+	{
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("ShowItemDescription")))
+		{
+			struct FParams
+			{
+				FText InItemName;
+				FText InDescription;
+				float InDisplaySeconds;
+			};
+
+			FParams Params { ItemName, Description, DisplaySeconds };
 			GameHUD->ProcessEvent(Func, &Params);
 		}
 	}

@@ -15,6 +15,8 @@
 #include "Object/BaseInteractable.h"
 #include "A302RuntimeGuards.h"
 #include "Character/Components/TraceHelper.h"
+#include "UI/StatueProgressWidget.h"
+#include "Object/StatueInteractable.h"
 
 UInteractComponent::UInteractComponent()
 {
@@ -65,6 +67,20 @@ bool UInteractComponent::TryInitializeLocalUIWidgets()
 			{
 				InteractionWidgetInstance->AddToViewport(10);
 				InteractionWidgetInstance->SetVisibility(ESlateVisibility::Hidden);
+			}
+		}
+	}
+
+	if (!StatueProgressWidgetClass.IsNull() && !StatueProgressWidgetInstance)
+	{
+		UClass* LoadedClass = StatueProgressWidgetClass.LoadSynchronous();
+		if (LoadedClass)
+		{
+			StatueProgressWidgetInstance = CreateWidget<UStatueProgressWidget>(LocalPC, LoadedClass);
+			if (StatueProgressWidgetInstance)
+			{
+				StatueProgressWidgetInstance->AddToViewport(15);
+				StatueProgressWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
 			}
 		}
 	}
@@ -313,6 +329,18 @@ bool UInteractComponent::HandleInteractHoldProgress(float DeltaTime)
 	{
 		if (Interactable->GetInteractType() == EInteractType::Hold)
 		{
+			if (InteractionProgressRatio == 0.0f)
+			{
+				HandleInteractHoldStarted();
+			}
+
+			AccumulatedHoldSyncTime += DeltaTime;
+			if (AccumulatedHoldSyncTime >= 0.25f)
+			{
+				Server_SyncHoldProgress(LastInteractableActor, AccumulatedHoldSyncTime);
+				AccumulatedHoldSyncTime = 0.0f;
+			}
+
 			InteractionProgressRatio += (DeltaTime / MaxHoldTime);
           
 			if (InteractionProgressRatio >= 1.0f)
@@ -326,6 +354,14 @@ bool UInteractComponent::HandleInteractHoldProgress(float DeltaTime)
 	return false;
 }
 
+void UInteractComponent::HandleInteractHoldStarted()
+{
+	if (LastInteractableActor)
+	{
+		OnHoldInteractionStarted.Broadcast(LastInteractableActor);
+	}
+}
+
 void UInteractComponent::HandleInteractHoldComplete()
 {
 	LastInteractedActor = nullptr;
@@ -337,15 +373,25 @@ void UInteractComponent::HandleInteractHoldComplete()
 		if (Interactable->GetInteractType() == EInteractType::Hold)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("[Interaction] Hold 상호작용 성공!"));
+			if (AccumulatedHoldSyncTime > 0.0f)
+			{
+				Server_SyncHoldProgress(LastInteractableActor, AccumulatedHoldSyncTime);
+				AccumulatedHoldSyncTime = 0.0f;
+			}
 			Interactable->Interact(OwnerCharacter);
 			LastInteractedActor = LastInteractableActor;
 		}
 	}
+
+	OnHoldInteractionEnded.Broadcast();
 }
 
 void UInteractComponent::HandleInteractHoldCanceled()
 {
 	InteractionProgressRatio = 0.0f;
+	AccumulatedHoldSyncTime = 0.0f;
+
+	OnHoldInteractionEnded.Broadcast();
 }
 
 void UInteractComponent::OnInteractHoldProgress(const FInputActionValue& Value)
@@ -361,6 +407,19 @@ void UInteractComponent::OnInteractHoldProgress(const FInputActionValue& Value)
 void UInteractComponent::OnInteractHoldCanceled(const FInputActionValue& Value)
 {
 	HandleInteractHoldCanceled();
+}
+
+void UInteractComponent::Server_SyncHoldProgress_Implementation(AActor* InteractTarget, float DeltaTime)
+{
+	if (IInteractableInterface* Interactable = Cast<IInteractableInterface>(InteractTarget))
+	{
+		Interactable->OnServerHoldProgress(DeltaTime, GetOwnerCharacter());
+	}
+}
+
+bool UInteractComponent::Server_SyncHoldProgress_Validate(AActor* InteractTarget, float DeltaTime)
+{
+	return true;
 }
 
 void UInteractComponent::OnQTEInteractStarted()

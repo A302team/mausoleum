@@ -7,6 +7,7 @@
 class UPersonalEventWidget;
 class UBorder;
 class UUserWidget;
+class UStatueProgressWidget;
 
 enum class EA302PhaseTransitionState : uint8
 {
@@ -39,6 +40,9 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "UI|Event")
 	TSubclassOf<UUserWidget> PhaseTransitionWidgetClass;
 
+	UPROPERTY(EditDefaultsOnly, Category = "UI|Item")
+	TSubclassOf<UUserWidget> ItemDescriptionWidgetClass;
+
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<UUserWidget> QuickSlotBarClass;
 
@@ -50,6 +54,10 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<UUserWidget> ResultWidgetClass;
+
+	// 석상 전용 위젯 클래스
+	UPROPERTY(EditDefaultsOnly, Category = "UI|Statue")
+	TSubclassOf<UStatueProgressWidget> StatueProgressWidgetClass;
 
 	UFUNCTION()
 	void ShowTitleCard(const FText& Title, const FText& Context, float DisplaySeconds);
@@ -99,7 +107,7 @@ public:
 	void SetItemTimerVisible(bool bVisible);
 
 	UFUNCTION()
-	void ConfigureMatchTimer(float MatchStartServerTime, float DurationSeconds, bool bVisible);
+	void ConfigureMatchTimer(float MatchStartServerTime, float DurationSeconds, uint8 bVisibleInt);
 
 	UFUNCTION()
 	void ShowPersonalEvent(FName EventID, const FText& EventTitle, const FText& EventDescription, const TArray<FText>& Choices);
@@ -112,6 +120,12 @@ public:
 
 	UFUNCTION()
 	void ShowResultScreen(const FText& Title, const FText& Description, float DisplaySeconds);
+
+	UFUNCTION()
+	void ShowItemDescription(const FText& ItemName, const FText& ItemDescription, float DisplaySeconds = 4.0f);
+
+	UFUNCTION()
+	void HideItemDescription();
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<class UPlayerHUDComponent> PlayerHUDComponent;
@@ -131,6 +145,12 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UUserWidget> ResultWidgetInstance;
 
+	UPROPERTY(Transient)
+	TObjectPtr<UUserWidget> ItemDescriptionWidgetInstance;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UStatueProgressWidget> StatueProgressWidgetInstance;
+
 private:
 	void TickPhaseTransition();
 	void BeginPhaseTransitionStep(EA302PhaseTransitionState NewState, float DurationSeconds);
@@ -142,6 +162,7 @@ private:
 	FTimerHandle PhaseTransitionTickTimerHandle;
 	FTimerHandle PhaseTransitionInputRestoreTimerHandle;
 	FTimerHandle TitleCardHideTimerHandle;
+	FTimerHandle ItemDescriptionHideTimerHandle;
 	EA302PhaseTransitionState PhaseTransitionState = EA302PhaseTransitionState::Idle;
 	float PhaseTransitionStepDuration = 0.0f;
 	float PhaseTransitionStepStartTime = 0.0f;
