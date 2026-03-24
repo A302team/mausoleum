@@ -25,7 +25,11 @@ public:
 	bool SelectQuickSlotFromAxisValue(float AxisValue);
 	bool SelectQuickSlotByNumber(int32 SlotNumberOneBased);
 	bool TryUseSelectedItem(UItemDefinition*& OutUsedItemDefinition, int32& OutUsedSlotIndex);
-	bool TryAutoUseItem();
+	bool TryAutoUseItem(
+		UItemDefinition** OutUsedItemDefinition = nullptr,
+		int32* OutUsedSlotIndex = nullptr,
+		bool* bOutBecameEmpty = nullptr
+	);
 	bool RemoveFirstItemByItemId(const FName& ItemId);
 	void NotifyItemAddedToSlot(int32 SlotIndex, const UItemDefinition* ItemDefinition);
 	void NotifyItemRemovedFromSlot(int32 SlotIndex);
