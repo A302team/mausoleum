@@ -9,8 +9,9 @@
 #include "GameFramework/PlayerState.h"
 #include "InputMappingContext.h"
 #include "UObject/ConstructorHelpers.h"
-#include "Character/Components/Audio/MaliceBGMComponent.h" // Added
-#include "Character/Components/Audio/GameBGMComponent.h"   // Added
+#include "Character/Components/Audio/MaliceBGMComponent.h"      // Added
+#include "Character/Components/Audio/GameBGMComponent.h"         // Added
+#include "Character/Components/Audio/CursedSwordBGMComponent.h" // Added
 #include "A302RuntimeGuards.h"
 #include "GameFramework/HUD.h"
 #include "Room/RoomScopeRules.h"
@@ -121,6 +122,7 @@ AMyPlayerController::AMyPlayerController()
 
 	MaliceBGMComp = CreateDefaultSubobject<UMaliceBGMComponent>(TEXT("MaliceBGMComponent")); // Added
 	GameBGMComp = CreateDefaultSubobject<UGameBGMComponent>(TEXT("GameBGMComponent"));       // Added
+	CursedSwordBGMComp = CreateDefaultSubobject<UCursedSwordBGMComponent>(TEXT("CursedSwordBGMComponent")); // Added
 }
 
 void AMyPlayerController::BeginPlay()
@@ -512,8 +514,20 @@ void AMyPlayerController::UpdateMaliceCount(int32 MaliceCount)
 		return;
 	}
 	// End Added
-	// Added: GameBGMComp가 MaliceBGMComp를 내부적으로 호출
-	if (GameBGMComp)   { GameBGMComp->HandleMaliceState(MaliceCount); }
+
+	// Added: CursedSword BGM 상태 최우선 업데이트 — 검 보유 시 Malice 전환 차단
+	if (CursedSwordBGMComp)
+	{
+		CursedSwordBGMComp->HandleMaliceState(MaliceCount);
+	}
+	// End Added
+
+	// Added: 검 미보유 시에만 GameBGM ↔ MaliceBGM 전환 처리
+	if (GameBGMComp && (!CursedSwordBGMComp || !CursedSwordBGMComp->HasCursedSword()))
+	{
+		GameBGMComp->HandleMaliceState(MaliceCount);
+	}
+	// End Added
 }
 
 void AMyPlayerController::UpdateItemTimer(float RemainingSeconds)
