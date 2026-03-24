@@ -102,7 +102,16 @@ float UCharacterHealthComponent::TakeDamage(float DamageAmount, const FDamageEve
 	HandleDead();
 
 	// Timed kill events (e.g., cursed sword) are confirmed only when an actual kill happens.
-	if (AMyCharacter* KillerCharacter = EventInstigator ? Cast<AMyCharacter>(EventInstigator->GetCharacter()) : nullptr)
+	AMyCharacter* KillerCharacter = EventInstigator ? Cast<AMyCharacter>(EventInstigator->GetCharacter()) : nullptr;
+	if (!KillerCharacter && DamageCauser)
+	{
+		KillerCharacter = Cast<AMyCharacter>(DamageCauser);
+	}
+	if (!KillerCharacter && DamageCauser)
+	{
+		KillerCharacter = Cast<AMyCharacter>(DamageCauser->GetOwner());
+	}
+	if (KillerCharacter)
 	{
 		if (KillerCharacter != OwnerCharacter)
 		{
