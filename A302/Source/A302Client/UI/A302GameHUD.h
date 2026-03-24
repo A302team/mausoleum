@@ -51,6 +51,9 @@ public:
 	void InitializeClientInGameWidgets();
 
 	UFUNCTION()
+	void RefreshQuickSlotBinding();
+
+	UFUNCTION()
 	void ToggleInGameSettingMenu();
 
 	UFUNCTION()
