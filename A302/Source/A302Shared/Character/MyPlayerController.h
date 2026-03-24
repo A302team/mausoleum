@@ -100,6 +100,9 @@ public:
 	UFUNCTION(Client, Reliable)
 	void Client_ShowResultScreen(const FText& Title, const FText& Description, float DisplaySeconds);
 
+	UFUNCTION(Client, Reliable)
+	void Client_RemoveQuickSlotItemByServer(int32 SlotIndex, FName ExpectedItemId);
+
 
 	UFUNCTION(Server, Reliable)
 	void Server_RegisterPlayerDisplayName(const FString& DesiredName);

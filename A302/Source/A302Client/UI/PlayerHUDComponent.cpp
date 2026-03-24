@@ -33,7 +33,8 @@
 namespace
 {
 	constexpr int32 PlayerHUDVoteSlotCount = 6;
-	constexpr int32 PlayerHUDQuickSlotCount = 5;
+	constexpr int32 PlayerHUDQuickSlotCount = 6;
+	constexpr int32 PlayerHUDRequiredQuickSlotCount = 5;
 	constexpr int32 MaxInspectMaliceTargets = 5;
 	constexpr int32 MaxNicknameUiLen = 7;
 	constexpr float DefaultMouseSensitivityMultiplier = 1.0f;
@@ -134,7 +135,8 @@ namespace
 		const bool bIsHud2Layout = WidgetClass && WidgetClass->GetName().Contains(TEXT("WBP_HUD2"), ESearchCase::IgnoreCase);
 
 		TArray<FString> MissingNames;
-		for (int32 SlotIndex = 0; SlotIndex < PlayerHUDQuickSlotCount; ++SlotIndex)
+		// Keep backward compatibility with existing 5-slot HUDs while enabling optional slot 6.
+		for (int32 SlotIndex = 0; SlotIndex < PlayerHUDRequiredQuickSlotCount; ++SlotIndex)
 		{
 			const FName SlotWidgetName(*FString::Printf(TEXT("QuickSlot%d"), SlotIndex + 1));
 			if (!RootWidget->GetWidgetFromName(SlotWidgetName))
@@ -1521,6 +1523,16 @@ void UPlayerHUDComponent::InitializeInspectMaliceWidget()
 		Player5Button->OnClicked.AddDynamic(this, &UPlayerHUDComponent::OnInspectMalicePlayer5Clicked);
 	}
 
+	if (UButton* CloseButton = FindInspectMaliceButton(TEXT("SelectUserCloseBtn")))
+	{
+		CloseButton->OnClicked.RemoveDynamic(this, &UPlayerHUDComponent::OnInspectMaliceCloseClicked);
+		CloseButton->OnClicked.AddDynamic(this, &UPlayerHUDComponent::OnInspectMaliceCloseClicked);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[InspectMalice] Missing close button widget: SelectUserCloseBtn"));
+	}
+
 	for (int32 Index = 1; Index <= PlayerHUDVoteSlotCount; ++Index)
 	{
 		const FName ButtonName(*FString::Printf(TEXT("UserBtn%d"), Index));
@@ -1914,4 +1926,9 @@ void UPlayerHUDComponent::OnInspectMalicePlayer4Clicked()
 void UPlayerHUDComponent::OnInspectMalicePlayer5Clicked()
 {
 	ApplyInspectMaliceSelection(4);
+}
+
+void UPlayerHUDComponent::OnInspectMaliceCloseClicked()
+{
+	HideInspectMaliceSelectionWidget();
 }
