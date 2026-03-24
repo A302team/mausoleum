@@ -240,22 +240,42 @@ void UCharacterRewardComponent::ResolveInteractionRewardOnServer(ABaseInteractab
 	const URewardDefinition* RewardDefinition = Interactable->GetRewardDefinition();
 	if (!RewardDefinition)
 	{
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("[Interaction] Reward blocked: interactable has no reward definition. player=%s actor=%s"),
+			*GetNameSafe(OwnerCharacter),
+			*GetNameSafe(Interactable)
+		);
 		return;
 	}
 
-	if (ResolveEffectiveRewardCategory(RewardDefinition) == ERewardCategory::BasicItem)
+	const ERewardCategory EffectiveCategory = ResolveEffectiveRewardCategory(RewardDefinition);
+
+	if (EffectiveCategory == ERewardCategory::BasicItem)
 	{
-		if (UItemManagerComponent* ItemManagerComponent = OwnerCharacter->FindComponentByClass<UItemManagerComponent>())
+	if (UItemManagerComponent* ItemManagerComponent = OwnerCharacter->FindComponentByClass<UItemManagerComponent>())
+	{
+		const bool bInventoryFull = ItemManagerComponent->FindFirstEmptySlotIndex() == INDEX_NONE;
+		if (bInventoryFull)
 		{
-			if (ItemManagerComponent->FindFirstEmptySlotIndex() == INDEX_NONE)
+			UE_LOG(
+				LogTemp,
+				Warning,
+				TEXT("[Interaction] Reward blocked: inventory full. player=%s actor=%s reward=%s"),
+				*GetNameSafe(OwnerCharacter),
+				*GetNameSafe(Interactable),
+				*GetNameSafe(RewardDefinition)
+			);
+
+			if (AMyPlayerController* OwnerPlayerController = Cast<AMyPlayerController>(OwnerCharacter->GetController()))
 			{
-				if (AMyPlayerController* OwnerPlayerController = Cast<AMyPlayerController>(OwnerCharacter->GetController()))
-				{
-					OwnerPlayerController->Client_ReceiveSystemMessage(TEXT("QuickSlot is full."));
-				}
-				return;
+				OwnerPlayerController->Client_ReceiveSystemMessage(TEXT("Inventory is full. Interaction reward was not granted."));
 			}
+
+			return;
 		}
+	}
 	}
 
 	if (!Interactable->TryConsumeInteraction())
@@ -264,38 +284,29 @@ void UCharacterRewardComponent::ResolveInteractionRewardOnServer(ABaseInteractab
 	}
 
 	bool bRewardHandled = false;
+	const bool bNeedsClientMirrorGrant =
+		!OwnerCharacter->IsLocallyControlled() &&
+		Cast<AMyPlayerController>(OwnerCharacter->GetController()) != nullptr;
+
+	if (EffectiveCategory == ERewardCategory::BasicItem)
 	{
-		const ERewardCategory EffectiveCategory = ResolveEffectiveRewardCategory(RewardDefinition);
-
-		const bool bNeedsClientMirrorGrant =
-			!OwnerCharacter->IsLocallyControlled() &&
-			Cast<AMyPlayerController>(OwnerCharacter->GetController()) != nullptr;
-
-		if (RewardDefinition->RewardCategory == ERewardCategory::BasicItem)
-		{
-			const bool bServerGranted = HandleRewardPickup(Interactable, RewardDefinition);
-			bRewardHandled = bServerGranted;
-			if (bServerGranted && bNeedsClientMirrorGrant && ShouldGrantRewardLocally(RewardDefinition))
-			{
-				Client_GrantInteractionReward(const_cast<URewardDefinition*>(RewardDefinition));
-			}
-		}
-		else if (bNeedsClientMirrorGrant && ShouldGrantRewardLocally(RewardDefinition))
+		const bool bServerGranted = HandleRewardPickup(Interactable, RewardDefinition);
+		bRewardHandled = bServerGranted;
+		if (bServerGranted && bNeedsClientMirrorGrant && ShouldGrantRewardLocally(RewardDefinition))
 		{
 			Client_GrantInteractionReward(const_cast<URewardDefinition*>(RewardDefinition));
-			bRewardHandled = true;
 		}
-		else
-		{
-			bRewardHandled = HandleRewardPickup(Interactable, RewardDefinition);
-		}
+	}
+	else
+	{
+		bRewardHandled = HandleRewardPickup(Interactable, RewardDefinition);
+	}
 
-		if (bRewardHandled)
+	if (bRewardHandled)
+	{
+		if (IA302ServerRewardBridge* RewardBridge = Cast<IA302ServerRewardBridge>(GetWorld() ? GetWorld()->GetAuthGameMode() : nullptr))
 		{
-			if (IA302ServerRewardBridge* RewardBridge = Cast<IA302ServerRewardBridge>(GetWorld() ? GetWorld()->GetAuthGameMode() : nullptr))
-			{
-				RewardBridge->NotifyInteractionRewardResolved(OwnerCharacter, RewardDefinition, EffectiveCategory);
-			}
+			RewardBridge->NotifyInteractionRewardResolved(OwnerCharacter, RewardDefinition, EffectiveCategory);
 		}
 	}
 
