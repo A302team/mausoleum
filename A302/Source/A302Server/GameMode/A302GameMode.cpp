@@ -15,6 +15,7 @@
 #include "Character/Components/MaliceComponent.h"
 #include "GameData/RewardDefinition.h"
 #include "Subsystem/A302ServerPlayerSubsystem.h"
+#include "Subsystem/A302ItemSpawnSubsystem.h"
 #include "Network/A302ServerBackendRouter.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/Pawn.h"
@@ -27,6 +28,7 @@
 #include "Room/RoomWorldOffset.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
+#include "TimerManager.h"
 
 namespace
 {
@@ -274,6 +276,7 @@ void AA302GameMode::BeginPlay()
             BackendSubsystem = GameInstance->GetSubsystem<UGameServerBackendSubsystem>();
             PhaseSubsystem = GameInstance->GetSubsystem<UA302ServerPhaseSubsystem>();
             RoomRuntimeSubsystem = GameInstance->GetSubsystem<UA302RoomRuntimeSubsystem>();
+            ItemSpawnSubsystem = GameInstance->GetSubsystem<UA302ItemSpawnSubsystem>();
             if (PhaseSubsystem)
             {
                 PhaseSubsystem->OnRoomPhaseChanged.RemoveDynamic(this, &AA302GameMode::HandleRoomPhaseChanged);
@@ -299,6 +302,15 @@ void AA302GameMode::BeginPlay()
             {
                 BackendSubsystem->OnPacketReceived.AddDynamic(this, &AA302GameMode::OnMessageReceived);
             }
+
+            GetWorldTimerManager().ClearTimer(GameStateSyncTimerHandle);
+            GetWorldTimerManager().SetTimer(
+                GameStateSyncTimerHandle,
+                this,
+                &AA302GameMode::SyncTrackedRoomState,
+                0.5f,
+                true
+            );
         }
     }
 
@@ -321,6 +333,8 @@ void AA302GameMode::PostLogin(APlayerController *NewPlayer)
 
 void AA302GameMode::Logout(AController *Exiting)
 {
+    FString LeavingRoomCode;
+
     if (UA302ServerPlayerSubsystem* PlayerSubsystem = GetWorld()->GetSubsystem<UA302ServerPlayerSubsystem>())
     {
         PlayerSubsystem->HandlePlayerLogout(Exiting);
@@ -331,20 +345,20 @@ void AA302GameMode::Logout(AController *Exiting)
 		if (APlayerState* PS = PC->PlayerState)
 		{
 			FString PlayerName = PS->GetPlayerName();
-			FString RoomCode = TEXT("");
 			if (RoomMembershipRegistry)
 			{
-				RoomCode = RoomMembershipRegistry->GetPlayerRoomCode(PC);
+				LeavingRoomCode = RoomMembershipRegistry->GetPlayerRoomCode(PC);
 			}   
 
 			if (BackendRouter)
 			{
-				BackendRouter->NotifyPlayerLogout(PlayerName, RoomCode);
+				BackendRouter->NotifyPlayerLogout(PlayerName, LeavingRoomCode);
 			}
 		}
 	}
 
     Super::Logout(Exiting);
+    SyncRoomStateToGameState(LeavingRoomCode);
 
     UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] 플레이어 퇴장"));
 }
@@ -496,6 +510,14 @@ void AA302GameMode::HandleRoomPhaseChanged(const FString& RoomCode, EGamePhase N
 		return;
 	}
 
+    TrackedRoomCodeForGameState = NormalizedRoomCode;
+    SyncRoomStateToGameState(NormalizedRoomCode);
+
+    if (ItemSpawnSubsystem)
+    {
+        ItemSpawnSubsystem->HandleRoomPhaseChanged(NormalizedRoomCode, NewPhase);
+    }
+
     if (NewPhase != EGamePhase::Ended)
     {
         return;
@@ -572,7 +594,28 @@ void AA302GameMode::HandleRoomPhaseChanged(const FString& RoomCode, EGamePhase N
 
 void AA302GameMode::HandleRoomLevelReady(const FString& RoomCode)
 {
-    SpawnPlayersInRoom(RoomCode);
+    const FString NormalizedRoomCode = A302RoomScope::NormalizeRoomCode(RoomCode);
+    if (NormalizedRoomCode.IsEmpty())
+    {
+        return;
+    }
+
+    SpawnPlayersInRoom(NormalizedRoomCode);
+
+    EGamePhase CurrentPhase = EGamePhase::Phase0;
+    if (PhaseSubsystem)
+    {
+        FA302RoomPhaseState RoomPhaseState;
+        if (PhaseSubsystem->TryGetRoomPhaseState(NormalizedRoomCode, RoomPhaseState))
+        {
+            CurrentPhase = RoomPhaseState.CurrentPhase;
+        }
+    }
+
+    if (ItemSpawnSubsystem)
+    {
+        ItemSpawnSubsystem->HandleRoomLevelReady(NormalizedRoomCode, CurrentPhase);
+    }
 }
 
 bool AA302GameMode::IsRoomGameplayActive(const FString& RoomCode) const
@@ -614,6 +657,9 @@ void AA302GameMode::SpawnPlayersInRoom(const FString& RoomCode)
 		PlayerSubsystem->UpdatePlayerGameplayFlag(RoomPlayer, true);
 		PlayerSubsystem->QueueSpawnPlayer(RoomPlayer, true);
 	}
+
+    TrackedRoomCodeForGameState = NormalizedRoomCode;
+    SyncRoomStateToGameState(NormalizedRoomCode);
 }
 
 
@@ -634,6 +680,68 @@ void AA302GameMode::StartRoomGameplay(const FString& RoomCode)
     {
         RoomRuntimeSubsystem->PrepareRoom(NormalizedRoomCode);
     }
+
+    TrackedRoomCodeForGameState = NormalizedRoomCode;
+    SyncRoomStateToGameState(NormalizedRoomCode);
+}
+
+void AA302GameMode::SyncTrackedRoomState()
+{
+    SyncRoomStateToGameState(TrackedRoomCodeForGameState);
+}
+
+void AA302GameMode::SyncRoomStateToGameState(const FString& RoomCode)
+{
+    const FString NormalizedRoomCode = A302RoomScope::NormalizeRoomCode(RoomCode);
+    if (NormalizedRoomCode.IsEmpty())
+    {
+        return;
+    }
+
+    AA302GameState* A302GameState = GetGameState<AA302GameState>();
+    if (!A302GameState)
+    {
+        return;
+    }
+
+    if (PhaseSubsystem)
+    {
+        FA302RoomPhaseState RoomPhaseState;
+        if (PhaseSubsystem->TryGetRoomPhaseState(NormalizedRoomCode, RoomPhaseState))
+        {
+            A302GameState->SetGamePhase(RoomPhaseState.CurrentPhase, RoomPhaseState.PhaseChangedServerTime);
+        }
+    }
+
+    A302GameState->AlivePlayerCount = CountAlivePlayersInRoom(NormalizedRoomCode);
+}
+
+int32 AA302GameMode::CountAlivePlayersInRoom(const FString& RoomCode) const
+{
+    if (!RoomMembershipRegistry || !GetWorld())
+    {
+        return 0;
+    }
+
+    TArray<APlayerController*> RoomPlayers;
+    RoomMembershipRegistry->GatherPlayersInRoom(GetWorld(), RoomCode, RoomPlayers);
+
+    int32 AliveCount = 0;
+    for (APlayerController* RoomPlayer : RoomPlayers)
+    {
+        const AA302PlayerState* PlayerState = RoomPlayer ? RoomPlayer->GetPlayerState<AA302PlayerState>() : nullptr;
+        if (!PlayerState)
+        {
+            continue;
+        }
+
+        if (PlayerState->bIsAlive && !PlayerState->bIsEscaped)
+        {
+            ++AliveCount;
+        }
+    }
+
+    return AliveCount;
 }
 
 

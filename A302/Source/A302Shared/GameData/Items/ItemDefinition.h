@@ -40,5 +40,3 @@ public:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Reward|Item")
     FItemDefinitionPayload Payload;
 };
-
-
