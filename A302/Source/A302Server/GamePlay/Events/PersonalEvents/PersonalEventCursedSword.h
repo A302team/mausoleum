@@ -21,6 +21,8 @@ public:
 	virtual void OnEventResolved(ACharacter* InstigatorCharacter, int32 ChoiceIndex) override;
 	void NotifyTimedKillConfirmed();
 	void CancelTimedKillCountdown();
+	void PauseTimedKillCountdown();
+	void ResumeTimedKillCountdown();
 	virtual void BeginDestroy() override;
 
 private:
@@ -37,5 +39,6 @@ private:
 	int32 GrantedSlotIndex = INDEX_NONE;
 	float RemainingSeconds = 0.0f;
 	bool bIsActive = false;
+	bool bCountdownPaused = false;
 	FTimerHandle CountdownTimerHandle;
 };
