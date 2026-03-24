@@ -64,6 +64,12 @@ AA302GameHUD::AA302GameHUD()
 		PhaseTransitionWidgetClass = PhaseTransitionWidgetBPClass.Class;
 	}
 
+	static ConstructorHelpers::FClassFinder<UUserWidget> ItemDescriptionWidgetBPClass(TEXT("/Game/WorkSpace/UI/WBP_ItemDescription"));
+	if (ItemDescriptionWidgetBPClass.Succeeded())
+	{
+		ItemDescriptionWidgetClass = ItemDescriptionWidgetBPClass.Class;
+	}
+
 	static ConstructorHelpers::FClassFinder<UUserWidget> ResultWidgetBPClass(TEXT("/Game/WorkSpace/UI/WBP_Result"));
 	if (ResultWidgetBPClass.Succeeded())
 	{
@@ -231,6 +237,85 @@ void AA302GameHUD::HideTitleCard()
 	{
 		TitleCardWidgetInstance->RemoveFromParent();
 		TitleCardWidgetInstance = nullptr;
+	}
+}
+
+void AA302GameHUD::ShowItemDescription(const FText& ItemName, const FText& ItemDescription, float DisplaySeconds)
+{
+	APlayerController* PC = GetOwningPlayerController();
+	if (!PC)
+	{
+		return;
+	}
+
+	if (!ItemDescriptionWidgetClass)
+	{
+		if (UClass* LoadedItemDescriptionClass = LoadClass<UUserWidget>(nullptr, TEXT("/Game/WorkSpace/UI/WBP_ItemDescription.WBP_ItemDescription_C")))
+		{
+			ItemDescriptionWidgetClass = LoadedItemDescriptionClass;
+		}
+	}
+
+	if (!ItemDescriptionWidgetClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[A302GameHUD] Item description widget class is missing."));
+		return;
+	}
+
+	if (!ItemDescriptionWidgetInstance)
+	{
+		ItemDescriptionWidgetInstance = CreateWidget<UUserWidget>(PC, ItemDescriptionWidgetClass);
+	}
+
+	if (!ItemDescriptionWidgetInstance)
+	{
+		return;
+	}
+
+	auto SetFirstAvailableText = [&](const TArray<FName>& CandidateNames, const FText& InText)
+	{
+		for (const FName& CandidateName : CandidateNames)
+		{
+			if (UTextBlock* TextBlock = Cast<UTextBlock>(ItemDescriptionWidgetInstance->GetWidgetFromName(CandidateName)))
+			{
+				TextBlock->SetText(InText);
+				return;
+			}
+		}
+	};
+
+	SetFirstAvailableText({ TEXT("ItemName"), TEXT("TitleText"), TEXT("Txt_Title") }, ItemName);
+	SetFirstAvailableText({ TEXT("ItemDescription"), TEXT("DescriptionText"), TEXT("Txt_Description"), TEXT("BodyText") }, ItemDescription);
+
+	if (!ItemDescriptionWidgetInstance->IsInViewport())
+	{
+		ItemDescriptionWidgetInstance->AddToViewport(145);
+	}
+
+	ItemDescriptionWidgetInstance->SetVisibility(ESlateVisibility::HitTestInvisible);
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(ItemDescriptionHideTimerHandle);
+		if (DisplaySeconds > 0.0f)
+		{
+			World->GetTimerManager().SetTimer(
+				ItemDescriptionHideTimerHandle,
+				this,
+				&AA302GameHUD::HideItemDescription,
+				FMath::Max(0.5f, DisplaySeconds),
+				false
+			);
+		}
+	}
+}
+
+void AA302GameHUD::HideItemDescription()
+{
+	if (ItemDescriptionWidgetInstance)
+	{
+		ItemDescriptionWidgetInstance->RemoveFromParent();
+		ItemDescriptionWidgetInstance = nullptr;
 	}
 }
 
