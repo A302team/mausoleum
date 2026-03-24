@@ -151,7 +151,7 @@ void UGameNetworkSubsystem::HandleWebSocketMessage(const FString& Message)
 
 void UGameNetworkSubsystem::HandleWebSocketBinaryMessage(const TArray<uint8>& MessageData)
 {
-	OnBinaryPacketReceived.Broadcast(MessageData);
+	OnWebSocketBinaryPacketReceived.Broadcast(MessageData);
 }
 
 void UGameNetworkSubsystem::HandleUDPMessage(const FString& Message)
@@ -161,5 +161,6 @@ void UGameNetworkSubsystem::HandleUDPMessage(const FString& Message)
 
 void UGameNetworkSubsystem::HandleUDPBinaryMessage(const TArray<uint8>& MessageData)
 {
+	OnUdpBinaryPacketReceived.Broadcast(MessageData);
 	OnBinaryPacketReceived.Broadcast(MessageData);
 }

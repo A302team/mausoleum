@@ -22,7 +22,7 @@ void UVoiceNetworkClient::Initialize(UObject* OuterObj)
         if (GameNetworkSubsystem)
         {
             // UDP 바이너리 수신 리스너
-            GameNetworkSubsystem->OnBinaryPacketReceived.AddUObject(this, &UVoiceNetworkClient::HandleBinaryMessage);
+            GameNetworkSubsystem->OnUdpBinaryPacketReceived.AddUObject(this, &UVoiceNetworkClient::HandleBinaryMessage);
         }
     }
 }
@@ -118,16 +118,25 @@ void UVoiceNetworkClient::HandleBinaryMessage(const TArray<uint8>& BinaryData)
     // Voice Data 패킷(1)만 처리
     if (Header->packetType != 1) return;
 
-    FString RoomCode = UTF8_TO_TCHAR(Header->roomCode);
-    FString Speaker = UTF8_TO_TCHAR(Header->speakerName);
-    
-    if (Header->payloadSize > 0 && BinaryData.Num() >= (int32)(sizeof(FVoicePacketHeader) + Header->payloadSize))
-    {
-        const uint8_t* PayloadStart = BinaryData.GetData() + sizeof(FVoicePacketHeader);
-        
-        TArray<uint8> PayloadArray;
-        PayloadArray.Append(PayloadStart, Header->payloadSize);
-        
-        OnBinaryPacketReceived.ExecuteIfBound(RoomCode, Speaker, PayloadArray);
-    }
+    if (Header->payloadSize == 0) return;
+
+    const int32 ExpectedPacketSize = static_cast<int32>(sizeof(FVoicePacketHeader) + Header->payloadSize);
+    if (BinaryData.Num() != ExpectedPacketSize) return;
+
+    char RoomCodeAnsi[17] = {};
+    FMemory::Memcpy(RoomCodeAnsi, Header->roomCode, 16);
+    const FString RoomCode = UTF8_TO_TCHAR(RoomCodeAnsi);
+
+    char SpeakerAnsi[33] = {};
+    FMemory::Memcpy(SpeakerAnsi, Header->speakerName, 32);
+    const FString Speaker = UTF8_TO_TCHAR(SpeakerAnsi);
+
+    if (RoomCode.IsEmpty() || Speaker.IsEmpty()) return;
+
+    const uint8_t* PayloadStart = BinaryData.GetData() + sizeof(FVoicePacketHeader);
+
+    TArray<uint8> PayloadArray;
+    PayloadArray.Append(PayloadStart, Header->payloadSize);
+
+    OnBinaryPacketReceived.ExecuteIfBound(RoomCode, Speaker, PayloadArray);
 }
