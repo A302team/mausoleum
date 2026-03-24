@@ -10,6 +10,7 @@
 #include "InputMappingContext.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Character/Components/Audio/MaliceBGMComponent.h" // Added
+#include "Character/Components/Audio/GameBGMComponent.h"   // Added
 #include "A302RuntimeGuards.h"
 #include "GameFramework/HUD.h"
 #include "Room/RoomScopeRules.h"
@@ -119,6 +120,7 @@ AMyPlayerController::AMyPlayerController()
 	// UI Widget 초기화 내용들은 AA302GameHUD로 이동되어 제거되었습니다.
 
 	MaliceBGMComp = CreateDefaultSubobject<UMaliceBGMComponent>(TEXT("MaliceBGMComponent")); // Added
+	GameBGMComp = CreateDefaultSubobject<UGameBGMComponent>(TEXT("GameBGMComponent"));       // Added
 }
 
 void AMyPlayerController::BeginPlay()
@@ -510,7 +512,8 @@ void AMyPlayerController::UpdateMaliceCount(int32 MaliceCount)
 		return;
 	}
 	// End Added
-	if (MaliceBGMComp) { MaliceBGMComp->HandleMaliceBGM(MaliceCount); } // Added
+	// Added: GameBGMComp가 MaliceBGMComp를 내부적으로 호출
+	if (GameBGMComp)   { GameBGMComp->HandleMaliceState(MaliceCount); }
 }
 
 void AMyPlayerController::UpdateItemTimer(float RemainingSeconds)
