@@ -123,6 +123,7 @@ void UPersonalEventCursedSword::OnEventResolved(ACharacter* InstigatorCharacter,
 	GrantedItemId = GrantedCursedSwordDefinition->ItemId;
 	GrantedSlotIndex = AddedSlotIndex;
 	bIsActive = true;
+	bCountdownPaused = false;
 
 	if (AMyPlayerController* PlayerController = Cast<AMyPlayerController>(InstigatorCharacter->GetController()))
 	{
@@ -173,6 +174,37 @@ void UPersonalEventCursedSword::CancelTimedKillCountdown()
 	StopCountdown(true);
 }
 
+void UPersonalEventCursedSword::PauseTimedKillCountdown()
+{
+	if (!bIsActive || bCountdownPaused)
+	{
+		return;
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().PauseTimer(CountdownTimerHandle);
+	}
+
+	bCountdownPaused = true;
+}
+
+void UPersonalEventCursedSword::ResumeTimedKillCountdown()
+{
+	if (!bIsActive || !bCountdownPaused)
+	{
+		return;
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().UnPauseTimer(CountdownTimerHandle);
+	}
+
+	bCountdownPaused = false;
+	RefreshTimerUI();
+}
+
 void UPersonalEventCursedSword::BeginDestroy()
 {
 	StopCountdown(true);
@@ -181,7 +213,7 @@ void UPersonalEventCursedSword::BeginDestroy()
 
 void UPersonalEventCursedSword::HandleCountdownTick()
 {
-	if (!bIsActive)
+	if (!bIsActive || bCountdownPaused)
 	{
 		return;
 	}
@@ -271,6 +303,7 @@ void UPersonalEventCursedSword::StopCountdown(bool bHideTimer)
 	GrantedSlotIndex = INDEX_NONE;
 	RemainingSeconds = 0.0f;
 	bIsActive = false;
+	bCountdownPaused = false;
 }
 
 bool UPersonalEventCursedSword::TryGrantCursedSwordToPreferredSlot(ACharacter* InstigatorCharacter, UItemDefinition* GrantedCursedSwordDefinition, int32& OutAddedSlotIndex) const
