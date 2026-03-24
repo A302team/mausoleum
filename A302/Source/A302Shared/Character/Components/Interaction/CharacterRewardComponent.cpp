@@ -138,23 +138,7 @@ bool UCharacterRewardComponent::HandleRewardPickup(AActor* InteractedActor, cons
 		return false;
 	}
 
-	ERewardCategory EffectiveCategory = RewardDefinition->RewardCategory;
-	UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass();
-	if (LogicClass)
-	{
-		const bool bIsLegacyPersonalEventClass =
-			RewardDefinition->RewardCategory != ERewardCategory::BasicItem &&
-			LogicClass->IsChildOf(UItemCursedSword::StaticClass());
-
-		if (LogicClass->IsChildOf(UBasePersonalEvent::StaticClass()) || bIsLegacyPersonalEventClass)
-		{
-			EffectiveCategory = ERewardCategory::PersonalEvent;
-		}
-		else if (LogicClass->IsChildOf(UBaseGroupEvent::StaticClass()))
-		{
-			EffectiveCategory = ERewardCategory::GroupEvent;
-		}
-	}
+	const ERewardCategory EffectiveCategory = ResolveEffectiveRewardCategory(RewardDefinition);
 
 	bool bRewardHandled = false;
 	switch (EffectiveCategory)
@@ -200,23 +184,27 @@ ERewardCategory UCharacterRewardComponent::ResolveEffectiveRewardCategory(const 
 		return ERewardCategory::BasicItem;
 	}
 
-	ERewardCategory EffectiveCategory = RewardDefinition->RewardCategory;
 	if (UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass())
 	{
-		const bool bIsLegacyPersonalEventClass =
-			LogicClass->IsChildOf(UItemCursedSword::StaticClass());
-
-		if (LogicClass->IsChildOf(UBasePersonalEvent::StaticClass()) || bIsLegacyPersonalEventClass)
+		// Item logic classes should always be handled as inventory items,
+		// even when legacy data category is mismatched.
+		if (LogicClass->IsChildOf(UBaseItem::StaticClass()))
 		{
-			EffectiveCategory = ERewardCategory::PersonalEvent;
+			return ERewardCategory::BasicItem;
 		}
-		else if (LogicClass->IsChildOf(UBaseGroupEvent::StaticClass()))
+
+		if (LogicClass->IsChildOf(UBasePersonalEvent::StaticClass()))
 		{
-			EffectiveCategory = ERewardCategory::GroupEvent;
+			return ERewardCategory::PersonalEvent;
+		}
+
+		if (LogicClass->IsChildOf(UBaseGroupEvent::StaticClass()))
+		{
+			return ERewardCategory::GroupEvent;
 		}
 	}
 
-	return EffectiveCategory;
+	return RewardDefinition->RewardCategory;
 }
 
 bool UCharacterRewardComponent::ShouldGrantRewardLocally(const URewardDefinition* RewardDefinition) const
@@ -226,7 +214,7 @@ bool UCharacterRewardComponent::ShouldGrantRewardLocally(const URewardDefinition
 		return false;
 	}
 
-	return RewardDefinition->RewardCategory == ERewardCategory::BasicItem;
+	return ResolveEffectiveRewardCategory(RewardDefinition) == ERewardCategory::BasicItem;
 }
 
 void UCharacterRewardComponent::ResolveInteractionRewardOnServer(ABaseInteractable* Interactable)
