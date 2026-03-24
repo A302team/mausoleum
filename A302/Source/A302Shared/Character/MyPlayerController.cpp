@@ -329,14 +329,14 @@ void AMyPlayerController::ApplyMatchTimerConfigToHUD()
 			{
 				float InMatchStartServerTime;
 				float InDurationSeconds;
-				bool bInVisible;
+				uint8 bInVisible;
 			};
 
 			FParams Params
 			{
 				PendingMatchTimerStartServerTime,
 				PendingMatchTimerDurationSeconds,
-				bPendingMatchTimerVisible
+				static_cast<uint8>(bPendingMatchTimerVisible ? 1 : 0)
 			};
 			GameHUD->ProcessEvent(Func, &Params);
 		}

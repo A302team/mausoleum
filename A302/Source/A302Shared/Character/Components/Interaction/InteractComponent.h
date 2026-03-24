@@ -24,6 +24,10 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnQTEStarted, const TArray<EQTEDire
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnQTEProgressUpdated, int32, CurrentIndex);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnQTEEnded, bool, bWasSuccessful);
 
+// 홀드 상호작용 (UI 통신용 델리게이트)
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnHoldInteractionStarted, class AActor*, TargetActor);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnHoldInteractionEnded);
+
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class A302SHARED_API UInteractComponent : public UActorComponent
 {
@@ -39,6 +43,7 @@ public:
 	
 	// 홀드 입력
 	void OnInteractHoldProgress(const FInputActionValue& Value);
+	void HandleInteractHoldStarted();   // 처음 누르는 순간 (UI 등)
 	bool HandleInteractHoldProgress(float DeltaTime); // 누르는 중 (Hold 게이지용)
 	void HandleInteractHoldComplete();  // 완료 (결과 처리)
 	void OnInteractHoldCanceled(const FInputActionValue& Value);
@@ -59,6 +64,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
 	float GetInteractionProgressRatio() const { return InteractionProgressRatio; }
 
+	// -- Sync Hold Progress --
+	UFUNCTION(Server, Reliable, WithValidation)
+	void Server_SyncHoldProgress(AActor* InteractTarget, float DeltaTime);
+
+	float AccumulatedHoldSyncTime = 0.0f;
+
 	UPROPERTY(EditAnywhere, Category = "Interaction")
 	float MaxHoldTime = 2.0f;
 	
@@ -67,6 +78,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
 	TSoftClassPtr<UUserWidget> InteractionWidgetClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
+	TSoftClassPtr<class UStatueProgressWidget> StatueProgressWidgetClass;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
 	TSoftClassPtr<UUserWidget> CrosshairWidgetClass;
@@ -99,6 +113,12 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")
 	FOnQTEEnded OnQTEEnded;
 
+	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")
+	FOnHoldInteractionStarted OnHoldInteractionStarted;
+
+	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")
+	FOnHoldInteractionEnded OnHoldInteractionEnded;
+
 private:
 	bool TryInitializeLocalUIWidgets();
 	ACharacter* GetOwnerCharacter() const;
@@ -118,6 +138,9 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UUserWidget> InteractionWidgetInstance = nullptr;
+
+	UPROPERTY()
+	TObjectPtr<class UStatueProgressWidget> StatueProgressWidgetInstance = nullptr;
 
 	UPROPERTY()
 	TObjectPtr<UUserWidget> CrosshairWidgetInstance = nullptr;
