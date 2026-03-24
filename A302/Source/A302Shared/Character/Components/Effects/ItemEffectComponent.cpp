@@ -3,8 +3,10 @@
 #include "Character/Components/Inventory/ItemManagerComponent.h"
 #include "Character/Components/MaliceComponent.h"
 #include "Character/Components/Interaction/CharacterRewardComponent.h"
+#include "Character/MyPlayerController.h"
 #include "GameData/Items/ItemDefinition.h"
 #include "GameData/RewardDefinition.h"
+#include "GamePlay/Items/ItemCursedSword.h"
 #include "NiagaraFunctionLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/Pawn.h"
@@ -130,6 +132,27 @@ void UItemEffectComponent::OnItemAdded(int32 SlotIndex, const UItemDefinition* I
 		TEXT("[ItemEffectComponent] >>> Item Added – ItemID='%s', Slot=%d"),
 		*ItemDefinition->ItemId.ToString(),
 		SlotIndex);
+
+	if (APawn* OwnerPawn = Cast<APawn>(GetOwner()))
+	{
+		if (OwnerPawn->IsLocallyControlled())
+		{
+			if (AMyPlayerController* PlayerController = Cast<AMyPlayerController>(OwnerPawn->GetController()))
+			{
+				const UClass* LogicClass = ItemDefinition->ResolveRewardLogicClass();
+				const bool bIsCursedSword = LogicClass && LogicClass->IsChildOf(UItemCursedSword::StaticClass());
+				const FText ItemName = ItemDefinition->DisplayName.IsEmpty()
+					? FText::FromName(ItemDefinition->ItemId)
+					: ItemDefinition->DisplayName;
+				const FText Description = ItemDefinition->Description;
+
+				if (!bIsCursedSword && (!ItemName.IsEmpty() || !Description.IsEmpty()))
+				{
+					PlayerController->ShowItemDescription(ItemName, Description, 4.0f);
+				}
+			}
+		}
+	}
 
 	// ItemEffects 배열에서 일치하는 ItemID 찾기
 	for (const FItemEffectData& EffectData : ItemEffects)

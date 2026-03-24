@@ -53,6 +53,7 @@ public:
 	virtual void SetItemTimerVisibleForClient(bool bVisible);
 	virtual void ConfigureMatchTimer(float MatchStartServerTime, float DurationSeconds, bool bVisible);
 	virtual void ShowResultScreen(const FText& Title, const FText& Description, float DisplaySeconds);
+	virtual void ShowItemDescription(const FText& ItemName, const FText& Description, float DisplaySeconds);
 	virtual void ToggleVoiceChatCapture();
 
 	// Added: Malice BGM Component

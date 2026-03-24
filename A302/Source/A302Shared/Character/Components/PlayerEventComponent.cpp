@@ -15,6 +15,15 @@
 #include "GamePlay/Events/GroupEvents/BaseGroupEvent.h"
 #include "GamePlay/Events/PersonalEvents/BasePersonalEvent.h"
 
+namespace
+{
+	FText BuildTimedKnifeCountdownContext(float RemainingSeconds)
+	{
+		const int32 SafeSeconds = FMath::Max(0, FMath::CeilToInt(RemainingSeconds));
+		return FText::FromString(FString::Printf(TEXT("피를 갈망하는 저주받은 검을 습득했습니다.\n%d초 내에 누군가를 공격하지 않으면 검 끝이 당신을 향할 것입니다."), SafeSeconds));
+	}
+}
+
 UPlayerEventComponent::UPlayerEventComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
@@ -214,7 +223,7 @@ void UPlayerEventComponent::SetTimedKnifeAttackInProgress(bool bInProgress)
 	bTimedKnifeAttackInProgress = bInProgress;
 }
 
-void UPlayerEventComponent::StartTimedKnifeCountdown(float DurationSeconds, const FName& ItemId)
+void UPlayerEventComponent::StartTimedKnifeCountdown(float DurationSeconds, const FName& ItemId, const FText& Title)
 {
 	AMyCharacter* OwnerCharacter = Cast<AMyCharacter>(GetOwner());
 	if (!OwnerCharacter || !OwnerCharacter->HasAuthority())
@@ -235,12 +244,14 @@ void UPlayerEventComponent::StartTimedKnifeCountdown(float DurationSeconds, cons
 
 	TimedKnifeRemainingSeconds = FMath::Max(1.0f, DurationSeconds);
 	ActiveTimedKnifeItemId = ItemId;
+	ActiveTimedKnifeTitle = Title.IsEmpty() ? FText::FromString(TEXT("저주받은 검")) : Title;
 	bTimedKnifeAttackInProgress = false;
 
 	if (AMyPlayerController* OwnerController = GetOwnerController())
 	{
 		OwnerController->UpdateItemTimer(TimedKnifeRemainingSeconds);
 		OwnerController->SetItemTimerVisibleForClient(true);
+		OwnerController->Client_ShowTitleCard(ActiveTimedKnifeTitle, BuildTimedKnifeCountdownContext(TimedKnifeRemainingSeconds), 1.5f);
 	}
 
 	if (UWorld* World = GetWorld())
@@ -282,6 +293,7 @@ void UPlayerEventComponent::StopTimedKnifeCountdown(bool bHideTimer, bool bConsu
 
 	TimedKnifeRemainingSeconds = 0.0f;
 	ActiveTimedKnifeItemId = NAME_None;
+	ActiveTimedKnifeTitle = FText::GetEmpty();
 	bTimedKnifeAttackInProgress = false;
 }
 
@@ -299,6 +311,7 @@ void UPlayerEventComponent::HandleTimedKnifeCountdownTick()
 	{
 		OwnerController->UpdateItemTimer(TimedKnifeRemainingSeconds);
 		OwnerController->SetItemTimerVisibleForClient(true);
+		OwnerController->Client_ShowTitleCard(ActiveTimedKnifeTitle, BuildTimedKnifeCountdownContext(TimedKnifeRemainingSeconds), 1.5f);
 	}
 
 	if (TimedKnifeRemainingSeconds > 0.0f)
