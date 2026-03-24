@@ -60,16 +60,17 @@ bool UA302ServerPhaseSubsystem::StartRoomPhaseTimeline(const FString& RoomCode)
 
     RoomState.RoomCode = NormalizedRoomCode;
     RoomState.CurrentPhase = EGamePhase::Phase0;
-    RoomState.MatchStartServerTime = static_cast<float>(CurrentServerTime);
+    RoomState.MatchStartServerTime = 0.0f;  // 타이머는 캐릭터 스폰 후 NotifyRoomMatchTimerStart()에서 시작
     RoomState.PhaseChangedServerTime = static_cast<float>(CurrentServerTime);
     RoomState.Phase0ItemCount = 0;
     RoomState.Phase1ClearObjectCount = 0;
     RoomState.Phase2GroupEventCount = 0;
     RoomState.bTimedOutWithoutEscape = false;
+    RoomState.bMatchTimerStarted = false;
     RoomState.bFinished = false;
 
     EnsurePhaseTimer();
-    BroadcastMatchTimerStateToRoom(NormalizedRoomCode, RoomState.MatchStartServerTime, MatchTimeLimitSeconds, MatchTimeLimitSeconds > 0.0f);
+    BroadcastMatchTimerStateToRoom(NormalizedRoomCode, 0.0f, MatchTimeLimitSeconds, false); // 타이머 UI 숨김
     OnRoomPhaseChanged.Broadcast(NormalizedRoomCode, RoomState.CurrentPhase);
 
     UE_LOG(
@@ -162,7 +163,8 @@ void UA302ServerPhaseSubsystem::NotifyRoomRewardResolved(const FString& RoomCode
         }
         break;
     case EGamePhase::Phase1:
-        if (Cast<UPersonalEventPhase1CollectDefinition>(const_cast<URewardDefinition*>(RewardDefinition)) != nullptr)
+        // 일반 아이템(BasicItem)을 줍거나, 명시된 수집 이벤트를 달성할 경우 카운트 증가
+        if (RewardCategory == ERewardCategory::BasicItem || Cast<UPersonalEventPhase1CollectDefinition>(const_cast<URewardDefinition*>(RewardDefinition)) != nullptr)
         {
             ++RoomState->Phase1ClearObjectCount;
             bCounted = true;
@@ -203,6 +205,50 @@ void UA302ServerPhaseSubsystem::NotifyRoomRewardResolved(const FString& RoomCode
             *BuildRoomProgressSummary(*RoomState)
         );
     }
+}
+
+bool UA302ServerPhaseSubsystem::NotifyRoomMatchTimerStart(const FString& RoomCode)
+{
+    const FString NormalizedRoomCode = A302RoomWorldOffset::NormalizeRoomCode(RoomCode);
+    FA302RoomPhaseState* RoomState = RoomPhaseStates.Find(NormalizedRoomCode);
+    if (!RoomState || RoomState->bFinished)
+    {
+        UE_LOG(LogA302Phase, Warning, TEXT("NotifyRoomMatchTimerStart: room not found or finished. room=%s"), *NormalizedRoomCode);
+        return false;
+    }
+
+    if (RoomState->bMatchTimerStarted)
+    {
+        UE_LOG(LogA302Phase, Verbose, TEXT("NotifyRoomMatchTimerStart: timer already started. room=%s"), *NormalizedRoomCode);
+        return false;
+    }
+
+    const double CurrentServerTime = FPlatformTime::Seconds();
+    RoomState->MatchStartServerTime = static_cast<float>(CurrentServerTime);
+    RoomState->bMatchTimerStarted = true;
+
+    // 클라이언트 타이머 UI 표시
+    BroadcastMatchTimerStateToRoom(NormalizedRoomCode, RoomState->MatchStartServerTime, MatchTimeLimitSeconds, MatchTimeLimitSeconds > 0.0f);
+
+    // GameState 복제 → 클라이언트가 서버 시간 참조 가능
+    if (UWorld* World = ResolveWorld())
+    {
+        if (AA302GameState* GS = Cast<AA302GameState>(World->GetGameState()))
+        {
+            GS->SetMatchTimer(RoomState->MatchStartServerTime, MatchTimeLimitSeconds);
+        }
+    }
+
+    UE_LOG(
+        LogA302Phase,
+        Log,
+        TEXT("Match timer STARTED. room=%s startTime=%.2f limitSeconds=%.0f"),
+        *NormalizedRoomCode,
+        RoomState->MatchStartServerTime,
+        MatchTimeLimitSeconds
+    );
+
+    return true;
 }
 
 void UA302ServerPhaseSubsystem::HandleMapLoaded(UWorld* LoadedWorld)
@@ -287,39 +333,33 @@ void UA302ServerPhaseSubsystem::UpdateRoomPhase(const FString& RoomCode, double 
     }
 
     const EGamePhase PreviousPhase = RoomState->CurrentPhase;
-    const bool bTimedOutWithoutEscape =
-        MatchTimeLimitSeconds > 0.0f &&
-        (CurrentServerTime - RoomState->MatchStartServerTime) >= MatchTimeLimitSeconds &&
-        CountEscapedPlayersInRoom(RoomState->RoomCode) <= 0;
-    const EGamePhase NewPhase = ResolvePhase(*RoomState);
+    const EGamePhase NewPhase = ResolvePhase(*RoomState, CurrentServerTime);
     if (PreviousPhase == NewPhase)
     {
         return;
     }
 
     FString TransitionReason = TEXT("rule satisfied");
+    const bool bTimedOutWithoutEscape =
+        MatchTimeLimitSeconds > 0.0f &&
+        (CurrentServerTime - RoomState->MatchStartServerTime) >= MatchTimeLimitSeconds &&
+        CountEscapedPlayersInRoom(RoomState->RoomCode) <= 0;
+
     if (PreviousPhase == EGamePhase::Phase0 && NewPhase == EGamePhase::Phase1)
     {
-        TransitionReason = FString::Printf(
-            TEXT("Phase0 item count reached (%d/%d)"),
-            RoomState->Phase0ItemCount,
-            FMath::Max(0, Phase0RequiredItemCount)
-        );
+        TransitionReason = FString::Printf(TEXT("Phase0 item count reached (%d/%d)"), RoomState->Phase0ItemCount, FMath::Max(0, Phase0RequiredItemCount));
     }
     else if (PreviousPhase == EGamePhase::Phase1 && NewPhase == EGamePhase::Phase2)
     {
-        TransitionReason = FString::Printf(
-            TEXT("Phase1 clear object count reached (%d/%d)"),
-            RoomState->Phase1ClearObjectCount,
-            FMath::Max(0, Phase1RequiredClearObjectCount)
-        );
+        TransitionReason = FString::Printf(TEXT("Phase1 clear object count reached (%d/%d)"), RoomState->Phase1ClearObjectCount, FMath::Max(0, Phase1RequiredClearObjectCount));
     }
     else if (PreviousPhase == EGamePhase::Phase2 && NewPhase == EGamePhase::Ended)
     {
-        if (bTimedOutWithoutEscape)
+        const bool bIsTimeout = MatchTimeLimitSeconds > 0.0f && (CurrentServerTime - RoomState->MatchStartServerTime) >= MatchTimeLimitSeconds;
+        if (bIsTimeout)
         {
             TransitionReason = FString::Printf(
-                TEXT("No player escaped within time limit (elapsed=%.0fs, limit=%.0fs)"),
+                TEXT("Match time limit reached (elapsed=%.0fs, limit=%.0fs)"),
                 CurrentServerTime - RoomState->MatchStartServerTime,
                 MatchTimeLimitSeconds
             );
@@ -327,19 +367,11 @@ void UA302ServerPhaseSubsystem::UpdateRoomPhase(const FString& RoomCode, double 
         else
         {
             const int32 RequiredGroupEvents = FMath::Max(0, Phase2RequiredGroupEventCount);
-            const int32 AliveCount = CountAlivePlayersInRoom(RoomState->RoomCode);
-            if (RequiredGroupEvents > 0 && RoomState->Phase2GroupEventCount >= RequiredGroupEvents)
-            {
-                TransitionReason = FString::Printf(
-                    TEXT("Phase2 group event count reached (%d/%d)"),
-                    RoomState->Phase2GroupEventCount,
-                    RequiredGroupEvents
-                );
-            }
-            else
-            {
-                TransitionReason = FString::Printf(TEXT("Last survivor condition met (alive=%d)"), AliveCount);
-            }
+            TransitionReason = FString::Printf(
+                TEXT("Phase2 group event count reached (%d/%d)"),
+                RoomState->Phase2GroupEventCount,
+                RequiredGroupEvents
+            );
         }
     }
 
@@ -386,24 +418,33 @@ UWorld* UA302ServerPhaseSubsystem::ResolveWorld() const
     return GameInstance ? GameInstance->GetWorld() : nullptr;
 }
 
-EGamePhase UA302ServerPhaseSubsystem::ResolvePhase(const FA302RoomPhaseState& RoomState) const
+EGamePhase UA302ServerPhaseSubsystem::ResolvePhase(const FA302RoomPhaseState& RoomState, double CurrentServerTime) const
 {
+    // 타이머가 시작되지 않았다면 어떤 페이즈 전환(시간 만료 등)도 처리하지 않고 홀딩
+    if (!RoomState.bMatchTimerStarted)
+    {
+        return RoomState.CurrentPhase;
+    }
+
     if (MatchTimeLimitSeconds > 0.0f)
     {
-        const double CurrentServerTime = FPlatformTime::Seconds();
         const double ElapsedSeconds = CurrentServerTime - RoomState.MatchStartServerTime;
-        if (ElapsedSeconds >= MatchTimeLimitSeconds && CountEscapedPlayersInRoom(RoomState.RoomCode) <= 0)
+        if (ElapsedSeconds >= MatchTimeLimitSeconds)
         {
             return EGamePhase::Ended;
         }
     }
 
+    const float Elapsed = static_cast<float>(CurrentServerTime - RoomState.PhaseChangedServerTime);
+
     switch (RoomState.CurrentPhase)
     {
     case EGamePhase::Phase0:
     {
+        // 미션을 완료해서 넘어가야함
         const int32 RequiredItemCount = FMath::Max(0, Phase0RequiredItemCount);
-        if (RequiredItemCount <= 0 || RoomState.Phase0ItemCount >= RequiredItemCount)
+        const bool bCountReached = RequiredItemCount <= 0 || RoomState.Phase0ItemCount >= RequiredItemCount;
+        if (bCountReached)
         {
             return EGamePhase::Phase1;
         }
@@ -411,8 +452,10 @@ EGamePhase UA302ServerPhaseSubsystem::ResolvePhase(const FA302RoomPhaseState& Ro
     }
     case EGamePhase::Phase1:
     {
+        // 미션을 완료해서 넘어가야함
         const int32 RequiredClearCount = FMath::Max(0, Phase1RequiredClearObjectCount);
-        if (RequiredClearCount <= 0 || RoomState.Phase1ClearObjectCount >= RequiredClearCount)
+        const bool bCountReached = RequiredClearCount <= 0 || RoomState.Phase1ClearObjectCount >= RequiredClearCount;
+        if (bCountReached)
         {
             return EGamePhase::Phase2;
         }
@@ -420,10 +463,10 @@ EGamePhase UA302ServerPhaseSubsystem::ResolvePhase(const FA302RoomPhaseState& Ro
     }
     case EGamePhase::Phase2:
     {
+        // 미션을 완료해서 넘어가야함
         const int32 RequiredGroupEvents = FMath::Max(0, Phase2RequiredGroupEventCount);
         const bool bGroupEventsCleared = RequiredGroupEvents > 0 && RoomState.Phase2GroupEventCount >= RequiredGroupEvents;
-        const bool bLastSurvivor = CountAlivePlayersInRoom(RoomState.RoomCode) <= 1;
-        if (bGroupEventsCleared || bLastSurvivor)
+        if (bGroupEventsCleared)
         {
             return EGamePhase::Ended;
         }
