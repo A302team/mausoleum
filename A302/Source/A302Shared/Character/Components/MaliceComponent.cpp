@@ -20,9 +20,15 @@ void UMaliceComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(UMaliceComponent, MaliceCount);
+	DOREPLIFETIME(UMaliceComponent, ItemizeMalice);
 }
 
 void UMaliceComponent::OnRep_MaliceCount()
+{
+	OnMaliceChanged.Broadcast(MaliceCount);
+}
+
+void UMaliceComponent::OnRep_ItemizeMalice()
 {
 	OnMaliceChanged.Broadcast(MaliceCount);
 }

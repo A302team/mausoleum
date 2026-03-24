@@ -11,16 +11,43 @@
 #include "Interface/A302AnimationBridge.h"
 #include "A302GameplayGuards.h"
 #include "Engine/Engine.h"
+#include "Net/UnrealNetwork.h"
 
 UCharacterHealthComponent::UCharacterHealthComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
+	SetIsReplicatedByDefault(true);
 	bIsDead = false;
 }
 
 void UCharacterHealthComponent::BeginPlay()
 {
 	Super::BeginPlay();
+}
+
+void UCharacterHealthComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(UCharacterHealthComponent, bIsDead);
+}
+
+void UCharacterHealthComponent::OnRep_IsDead()
+{
+	if (bIsDead)
+	{
+		AMyCharacter* OwnerCharacter = GetOwnerCharacter();
+		if (!OwnerCharacter) return;
+
+		if (OwnerCharacter->GetCharacterMovement())
+		{
+			OwnerCharacter->GetCharacterMovement()->DisableMovement();
+		}
+
+		if (IA302AnimationBridge* Anim = Cast<IA302AnimationBridge>(OwnerCharacter->GetMesh()->GetAnimInstance()))
+		{
+			Anim->PlayDeathAnimation();
+		}
+	}
 }
 
 AMyCharacter* UCharacterHealthComponent::GetOwnerCharacter() const
@@ -152,9 +179,12 @@ void UCharacterHealthComponent::HandleDead()
 		OwnerCharacter->GetCharacterMovement()->DisableMovement();
 	}
 
-	if (APlayerController* PC = Cast<APlayerController>(OwnerCharacter->GetController()))
+	if (OwnerCharacter->IsLocallyControlled())
 	{
-		PC->SetIgnoreMoveInput(true);
+		if (APlayerController* PC = Cast<APlayerController>(OwnerCharacter->GetController()))
+		{
+			PC->SetIgnoreMoveInput(true);
+		}
 	}
 
 	if (IA302AnimationBridge* Anim = Cast<IA302AnimationBridge>(OwnerCharacter->GetMesh()->GetAnimInstance()))

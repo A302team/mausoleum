@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "GameMode/A302GameState.h"
 #include "SpawnManager.generated.h"
 
 /**
@@ -25,8 +26,20 @@ public:
     void QueueSpawnAndPossessPlayer(class APlayerController* PlayerController, TSubclassOf<class ACharacter> CharacterClass, int32 StageNum, const FString& RoomCode, float WarmupSeconds);
     bool SpawnAndPossessPlayer(class APlayerController* PlayerController, TSubclassOf<class ACharacter> CharacterClass, int32 StageNum, const FString& RoomCode);
 	FTransform GetRandomPlayerSpawnTransform(int32 Stage, const FString& RoomCode) const;
+
+    /**
+     * @brief 페이즈 전환 시 룸의 모든 플레이어를 해당 페이즈의 PhaseSpawnPoint로 텔레포트합니다.
+     * 중복 없이 랜덤 순서로 c30정되며, 포인트가 부족할 시 모듈로(같은 포인트 재사용)로 처리합니다.
+     */
+    void TeleportPlayersToPhaseSpawnPoints(
+        const TArray<class APlayerController*>& Players,
+        const FString& RoomCode,
+        EGamePhase NewPhase
+    );
+
 private:
     bool IsLocationSafe(const FVector& Location) const;
 	FVector GetRoomOffset(const FString& RoomCode) const;
     bool IsSpawnAreaInRoomSpace(const class ASpawnArea* SpawnArea, const FString& RoomCode) const;
+    bool IsPointInRoomSpace(const FVector& Location, const FString& RoomCode) const;
 };
