@@ -6,6 +6,7 @@
 
 class UPersonalEventWidget;
 class UUserWidget;
+class UStatueProgressWidget;
 
 UCLASS()
 class A302CLIENT_API AA302GameHUD : public AHUD
@@ -38,6 +39,10 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<UUserWidget> ResultWidgetClass;
+
+	// 석상 전용 위젯 클래스
+	UPROPERTY(EditDefaultsOnly, Category = "UI|Statue")
+	TSubclassOf<UStatueProgressWidget> StatueProgressWidgetClass;
 
 	UFUNCTION()
 	void ShowTitleCard(const FText& Title, const FText& Context, float DisplaySeconds);
@@ -112,6 +117,9 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UUserWidget> ResultWidgetInstance;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UStatueProgressWidget> StatueProgressWidgetInstance;
 
 private:
 	FTimerHandle TitleCardHideTimerHandle;

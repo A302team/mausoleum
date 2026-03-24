@@ -9,6 +9,7 @@
 #include "GameData/RewardTypes.h"
 #include "GameFramework/GameModeBase.h"
 #include "NiagaraComponent.h"
+#include "NiagaraSystem.h"
 
 AStatueInteractable::AStatueInteractable()
 {
@@ -28,13 +29,36 @@ void AStatueInteractable::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& 
 	DOREPLIFETIME(AStatueInteractable, bIsCompleted);
 }
 
+void AStatueInteractable::OnRep_CurrentProgress()
+{
+	if (bIsCompleted || !StatueEffectComponent || MaxProgress <= 0.0f)
+	{
+		return;
+	}
+
+	float Ratio = FMath::Clamp(CurrentProgress / MaxProgress, 0.0f, 1.0f);
+	// 0%일 때 알파 1.0, 100%일 때 알파 0.5 (절반으로 옅어짐)
+	float AlphaValue = FMath::Lerp(1.0f, 0.5f, Ratio);
+
+	StatueEffectComponent->SetVariableFloat(AlphaParameterName, AlphaValue);
+}
+
 void AStatueInteractable::OnRep_IsCompleted()
 {
 	if (bIsCompleted)
 	{
 		if (StatueEffectComponent)
 		{
-			StatueEffectComponent->Deactivate();
+			if (ExplosionEffectSystem)
+			{
+				StatueEffectComponent->SetAsset(ExplosionEffectSystem);
+				StatueEffectComponent->SetVariableFloat(AlphaParameterName, 1.0f); // 폭발은 원래 밝기
+				StatueEffectComponent->ReinitializeSystem();
+			}
+			else
+			{
+				StatueEffectComponent->Deactivate();
+			}
 		}
 	}
 }
@@ -44,6 +68,8 @@ void AStatueInteractable::OnServerHoldProgress(float DeltaTime, ACharacter* Inte
 	if (!HasAuthority() || bIsCompleted) return;
 
 	CurrentProgress += DeltaTime * ProgressSpeed;
+	OnRep_CurrentProgress(); // 서버에서도 시각적인 알파 변경 즉시 반영
+	
 	if (CurrentProgress >= MaxProgress)
 	{
 		CurrentProgress = MaxProgress;
