@@ -516,6 +516,12 @@ void AMyPlayerController::UpdateShieldCount(int32 ShieldCount)
 
 void AMyPlayerController::UpdateMaliceCount(int32 MaliceCount)
 {
+	if (HasAuthority() && !IsLocalController())
+	{
+		Client_UpdateMaliceCount(MaliceCount);
+		return;
+	}
+
 	if (AHUD* GameHUD = GetHUD())
 	{
 		if (UFunction* Func = GameHUD->FindFunction(TEXT("UpdateMaliceCountText")))
@@ -736,6 +742,11 @@ void AMyPlayerController::Client_ShowPublicMaliceAnnouncement_Implementation(con
 void AMyPlayerController::Client_UpdateItemTimer_Implementation(float RemainingSeconds)
 {
 	UpdateItemTimer(RemainingSeconds);
+}
+
+void AMyPlayerController::Client_UpdateMaliceCount_Implementation(int32 MaliceCount)
+{
+	UpdateMaliceCount(MaliceCount);
 }
 
 void AMyPlayerController::Client_SetItemTimerVisible_Implementation(bool bVisible)

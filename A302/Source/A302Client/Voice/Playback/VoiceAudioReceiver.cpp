@@ -37,15 +37,17 @@ void UVoiceAudioReceiver::Initialize(UActorComponent* OuterComp)
         // ===== 3D 스패셜라이제이션 + 거리 감쇠 설정 =====
         AudioComponent->bAllowSpatialization = true;
         AudioComponent->bOverrideAttenuation = true;
+        AudioComponent->SetVolumeMultiplier(3.2f);
 
         FSoundAttenuationSettings AttenuationSettings;
         AttenuationSettings.bAttenuate = true;
         AttenuationSettings.bSpatialize = true;
+        AttenuationSettings.SpatializationAlgorithm = ESoundSpatializationAlgorithm::SPATIALIZATION_HRTF;
 
-        // 선형 감쇠: InnerRadius ~ FalloffDistance 사이에서 볼륨 1.0 → 0.0
-        AttenuationSettings.DistanceAlgorithm = EAttenuationDistanceModel::Linear;
-        AttenuationSettings.AttenuationShapeExtents = FVector(200.f); // InnerRadius: 200 이내 풀볼륨
-        AttenuationSettings.FalloffDistance = 1800.f;                  // 2000 거리에서 무음
+        // 선형 감쇠는 중거리에서 체감 볼륨 하락이 커서, 로그 감쇠 + 반경 확장으로 완화
+        AttenuationSettings.DistanceAlgorithm = EAttenuationDistanceModel::Logarithmic;
+        AttenuationSettings.AttenuationShapeExtents = FVector(450.f); // InnerRadius: 450 이내 풀볼륨
+        AttenuationSettings.FalloffDistance = 4200.f;                 // 약 4650 거리에서 거의 무음
 
         AudioComponent->AttenuationOverrides = AttenuationSettings;
 

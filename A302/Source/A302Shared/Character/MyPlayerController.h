@@ -92,6 +92,9 @@ public:
 	void Client_UpdateItemTimer(float RemainingSeconds);
 
 	UFUNCTION(Client, Reliable)
+	void Client_UpdateMaliceCount(int32 MaliceCount);
+
+	UFUNCTION(Client, Reliable)
 	void Client_SetItemTimerVisible(bool bVisible);
 
 	UFUNCTION(Client, Reliable)
