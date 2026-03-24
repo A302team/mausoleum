@@ -5,8 +5,11 @@
 #include "Character/MyPlayerController.h"
 #include "Character/MyCharacter.h"
 #include "Interface/A302TimedKillEventBridge.h"
+#include "Engine/World.h"
 #include "GameFramework/HUD.h"
+#include "GameFramework/Pawn.h"
 #include "GameFramework/Character.h"
+#include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerState.h"
 #include "GamePlay/Events/BaseEvent.h"
 #include "GamePlay/Events/GroupEvents/BaseGroupEvent.h"
@@ -20,7 +23,17 @@ UPlayerEventComponent::UPlayerEventComponent()
 
 AMyPlayerController* UPlayerEventComponent::GetOwnerController() const
 {
-	return Cast<AMyPlayerController>(GetOwner());
+	if (AMyPlayerController* OwnerController = Cast<AMyPlayerController>(GetOwner()))
+	{
+		return OwnerController;
+	}
+
+	if (const APawn* OwnerPawn = Cast<APawn>(GetOwner()))
+	{
+		return Cast<AMyPlayerController>(OwnerPawn->GetController());
+	}
+
+	return nullptr;
 }
 
 void UPlayerEventComponent::SetActivePersonalEvent(UBaseEvent* Event)
@@ -50,11 +63,13 @@ void UPlayerEventComponent::ShowInspectMaliceSelectionWidgetWithConfig(float Sel
 
 void UPlayerEventComponent::OpenGroupEventVote(FName EventID, const FText& EventTitle, const FText& EventDescription, float VoteDuration)
 {
+	PauseTimedKillCountdownForVote();
 	Client_OpenGroupEventVote(EventID, EventTitle, EventDescription, VoteDuration);
 }
 
 void UPlayerEventComponent::FinishGroupEventVote(FName EventID, const FText& ResultText)
 {
+	ResumeTimedKillCountdownForVote();
 	Client_FinishGroupEventVote(EventID, ResultText);
 }
 
@@ -81,6 +96,12 @@ void UPlayerEventComponent::NotifyKilledCharacter()
 		{
 			TimedKillBridge->NotifyTimedKillConfirmed();
 		}
+		return;
+	}
+
+	if (bTimedKnifeAttackInProgress && !ActiveTimedKnifeItemId.IsNone() && TimedKnifeRemainingSeconds > 0.0f)
+	{
+		StopTimedKnifeCountdown(true, true);
 	}
 }
 
@@ -89,6 +110,12 @@ void UPlayerEventComponent::NotifyTimedKnifeAttackSucceeded()
 	if (IA302TimedKillEventBridge* TimedKillBridge = Cast<IA302TimedKillEventBridge>(ActiveTimedKnifeEventObject))
 	{
 		TimedKillBridge->NotifyTimedKillConfirmed();
+		return;
+	}
+
+	if (!ActiveTimedKnifeItemId.IsNone() && TimedKnifeRemainingSeconds > 0.0f)
+	{
+		StopTimedKnifeCountdown(true, true);
 	}
 }
 
@@ -100,6 +127,7 @@ void UPlayerEventComponent::RegisterTimedKillEvent(UObject* EventInstance)
 		ExistingTimedKillBridge->CancelTimedKillCountdown();
 	}
 
+	StopTimedKnifeCountdown(false, false);
 	ActiveTimedKnifeEventObject = EventInstance;
 }
 
@@ -111,9 +139,175 @@ void UPlayerEventComponent::ClearTimedKillEvent(UObject* EventInstance)
 	}
 }
 
+void UPlayerEventComponent::PauseActiveTimedKillCountdown()
+{
+	if (IA302TimedKillEventBridge* TimedKillBridge = Cast<IA302TimedKillEventBridge>(ActiveTimedKnifeEventObject))
+	{
+		TimedKillBridge->PauseTimedKillCountdown();
+	}
+}
+
+void UPlayerEventComponent::ResumeActiveTimedKillCountdown()
+{
+	if (IA302TimedKillEventBridge* TimedKillBridge = Cast<IA302TimedKillEventBridge>(ActiveTimedKnifeEventObject))
+	{
+		TimedKillBridge->ResumeTimedKillCountdown();
+	}
+}
+
+void UPlayerEventComponent::PauseTimedKillCountdownForVote()
+{
+	if (GroupVotePauseDepth == 0)
+	{
+		PauseActiveTimedKillCountdown();
+
+		if (AMyPlayerController* OwnerController = GetOwnerController())
+		{
+			if (APawn* ControlledPawn = OwnerController->GetPawn())
+			{
+				if (UPlayerEventComponent* PawnEventComponent = ControlledPawn->FindComponentByClass<UPlayerEventComponent>())
+				{
+					if (PawnEventComponent != this)
+					{
+						PawnEventComponent->PauseActiveTimedKillCountdown();
+					}
+				}
+			}
+		}
+	}
+
+	++GroupVotePauseDepth;
+}
+
+void UPlayerEventComponent::ResumeTimedKillCountdownForVote()
+{
+	if (GroupVotePauseDepth <= 0)
+	{
+		return;
+	}
+
+	--GroupVotePauseDepth;
+	if (GroupVotePauseDepth > 0)
+	{
+		return;
+	}
+
+	ResumeActiveTimedKillCountdown();
+
+	if (AMyPlayerController* OwnerController = GetOwnerController())
+	{
+		if (APawn* ControlledPawn = OwnerController->GetPawn())
+		{
+			if (UPlayerEventComponent* PawnEventComponent = ControlledPawn->FindComponentByClass<UPlayerEventComponent>())
+			{
+				if (PawnEventComponent != this)
+				{
+					PawnEventComponent->ResumeActiveTimedKillCountdown();
+				}
+			}
+		}
+	}
+}
+
 void UPlayerEventComponent::SetTimedKnifeAttackInProgress(bool bInProgress)
 {
 	bTimedKnifeAttackInProgress = bInProgress;
+}
+
+void UPlayerEventComponent::StartTimedKnifeCountdown(float DurationSeconds, const FName& ItemId)
+{
+	AMyCharacter* OwnerCharacter = Cast<AMyCharacter>(GetOwner());
+	if (!OwnerCharacter || !OwnerCharacter->HasAuthority())
+	{
+		return;
+	}
+
+	if (IA302TimedKillEventBridge* ExistingTimedKillBridge = Cast<IA302TimedKillEventBridge>(ActiveTimedKnifeEventObject))
+	{
+		ExistingTimedKillBridge->CancelTimedKillCountdown();
+	}
+	ActiveTimedKnifeEventObject = nullptr;
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(TimedKnifeCountdownTimerHandle);
+	}
+
+	TimedKnifeRemainingSeconds = FMath::Max(1.0f, DurationSeconds);
+	ActiveTimedKnifeItemId = ItemId;
+	bTimedKnifeAttackInProgress = false;
+
+	if (AMyPlayerController* OwnerController = GetOwnerController())
+	{
+		OwnerController->UpdateItemTimer(TimedKnifeRemainingSeconds);
+		OwnerController->SetItemTimerVisibleForClient(true);
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().SetTimer(
+			TimedKnifeCountdownTimerHandle,
+			this,
+			&UPlayerEventComponent::HandleTimedKnifeCountdownTick,
+			1.0f,
+			true
+		);
+	}
+}
+
+void UPlayerEventComponent::StopTimedKnifeCountdown(bool bHideTimer, bool bConsumeItem)
+{
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(TimedKnifeCountdownTimerHandle);
+	}
+
+	AMyCharacter* OwnerCharacter = Cast<AMyCharacter>(GetOwner());
+	if (OwnerCharacter && OwnerCharacter->HasAuthority() && bConsumeItem && !ActiveTimedKnifeItemId.IsNone())
+	{
+		if (UItemManagerComponent* ItemManager = OwnerCharacter->FindComponentByClass<UItemManagerComponent>())
+		{
+			int32 RemovedSlotIndex = INDEX_NONE;
+			ItemManager->RemoveFirstItemByItemId(ActiveTimedKnifeItemId, RemovedSlotIndex);
+		}
+	}
+
+	if (bHideTimer)
+	{
+		if (AMyPlayerController* OwnerController = GetOwnerController())
+		{
+			OwnerController->SetItemTimerVisibleForClient(false);
+		}
+	}
+
+	TimedKnifeRemainingSeconds = 0.0f;
+	ActiveTimedKnifeItemId = NAME_None;
+	bTimedKnifeAttackInProgress = false;
+}
+
+void UPlayerEventComponent::HandleTimedKnifeCountdownTick()
+{
+	AMyCharacter* OwnerCharacter = Cast<AMyCharacter>(GetOwner());
+	if (!OwnerCharacter || !OwnerCharacter->HasAuthority())
+	{
+		StopTimedKnifeCountdown(true, false);
+		return;
+	}
+
+	TimedKnifeRemainingSeconds = FMath::Max(0.0f, TimedKnifeRemainingSeconds - 1.0f);
+	if (AMyPlayerController* OwnerController = GetOwnerController())
+	{
+		OwnerController->UpdateItemTimer(TimedKnifeRemainingSeconds);
+		OwnerController->SetItemTimerVisibleForClient(true);
+	}
+
+	if (TimedKnifeRemainingSeconds > 0.0f)
+	{
+		return;
+	}
+
+	OwnerCharacter->ForceDeathByPersonalEvent();
+	StopTimedKnifeCountdown(true, true);
 }
 
 void UPlayerEventComponent::Client_ShowPersonalEvent_Implementation(FName EventID, const FText& Title, const FText& Description, const TArray<FText>& Choices)

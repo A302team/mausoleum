@@ -34,7 +34,13 @@ void UPersonalEventInspectMalice::ExecuteEvent_Implementation(ACharacter* Instig
 		ResultDisplaySeconds = FMath::Max(0.1f, InspectDef->Payload.ResultDisplaySeconds);
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("[PersonalEventInspectMalice] Requesting inspect malice selection UI on owning client."));
-	EventComp->ShowInspectMaliceSelectionWidget();
+	UE_LOG(
+		LogTemp,
+		Log,
+		TEXT("[PersonalEventInspectMalice] Requesting inspect malice selection UI on owning client. selectionTimeout=%.1fs resultDisplay=%.1fs"),
+		SelectionTimeoutSeconds,
+		ResultDisplaySeconds
+	);
+	EventComp->ShowInspectMaliceSelectionWidgetWithConfig(SelectionTimeoutSeconds, ResultDisplaySeconds);
 	OnEventResolved_Implementation(InstigatorCharacter, true);
 }

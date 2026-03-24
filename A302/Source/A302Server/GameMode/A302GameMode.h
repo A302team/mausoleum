@@ -6,6 +6,7 @@
 #include "GameFramework/GameMode.h"
 #include "GameMode/A302GameState.h"
 #include "Interface/A302ServerRewardBridge.h"
+#include "TimerManager.h"
 #include "A302GameMode.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInGameChatReceived, const FString &, PlayerName, const FString &, Message);
@@ -20,6 +21,7 @@ class URoomMembershipRegistry;
 class UA302RoomRuntimeSubsystem;
 class UA302ServerPhaseSubsystem;
 class UA302ServerBackendRouter;
+class UA302ItemSpawnSubsystem;
 
 UCLASS()
 class A302SERVER_API AA302GameMode : public AGameMode, public IA302ServerRewardBridge
@@ -74,6 +76,9 @@ private:
     TObjectPtr<UA302RoomRuntimeSubsystem> RoomRuntimeSubsystem;
 
     UPROPERTY(Transient)
+    TObjectPtr<UA302ItemSpawnSubsystem> ItemSpawnSubsystem;
+
+    UPROPERTY(Transient)
     TObjectPtr<UA302ServerBackendRouter> BackendRouter;
 
     UPROPERTY(Config, EditAnywhere, Category = "Room Runtime")
@@ -85,9 +90,14 @@ private:
     UFUNCTION()
     void HandleRoomPhaseChanged(const FString& RoomCode, EGamePhase NewPhase);
     void HandleRoomLevelReady(const FString& RoomCode);
+    void SyncTrackedRoomState();
+    void SyncRoomStateToGameState(const FString& RoomCode);
+    int32 CountAlivePlayersInRoom(const FString& RoomCode) const;
 
 
     int CurrentStage = 1;
+    FString TrackedRoomCodeForGameState;
+    FTimerHandle GameStateSyncTimerHandle;
 
     bool EnsureSpawnManager();
 };

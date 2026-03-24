@@ -1,10 +1,12 @@
 #include "Character/MyPlayerController.h"
 
 #include "Character/Components/PlayerEventComponent.h"
+#include "Character/Components/Inventory/ItemManagerComponent.h"
 // UI Widget 헤더들은 AA302GameHUD에서 관리합니다.
 #include "EnhancedInputSubsystems.h"
 #include "GameMode/A302GameInstance.h"
 #include "GameMode/A302PlayerState.h"
+#include "GameData/Items/ItemDefinition.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerState.h"
 #include "InputMappingContext.h"
@@ -196,6 +198,21 @@ void AMyPlayerController::OnRep_Pawn()
 {
 	Super::OnRep_Pawn();
 	EnsureLocalVoiceComponent();
+
+#if !UE_SERVER
+	if (IsLocalController() && ShouldAttemptGameplayHUDInitialization())
+	{
+		TryInitializeInGameHUD();
+
+		if (AHUD* CurrentHUD = GetHUD())
+		{
+			if (UFunction* Func = CurrentHUD->FindFunction(TEXT("RefreshQuickSlotBinding")))
+			{
+				CurrentHUD->ProcessEvent(Func, nullptr);
+			}
+		}
+	}
+#endif
 }
 
 bool AMyPlayerController::ShouldAttemptGameplayHUDInitialization() const
@@ -736,3 +753,30 @@ void AMyPlayerController::Client_ShowResultScreen_Implementation(const FText& Ti
 	ShowResultScreen(Title, Description, DisplaySeconds);
 }
 
+void AMyPlayerController::Client_RemoveQuickSlotItemByServer_Implementation(int32 SlotIndex, FName ExpectedItemId)
+{
+	APawn* ControlledPawn = GetPawn();
+	if (!ControlledPawn)
+	{
+		return;
+	}
+
+	UItemManagerComponent* ItemManager = ControlledPawn->FindComponentByClass<UItemManagerComponent>();
+	if (!ItemManager || !ItemManager->IsValidSlotIndex(SlotIndex))
+	{
+		return;
+	}
+
+	const UItemDefinition* CurrentItemDefinition = ItemManager->GetItemDefinitionAtSlot(SlotIndex);
+	if (!CurrentItemDefinition)
+	{
+		return;
+	}
+
+	if (!ExpectedItemId.IsNone() && CurrentItemDefinition->ItemId != ExpectedItemId)
+	{
+		return;
+	}
+
+	ItemManager->RemoveItemFromSlot(SlotIndex);
+}

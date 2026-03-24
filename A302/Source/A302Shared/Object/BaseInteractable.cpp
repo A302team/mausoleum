@@ -1,6 +1,7 @@
 #include "Object/BaseInteractable.h"
 
 #include "Components/StaticMeshComponent.h"
+#include "UObject/ConstructorHelpers.h"
 #include "GameData/Items/ItemDefinition.h"
 #include "GameData/RewardDefinition.h"
 #include "GameData/StageRewardPoolDefinition.h"
@@ -18,9 +19,16 @@ ABaseInteractable::ABaseInteractable()
 
 	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StaticMesh"));
 	RootComponent = Mesh;
+	Mesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	Mesh->SetGenerateOverlapEvents(true);
 
-	const int32 RandomIndex = FMath::RandRange(0, static_cast<int32>(EInteractType::MAX) - 1);
-	CurrentInteractType = static_cast<EInteractType>(RandomIndex);
+	// Fallback mesh so default ABaseInteractable spawn is visible even without a custom BP class.
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> DefaultMeshObj(TEXT("/Engine/BasicShapes/Cube.Cube"));
+	if (DefaultMeshObj.Succeeded())
+	{
+		Mesh->SetStaticMesh(DefaultMeshObj.Object);
+		Mesh->SetWorldScale3D(FVector(0.35f));
+	}
 }
 
 void ABaseInteractable::BeginPlay()
@@ -38,10 +46,33 @@ UItemDefinition* ABaseInteractable::GetItemDefinition() const
 	return Cast<UItemDefinition>(RewardDefinition);
 }
 
-void ABaseInteractable::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+void ABaseInteractable::SetRewardDefinition(URewardDefinition* InRewardDefinition)
 {
-	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	DOREPLIFETIME(ABaseInteractable, RewardDefinition);
+	RewardAssignmentMode = ERewardAssignmentMode::Manual;
+	RewardPoolDefinition = nullptr;
+	RewardDefinition = InRewardDefinition;
+	ForceNetUpdate();
+}
+
+void ABaseInteractable::SetInteractType(EInteractType InInteractType)
+{
+	CurrentInteractType = InInteractType;
+	ForceNetUpdate();
+}
+
+void ABaseInteractable::SetWorldSpawnMesh(UStaticMesh* InWorldSpawnMesh)
+{
+	WorldSpawnMeshOverride = InWorldSpawnMesh;
+	OnRep_WorldSpawnMesh();
+	ForceNetUpdate();
+}
+
+void ABaseInteractable::OnRep_WorldSpawnMesh()
+{
+	if (Mesh && WorldSpawnMeshOverride)
+	{
+		Mesh->SetStaticMesh(WorldSpawnMeshOverride);
+	}
 }
 
 bool ABaseInteractable::TryConsumeInteraction()
@@ -56,6 +87,19 @@ bool ABaseInteractable::TryConsumeInteraction()
 	SetActorHiddenInGame(true);
 	ForceNetUpdate();
 	return true;
+}
+
+void ABaseInteractable::RestoreInteraction()
+{
+	if (!HasAuthority() || !bInteractionConsumed)
+	{
+		return;
+	}
+
+	bInteractionConsumed = false;
+	SetActorEnableCollision(true);
+	SetActorHiddenInGame(false);
+	ForceNetUpdate();
 }
 
 void ABaseInteractable::Interact(ACharacter* PlayerCharacter)
@@ -73,7 +117,23 @@ void ABaseInteractable::OnInteractionSuccess(ACharacter* PlayerCharacter)
 		return;
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("[Interaction] Success. actor=%s player=%s reward=%s"), *GetName(), *GetNameSafe(PlayerCharacter), *GetNameSafe(RewardDefinition));
+	FString RewardLabel = TEXT("None");
+	if (RewardDefinition)
+	{
+		RewardLabel = !RewardDefinition->DisplayName.IsEmpty()
+			? RewardDefinition->DisplayName.ToString()
+			: RewardDefinition->ItemId.ToString();
+	}
+
+	UE_LOG(
+		LogTemp,
+		Log,
+		TEXT("[Interaction] Success. reward=%s rewardAsset=%s actor=%s player=%s"),
+		*RewardLabel,
+		*GetNameSafe(RewardDefinition),
+		*GetName(),
+		*GetNameSafe(PlayerCharacter)
+	);
 }
 
 void ABaseInteractable::ApplyStageRewardPoolDefinition(UStageRewardPoolDefinition* StageRewardPoolDefinition)
@@ -96,17 +156,36 @@ void ABaseInteractable::ApplyStageRewardPoolDefinition(UStageRewardPoolDefinitio
 
 FString ABaseInteractable::GetInteractText()
 {
-	if (RewardDefinition && !RewardDefinition->DisplayName.IsEmpty())
+	if (RewardDefinition)
 	{
-		return FString::Printf(TEXT("%s (Interact)"), *RewardDefinition->DisplayName.ToString());
+		if (!RewardDefinition->DisplayName.IsEmpty())
+		{
+			return FString::Printf(TEXT("%s (Interact)"), *RewardDefinition->DisplayName.ToString());
+		}
+
+		if (!RewardDefinition->ItemId.IsNone())
+		{
+			return FString::Printf(TEXT("%s (Interact)"), *RewardDefinition->ItemId.ToString());
+		}
+
+		return FString::Printf(TEXT("%s (Interact)"), *GetNameSafe(RewardDefinition));
 	}
 
-	return FString::Printf(TEXT("%s (Interact)"), *GetName());
+	// Reward replication is not ready yet (or not assigned): avoid exposing actor instance names like BaseInteractable_1.
+	return TEXT("Reward Pending (Interact)");
 }
 
 EInteractType ABaseInteractable::GetInteractType()
 {
 	return CurrentInteractType;
+}
+
+void ABaseInteractable::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(ABaseInteractable, CurrentInteractType);
+	DOREPLIFETIME(ABaseInteractable, RewardDefinition);
+	DOREPLIFETIME(ABaseInteractable, WorldSpawnMeshOverride);
 }
 
 void ABaseInteractable::AssignRandomRewardDefinition()
@@ -167,4 +246,3 @@ URewardDefinition* ABaseInteractable::PickWeightedRewardDefinition() const
 
 	return RewardPool.Last().RewardDefinition;
 }
-
