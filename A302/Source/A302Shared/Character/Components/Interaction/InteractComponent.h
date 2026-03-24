@@ -17,6 +17,7 @@ enum class EQTEDirection : uint8
 
 class ACharacter;
 class AMyCharacter;
+class AActor;
 class UUserWidget;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnQTEStarted, const TArray<EQTEDirection>&, TargetKeys);
@@ -76,6 +77,18 @@ public:
 	// 디버그 드로우 토글
 	UPROPERTY(EditAnywhere, Category = "Interaction|Debug")
 	bool bDrawDebug = true;
+
+	UPROPERTY(EditAnywhere, Category = "Interaction|Highlight", meta = (ClampMin = "0.0"))
+	float NearbyHighlightRadius = 600.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Interaction|Highlight", meta = (ClampMin = "0", ClampMax = "255"))
+	int32 NearbyHighlightStencilValue = 1;
+
+	UPROPERTY(EditAnywhere, Category = "Interaction|Highlight", meta = (ClampMin = "0", ClampMax = "255"))
+	int32 FocusedHighlightStencilValue = 2;
+
+	UPROPERTY(EditAnywhere, Category = "Interaction|Highlight", meta = (ClampMin = "0", ClampMax = "255"))
+	int32 NearbyAndFocusedHighlightStencilValue = 3;
 	
 	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")
 	FOnQTEStarted OnQTEStarted;
@@ -91,7 +104,9 @@ private:
 	ACharacter* GetOwnerCharacter() const;
 	AMyCharacter* GetOwnerCharacterBridge() const;
 	void CheckForInteractables();
-	void ToggleHighlight(AActor* TargetActor, bool bIsOn) const;
+	void UpdateNearbyHighlights();
+	void RefreshHighlightState(AActor* TargetActor) const;
+	void SetHighlightVisual(AActor* TargetActor, bool bIsOn, int32 StencilValue) const;
 
 	float InteractionProgressRatio = 0.0f;
     
@@ -114,6 +129,8 @@ private:
 	TObjectPtr<ACharacter> CachedOwnerCharacter = nullptr;
 
 	bool bLocalUIInitialized = false;
+
+	TSet<TWeakObjectPtr<AActor>> NearbyHighlightedActors;
 	
 	// -- QTE --
 	UPROPERTY(BlueprintReadOnly, Category = "Interaction|QTE", meta = (AllowPrivateAccess = "true"))
