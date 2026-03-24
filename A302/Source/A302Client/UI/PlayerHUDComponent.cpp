@@ -1521,6 +1521,16 @@ void UPlayerHUDComponent::InitializeInspectMaliceWidget()
 		Player5Button->OnClicked.AddDynamic(this, &UPlayerHUDComponent::OnInspectMalicePlayer5Clicked);
 	}
 
+	if (UButton* CloseButton = FindInspectMaliceButton(TEXT("SelectUserCloseBtn")))
+	{
+		CloseButton->OnClicked.RemoveDynamic(this, &UPlayerHUDComponent::OnInspectMaliceCloseClicked);
+		CloseButton->OnClicked.AddDynamic(this, &UPlayerHUDComponent::OnInspectMaliceCloseClicked);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[InspectMalice] Missing close button widget: SelectUserCloseBtn"));
+	}
+
 	for (int32 Index = 1; Index <= PlayerHUDVoteSlotCount; ++Index)
 	{
 		const FName ButtonName(*FString::Printf(TEXT("UserBtn%d"), Index));
@@ -1914,4 +1924,9 @@ void UPlayerHUDComponent::OnInspectMalicePlayer4Clicked()
 void UPlayerHUDComponent::OnInspectMalicePlayer5Clicked()
 {
 	ApplyInspectMaliceSelection(4);
+}
+
+void UPlayerHUDComponent::OnInspectMaliceCloseClicked()
+{
+	HideInspectMaliceSelectionWidget();
 }
