@@ -1,5 +1,6 @@
 #include "UI/A302GameHUD.h"
 #include "Blueprint/UserWidget.h"
+#include "Components/Border.h"
 #include "Components/TextBlock.h"
 #include "Components/PanelWidget.h"
 #include "UI/PersonalEventWidget.h"
@@ -55,6 +56,12 @@ AA302GameHUD::AA302GameHUD()
 	if (TitleCardWidgetBPClass.Succeeded())
 	{
 		TitleCardWidgetClass = TitleCardWidgetBPClass.Class;
+	}
+
+	static ConstructorHelpers::FClassFinder<UUserWidget> PhaseTransitionWidgetBPClass(TEXT("/Game/WorkSpace/UI/WBP_PhaseTransition"));
+	if (PhaseTransitionWidgetBPClass.Succeeded())
+	{
+		PhaseTransitionWidgetClass = PhaseTransitionWidgetBPClass.Class;
 	}
 
 	static ConstructorHelpers::FClassFinder<UUserWidget> ResultWidgetBPClass(TEXT("/Game/WorkSpace/UI/WBP_Result"));
@@ -225,6 +232,207 @@ void AA302GameHUD::HideTitleCard()
 		TitleCardWidgetInstance->RemoveFromParent();
 		TitleCardWidgetInstance = nullptr;
 	}
+}
+
+void AA302GameHUD::StartPhaseTransition(const FText& Title, const FText& Context, float FadeOutSeconds, float HoldSeconds, float FadeInSeconds, float TitleDisplaySeconds)
+{
+	APlayerController* PC = GetOwningPlayerController();
+	if (!PC)
+	{
+		return;
+	}
+
+	if (!PhaseTransitionWidgetClass)
+	{
+		if (UClass* LoadedPhaseTransitionClass = LoadClass<UUserWidget>(nullptr, TEXT("/Game/WorkSpace/UI/WBP_PhaseTransition.WBP_PhaseTransition_C")))
+		{
+			PhaseTransitionWidgetClass = LoadedPhaseTransitionClass;
+		}
+	}
+
+	if (!PhaseTransitionWidgetClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[A302GameHUD] Phase transition widget class is missing."));
+		return;
+	}
+
+	if (!PhaseTransitionWidgetInstance)
+	{
+		PhaseTransitionWidgetInstance = CreateWidget<UUserWidget>(PC, PhaseTransitionWidgetClass);
+	}
+
+	if (!PhaseTransitionWidgetInstance)
+	{
+		return;
+	}
+
+	if (!PhaseTransitionWidgetInstance->IsInViewport())
+	{
+		PhaseTransitionWidgetInstance->AddToViewport(130);
+	}
+
+	PendingPhaseTransitionTitle = Title;
+	PendingPhaseTransitionContext = Context;
+	PendingPhaseHoldSeconds = FMath::Max(0.0f, HoldSeconds);
+	PendingPhaseFadeInSeconds = FMath::Max(0.0f, FadeInSeconds);
+	PendingPhaseTitleDisplaySeconds = FMath::Max(0.0f, TitleDisplaySeconds);
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(PhaseTransitionTickTimerHandle);
+		World->GetTimerManager().ClearTimer(PhaseTransitionInputRestoreTimerHandle);
+	}
+
+	PhaseTransitionWidgetInstance->SetVisibility(ESlateVisibility::HitTestInvisible);
+	SetPhaseTransitionOverlayOpacity(0.0f);
+	SetPhaseTransitionInputLocked(true);
+	BeginPhaseTransitionStep(EA302PhaseTransitionState::FadeToBlack, FadeOutSeconds);
+}
+
+void AA302GameHUD::TickPhaseTransition()
+{
+	UWorld* World = GetWorld();
+	if (!World || !PhaseTransitionWidgetInstance)
+	{
+		return;
+	}
+
+	const float ElapsedSeconds = FMath::Max(World->GetTimeSeconds() - PhaseTransitionStepStartTime, 0.0f);
+	const float Alpha = PhaseTransitionStepDuration <= KINDA_SMALL_NUMBER
+		? 1.0f
+		: FMath::Clamp(ElapsedSeconds / PhaseTransitionStepDuration, 0.0f, 1.0f);
+
+	switch (PhaseTransitionState)
+	{
+	case EA302PhaseTransitionState::FadeToBlack:
+		SetPhaseTransitionOverlayOpacity(Alpha);
+		if (Alpha >= 1.0f)
+		{
+			BeginPhaseTransitionStep(EA302PhaseTransitionState::HoldBlack, PendingPhaseHoldSeconds);
+		}
+		break;
+	case EA302PhaseTransitionState::HoldBlack:
+		SetPhaseTransitionOverlayOpacity(1.0f);
+		if (ElapsedSeconds >= PhaseTransitionStepDuration)
+		{
+			BeginPhaseTransitionStep(EA302PhaseTransitionState::FadeFromBlack, PendingPhaseFadeInSeconds);
+		}
+		break;
+	case EA302PhaseTransitionState::FadeFromBlack:
+		SetPhaseTransitionOverlayOpacity(1.0f - Alpha);
+		if (Alpha >= 1.0f)
+		{
+			FinishPhaseTransition();
+		}
+		break;
+	default:
+		break;
+	}
+}
+
+void AA302GameHUD::BeginPhaseTransitionStep(EA302PhaseTransitionState NewState, float DurationSeconds)
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	PhaseTransitionState = NewState;
+	PhaseTransitionStepDuration = FMath::Max(0.0f, DurationSeconds);
+	PhaseTransitionStepStartTime = World->GetTimeSeconds();
+
+	if (!World->GetTimerManager().IsTimerActive(PhaseTransitionTickTimerHandle))
+	{
+		World->GetTimerManager().SetTimer(
+			PhaseTransitionTickTimerHandle,
+			this,
+			&AA302GameHUD::TickPhaseTransition,
+			1.0f / 60.0f,
+			true
+		);
+	}
+
+	if (PhaseTransitionStepDuration <= KINDA_SMALL_NUMBER)
+	{
+		TickPhaseTransition();
+	}
+}
+
+void AA302GameHUD::FinishPhaseTransition()
+{
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(PhaseTransitionTickTimerHandle);
+	}
+
+	PhaseTransitionState = EA302PhaseTransitionState::Idle;
+	SetPhaseTransitionOverlayOpacity(0.0f);
+
+	if (PhaseTransitionWidgetInstance)
+	{
+		PhaseTransitionWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+	}
+
+	if (!PendingPhaseTransitionTitle.IsEmpty() || !PendingPhaseTransitionContext.IsEmpty())
+	{
+		ShowTitleCard(PendingPhaseTransitionTitle, PendingPhaseTransitionContext, PendingPhaseTitleDisplaySeconds);
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		if (PendingPhaseTitleDisplaySeconds > 0.0f)
+		{
+			World->GetTimerManager().SetTimer(
+				PhaseTransitionInputRestoreTimerHandle,
+				FTimerDelegate::CreateUObject(this, &AA302GameHUD::SetPhaseTransitionInputLocked, false),
+				PendingPhaseTitleDisplaySeconds,
+				false
+			);
+		}
+		else
+		{
+			SetPhaseTransitionInputLocked(false);
+		}
+	}
+	else
+	{
+		SetPhaseTransitionInputLocked(false);
+	}
+}
+
+void AA302GameHUD::SetPhaseTransitionOverlayOpacity(float Opacity)
+{
+	if (UBorder* BlackOverlay = FindPhaseTransitionBlackOverlay())
+	{
+		FLinearColor CurrentColor = BlackOverlay->GetBrushColor();
+		CurrentColor.A = FMath::Clamp(Opacity, 0.0f, 1.0f);
+		BlackOverlay->SetBrushColor(CurrentColor);
+		return;
+	}
+
+	if (PhaseTransitionWidgetInstance)
+	{
+		PhaseTransitionWidgetInstance->SetRenderOpacity(FMath::Clamp(Opacity, 0.0f, 1.0f));
+	}
+}
+
+void AA302GameHUD::SetPhaseTransitionInputLocked(bool bLocked)
+{
+	bPhaseTransitionInputLocked = bLocked;
+
+	if (APlayerController* PC = GetOwningPlayerController())
+	{
+		PC->SetIgnoreMoveInput(bLocked);
+		PC->SetIgnoreLookInput(bLocked);
+	}
+}
+
+UBorder* AA302GameHUD::FindPhaseTransitionBlackOverlay() const
+{
+	return PhaseTransitionWidgetInstance
+		? Cast<UBorder>(PhaseTransitionWidgetInstance->GetWidgetFromName(TEXT("BlackOverlay")))
+		: nullptr;
 }
 
 void AA302GameHUD::ToggleInGameSettingMenu()
