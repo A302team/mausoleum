@@ -24,6 +24,7 @@ class UUserWidget;
 class UBasePersonalEvent;
 class UMaliceBGMComponent; // Added
 class UGameBGMComponent;  // Added
+class UCursedSwordBGMComponent; // Added
 
 UCLASS()
 class A302SHARED_API AMyPlayerController : public APlayerController
@@ -60,6 +61,11 @@ public:
 	// Added: Game BGM Component (GameBGM <-> MaliceBGM 상태 전환)
 	UPROPERTY(VisibleAnywhere, Category = "Audio")
 	TObjectPtr<UGameBGMComponent> GameBGMComp;
+	// End Added
+
+	// Added: CursedSword BGM Component (최우선 BGM 관리)
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UCursedSwordBGMComponent> CursedSwordBGMComp;
 	// End Added
 
 	// UI 위젯 속성은 모두 AA302GameHUD로 이동되었습니다.
