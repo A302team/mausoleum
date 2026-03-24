@@ -1,6 +1,6 @@
 #include "ItemSpawn/A302ItemSpawnOrchestrator.h"
 
-#include "GameData/Items/ItemDefinition.h"
+#include "GameData/RewardDefinition.h"
 #include "Engine/EngineTypes.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
@@ -38,18 +38,18 @@ bool UA302ItemSpawnOrchestrator::TrySpawnSingleItem(
 		return false;
 	}
 
-	UItemDefinition* ItemDefinition = Entry.ItemDefinition;
-	if (!IsSpawnableItemDefinition(ItemDefinition))
+	URewardDefinition* RewardDefinition = Entry.RewardDefinition;
+	if (!IsSpawnableRewardDefinition(RewardDefinition))
 	{
 		if (bLogItemSpawns)
 		{
 			UE_LOG(
 				LogTemp,
 				Warning,
-				TEXT("[ItemSpawn] TrySpawnSingleItem skipped non-spawnable item. room=%s phase=%d item=%s"),
+				TEXT("[ItemSpawn] TrySpawnSingleItem skipped non-spawnable reward. room=%s phase=%d reward=%s"),
 				*RoomCode,
 				static_cast<int32>(Phase),
-				*GetNameSafe(ItemDefinition)
+				*GetNameSafe(RewardDefinition)
 			);
 		}
 		return false;
@@ -67,10 +67,10 @@ bool UA302ItemSpawnOrchestrator::TrySpawnSingleItem(
 			UE_LOG(
 				LogTemp,
 				Warning,
-				TEXT("[ItemSpawn] TrySpawnSingleItem has no valid SpawnClass. room=%s phase=%d item=%s"),
+				TEXT("[ItemSpawn] TrySpawnSingleItem has no valid SpawnClass. room=%s phase=%d reward=%s"),
 				*RoomCode,
 				static_cast<int32>(Phase),
-				*GetNameSafe(ItemDefinition)
+				*GetNameSafe(RewardDefinition)
 			);
 		}
 		return false;
@@ -174,7 +174,7 @@ bool UA302ItemSpawnOrchestrator::TrySpawnSingleItem(
 		}
 
 		SpawnedInteractable->SetInteractType(PickWeightedInteractType(HoldInteractWeight, QTEInteractWeight));
-		SpawnedInteractable->SetRewardDefinition(ItemDefinition);
+		SpawnedInteractable->SetRewardDefinition(RewardDefinition);
 		UGameplayStatics::FinishSpawningActor(SpawnedInteractable, SpawnTransform);
 
 		FSpawnedRoomInteractableRef& Ref = RoomState.SpawnedActors.AddDefaulted_GetRef();
@@ -186,10 +186,10 @@ bool UA302ItemSpawnOrchestrator::TrySpawnSingleItem(
 			UE_LOG(
 				LogTemp,
 				Log,
-				TEXT("[ItemSpawn] Spawned item interactable. room=%s phase=%d item=%s actor=%s location=(%.0f,%.0f,%.0f)"),
+				TEXT("[ItemSpawn] Spawned reward interactable. room=%s phase=%d reward=%s actor=%s location=(%.0f,%.0f,%.0f)"),
 				*RoomCode,
 				static_cast<int32>(Phase),
-				*GetNameSafe(ItemDefinition),
+				*GetNameSafe(RewardDefinition),
 				*GetNameSafe(SpawnedInteractable),
 				SpawnLocation.X,
 				SpawnLocation.Y,
@@ -205,10 +205,10 @@ bool UA302ItemSpawnOrchestrator::TrySpawnSingleItem(
 		UE_LOG(
 			LogTemp,
 			Warning,
-			TEXT("[ItemSpawn] Failed to spawn item after retries. room=%s phase=%d item=%s retries=%d"),
+			TEXT("[ItemSpawn] Failed to spawn reward after retries. room=%s phase=%d reward=%s retries=%d"),
 			*RoomCode,
 			static_cast<int32>(Phase),
-			*GetNameSafe(ItemDefinition),
+			*GetNameSafe(RewardDefinition),
 			RetryCount
 		);
 	}
