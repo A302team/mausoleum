@@ -9,8 +9,10 @@
 class UItemDefinition;
 class URewardDefinition;
 class UStageRewardPoolDefinition;
+class UStaticMesh;
 class UStaticMeshComponent;
 class ACharacter;
+class FLifetimeProperty;
 
 UCLASS()
 class A302SHARED_API ABaseInteractable : public AActor, public IInteractableInterface
@@ -22,7 +24,11 @@ public:
 
 	URewardDefinition* GetRewardDefinition() const { return RewardDefinition; }
 	UItemDefinition* GetItemDefinition() const; // backward compatibility
+	void SetRewardDefinition(URewardDefinition* InRewardDefinition);
+	void SetInteractType(EInteractType InInteractType);
+	void SetWorldSpawnMesh(UStaticMesh* InWorldSpawnMesh);
 	bool TryConsumeInteraction();
+	void RestoreInteraction();
 	bool IsInteractionConsumed() const { return bInteractionConsumed; }
 
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
@@ -32,7 +38,7 @@ public:
 	void ApplyStageRewardPoolDefinition(UStageRewardPoolDefinition* StageRewardPoolDefinition);
 
 protected:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Interaction")
 	EInteractType CurrentInteractType = EInteractType::Hold;
 
 	virtual void BeginPlay() override;
@@ -57,10 +63,16 @@ protected:
 		meta = (EditCondition = "RewardAssignmentMode == ERewardAssignmentMode::RandomFromPool", EditConditionHides))
 	TObjectPtr<UStageRewardPoolDefinition> RewardPoolDefinition = nullptr;
 
+	UPROPERTY(ReplicatedUsing = OnRep_WorldSpawnMesh)
+	TObjectPtr<UStaticMesh> WorldSpawnMeshOverride = nullptr;
+
 	UPROPERTY()
 	bool bInteractionConsumed = false;
 
 private:
+	UFUNCTION()
+	void OnRep_WorldSpawnMesh();
+
 	void AssignRandomRewardDefinition();
 	URewardDefinition* PickWeightedRewardDefinition() const;
 };

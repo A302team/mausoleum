@@ -2,13 +2,11 @@
 #include "Character/MyCharacter.h"
 #include "Character/MyPlayerController.h"
 #include "Character/Components/Inventory/ItemManagerComponent.h"
-#include "Character/Components/Combat/CombatStatusComponent.h"
 #include "GameData/RewardDefinition.h"
 #include "GameData/Items/ItemInstance.h"
 #include "GameData/Items/ItemDefinition.h"
 #include "GameData/Events/PersonalEvents/Equipment/PersonalEventCursedSwordDefinition.h"
 #include "GamePlay/Items/BaseItem.h"
-#include "GamePlay/Items/ItemShield.h"
 #include "GamePlay/Items/ItemCursedSword.h"
 #include "GamePlay/Events/PersonalEvents/BasePersonalEvent.h"
 #include "GamePlay/Events/GroupEvents/BaseGroupEvent.h"
@@ -140,9 +138,6 @@ bool UCharacterRewardComponent::HandleRewardPickup(AActor* InteractedActor, cons
 		return false;
 	}
 
-	// [ItemEffectComponent] Reward 획득 알림 - 모든 타입의 Reward에 대해 브로드캐스트
-	OnRewardAcquired.Broadcast(RewardDefinition);
-
 	ERewardCategory EffectiveCategory = RewardDefinition->RewardCategory;
 	UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass();
 	if (LogicClass)
@@ -161,6 +156,7 @@ bool UCharacterRewardComponent::HandleRewardPickup(AActor* InteractedActor, cons
 		}
 	}
 
+	bool bRewardHandled = false;
 	switch (EffectiveCategory)
 	{
 	case ERewardCategory::BasicItem:
@@ -171,19 +167,30 @@ bool UCharacterRewardComponent::HandleRewardPickup(AActor* InteractedActor, cons
 			UE_LOG(LogTemp, Warning, TEXT("[Reward] Basic item pickup failed: reward is not UItemDefinition. item=%s"), *GetNameSafe(RewardDefinition));
 			return false;
 		}
-		return HandleBasicItemPickup(InteractedActor, ItemDefinition);
+		bRewardHandled = HandleBasicItemPickup(InteractedActor, ItemDefinition);
+		break;
 	}
 
 	case ERewardCategory::PersonalEvent:
-		return HandlePersonalEventPickup(InteractedActor, RewardDefinition);
+		bRewardHandled = HandlePersonalEventPickup(InteractedActor, RewardDefinition);
+		break;
 
 	case ERewardCategory::GroupEvent:
-		return HandleGroupEventPickup(InteractedActor, RewardDefinition);
+		bRewardHandled = HandleGroupEventPickup(InteractedActor, RewardDefinition);
+		break;
 
 	default:
 		UE_LOG(LogTemp, Warning, TEXT("[Reward] Unknown category. item=%s"), *GetNameSafe(RewardDefinition));
 		return false;
 	}
+
+	// [ItemEffectComponent] Reward 획득 알림 - 실제 보상이 반영된 경우에만 브로드캐스트
+	if (bRewardHandled)
+	{
+		OnRewardAcquired.Broadcast(RewardDefinition);
+	}
+
+	return bRewardHandled;
 }
 
 ERewardCategory UCharacterRewardComponent::ResolveEffectiveRewardCategory(const URewardDefinition* RewardDefinition) const
@@ -230,16 +237,35 @@ void UCharacterRewardComponent::ResolveInteractionRewardOnServer(ABaseInteractab
 		return;
 	}
 
+	const URewardDefinition* RewardDefinition = Interactable->GetRewardDefinition();
+	if (!RewardDefinition)
+	{
+		return;
+	}
+
+	if (ResolveEffectiveRewardCategory(RewardDefinition) == ERewardCategory::BasicItem)
+	{
+		if (UItemManagerComponent* ItemManagerComponent = OwnerCharacter->FindComponentByClass<UItemManagerComponent>())
+		{
+			if (ItemManagerComponent->FindFirstEmptySlotIndex() == INDEX_NONE)
+			{
+				if (AMyPlayerController* OwnerPlayerController = Cast<AMyPlayerController>(OwnerCharacter->GetController()))
+				{
+					OwnerPlayerController->Client_ReceiveSystemMessage(TEXT("QuickSlot is full."));
+				}
+				return;
+			}
+		}
+	}
+
 	if (!Interactable->TryConsumeInteraction())
 	{
 		return;
 	}
 
-	const URewardDefinition* RewardDefinition = Interactable->GetRewardDefinition();
-	if (RewardDefinition)
+	bool bRewardHandled = false;
 	{
 		const ERewardCategory EffectiveCategory = ResolveEffectiveRewardCategory(RewardDefinition);
-		bool bRewardHandled = false;
 
 		const bool bNeedsClientMirrorGrant =
 			!OwnerCharacter->IsLocallyControlled() &&
@@ -273,8 +299,15 @@ void UCharacterRewardComponent::ResolveInteractionRewardOnServer(ABaseInteractab
 		}
 	}
 
+	if (bRewardHandled)
+	{
+		Interactable->ForceNetUpdate();
+		Interactable->Destroy();
+		return;
+	}
+
+	Interactable->RestoreInteraction();
 	Interactable->ForceNetUpdate();
-	Interactable->Destroy();
 }
 
 void UCharacterRewardComponent::Server_RequestInteractionReward_Implementation(ABaseInteractable* Interactable)
@@ -458,23 +491,24 @@ bool UCharacterRewardComponent::HandleBasicItemPickup(AActor* InteractedActor, c
 	UItemDefinition* MutableDefinition = const_cast<UItemDefinition*>(RewardDefinition);
 	if (ItemManagerComponent->TryAddItemToFirstEmptySlot(MutableDefinition, 1, AddedSlotIndex))
 	{
-		UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass();
-		
-		if (LogicClass && LogicClass->IsChildOf(UBaseItem::StaticClass()))
+		UBaseItem* ItemLogic = ItemManagerComponent->GetItemLogicAtSlot(AddedSlotIndex);
+		if (!ItemLogic)
 		{
-			if (const UBaseItem* BaseItemLogic = Cast<UBaseItem>(LogicClass->GetDefaultObject()))
+			// Fallback for partially initialized slots: keep legacy behavior as a safe guard.
+			if (UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass();
+				LogicClass && LogicClass->IsChildOf(UBaseItem::StaticClass()))
 			{
-				BaseItemLogic->OnItemAcquired(OwnerCharacter);
+				ItemLogic = Cast<UBaseItem>(LogicClass->GetDefaultObject());
 			}
 		}
-		
-		const bool bIsShieldItem = RewardDefinition && LogicClass && LogicClass->IsChildOf(UItemShield::StaticClass());
-		if (bIsShieldItem)
+
+		if (ItemLogic)
 		{
-			if (UCombatStatusComponent* CombatStatusComponent = OwnerCharacter->FindComponentByClass<UCombatStatusComponent>())
-			{
-				CombatStatusComponent->AddShield(FMath::Max(1, RewardDefinition->Payload.BlockCount));
-			}
+			ItemLogic->OnItemAcquired(OwnerCharacter);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[Reward] Item logic missing after pickup. item=%s slot=%d"), *GetNameSafe(RewardDefinition), AddedSlotIndex);
 		}
 
 		return true;
