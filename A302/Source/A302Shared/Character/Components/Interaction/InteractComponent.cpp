@@ -3,6 +3,7 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/PlayerController.h"
 #include "Components/MeshComponent.h"
+#include "Engine/OverlapResult.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/Engine.h"
 #include "Interface/InteractableInterface.h"
@@ -114,6 +115,7 @@ void UInteractComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 	}
 
 	CheckForInteractables();
+	UpdateNearbyHighlights();
 }
 
 ACharacter* UInteractComponent::GetOwnerCharacter() const
@@ -170,15 +172,18 @@ void UInteractComponent::CheckForInteractables()
 	if (CurrentHitActor != LastInteractableActor)
 	{
 		InteractionProgressRatio = 0.0f;
-       
-		if (LastInteractableActor)
+
+		AActor* PreviousFocusedActor = LastInteractableActor;
+		LastInteractableActor = CurrentHitActor;
+
+		if (PreviousFocusedActor)
 		{
-			ToggleHighlight(LastInteractableActor, false);
+			RefreshHighlightState(PreviousFocusedActor);
 		}
 
 		if (CurrentHitActor)
 		{
-			ToggleHighlight(CurrentHitActor, true);
+			RefreshHighlightState(CurrentHitActor);
 		}
 
 		if (InteractionWidgetInstance)
@@ -186,14 +191,109 @@ void UInteractComponent::CheckForInteractables()
 			const ESlateVisibility NewVisibility = CurrentHitActor ? ESlateVisibility::Visible : ESlateVisibility::Hidden;
 			InteractionWidgetInstance->SetVisibility(NewVisibility);
 		}
-
-		LastInteractableActor = CurrentHitActor;
 	}
 }
 
-void UInteractComponent::ToggleHighlight(AActor* TargetActor, bool bIsOn) const
+void UInteractComponent::UpdateNearbyHighlights()
 {
-	if (!TargetActor) return;
+	ACharacter* OwnerCharacter = GetOwnerCharacter();
+	if (!OwnerCharacter || !OwnerCharacter->IsLocallyControlled() || !GetWorld())
+	{
+		return;
+	}
+
+	TSet<TWeakObjectPtr<AActor>> NewNearbyActors;
+
+	TArray<FOverlapResult> OverlapResults;
+	FCollisionObjectQueryParams ObjectQueryParams;
+	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldStatic);
+
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(OwnerCharacter);
+
+	const bool bHasOverlap = GetWorld()->OverlapMultiByObjectType(
+		OverlapResults,
+		OwnerCharacter->GetActorLocation(),
+		FQuat::Identity,
+		ObjectQueryParams,
+		FCollisionShape::MakeSphere(NearbyHighlightRadius),
+		QueryParams
+	);
+
+	if (bHasOverlap)
+	{
+		for (const FOverlapResult& OverlapResult : OverlapResults)
+		{
+			ABaseInteractable* Interactable = Cast<ABaseInteractable>(OverlapResult.GetActor());
+			if (!IsValid(Interactable))
+			{
+				continue;
+			}
+
+			NewNearbyActors.Add(Interactable);
+		}
+	}
+
+	const TSet<TWeakObjectPtr<AActor>> PreviousNearbyActors = NearbyHighlightedActors;
+	NearbyHighlightedActors = MoveTemp(NewNearbyActors);
+
+	for (const TWeakObjectPtr<AActor>& PreviousActor : PreviousNearbyActors)
+	{
+		if (!PreviousActor.IsValid() || NearbyHighlightedActors.Contains(PreviousActor))
+		{
+			continue;
+		}
+
+		RefreshHighlightState(PreviousActor.Get());
+	}
+
+	for (const TWeakObjectPtr<AActor>& NewActor : NearbyHighlightedActors)
+	{
+		if (!NewActor.IsValid() || PreviousNearbyActors.Contains(NewActor))
+		{
+			continue;
+		}
+
+		RefreshHighlightState(NewActor.Get());
+	}
+}
+
+void UInteractComponent::RefreshHighlightState(AActor* TargetActor) const
+{
+	if (!TargetActor)
+	{
+		return;
+	}
+
+	const bool bIsNearby = NearbyHighlightedActors.Contains(TWeakObjectPtr<AActor>(TargetActor));
+	const bool bIsFocused = (TargetActor == LastInteractableActor);
+
+	if (!bIsNearby && !bIsFocused)
+	{
+		SetHighlightVisual(TargetActor, false, 0);
+		return;
+	}
+
+	int32 StencilValue = FocusedHighlightStencilValue;
+	if (bIsNearby && bIsFocused)
+	{
+		StencilValue = NearbyAndFocusedHighlightStencilValue;
+	}
+	else if (bIsNearby)
+	{
+		StencilValue = NearbyHighlightStencilValue;
+	}
+
+	SetHighlightVisual(TargetActor, true, StencilValue);
+}
+
+void UInteractComponent::SetHighlightVisual(AActor* TargetActor, bool bIsOn, int32 StencilValue) const
+{
+	if (!TargetActor)
+	{
+		return;
+	}
 
 	TArray<UMeshComponent*> MeshComps;
 	TargetActor->GetComponents<UMeshComponent>(MeshComps);
@@ -201,6 +301,7 @@ void UInteractComponent::ToggleHighlight(AActor* TargetActor, bool bIsOn) const
 	for (UMeshComponent* MeshComp : MeshComps)
 	{
 		MeshComp->SetRenderCustomDepth(bIsOn);
+		MeshComp->SetCustomDepthStencilValue(StencilValue);
 	}
 }
 
