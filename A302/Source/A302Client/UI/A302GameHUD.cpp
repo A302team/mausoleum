@@ -120,6 +120,14 @@ void AA302GameHUD::InitializeClientInGameWidgets()
 	}
 }
 
+void AA302GameHUD::RefreshQuickSlotBinding()
+{
+	if (PlayerHUDComponent)
+	{
+		PlayerHUDComponent->RefreshQuickSlotBinding();
+	}
+}
+
 void AA302GameHUD::InitializeChatWidget()
 {
 	if (ChatWidgetInstance)
@@ -148,6 +156,15 @@ void AA302GameHUD::ShowTitleCard(const FText& Title, const FText& Context, float
 {
 	if (!TitleCardWidgetClass)
 	{
+		if (UClass* LoadedTitleCardClass = LoadClass<UUserWidget>(nullptr, TEXT("/Game/WorkSpace/UI/WBP_TitleCard.WBP_TitleCard_C")))
+		{
+			TitleCardWidgetClass = LoadedTitleCardClass;
+		}
+	}
+
+	if (!TitleCardWidgetClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[A302GameHUD] TitleCardWidgetClass is missing."));
 		return;
 	}
 
@@ -163,15 +180,20 @@ void AA302GameHUD::ShowTitleCard(const FText& Title, const FText& Context, float
 		return;
 	}
 
-	if (UTextBlock* TitleText = Cast<UTextBlock>(TitleCardWidgetInstance->GetWidgetFromName(TEXT("EventTitle"))))
+	auto SetFirstAvailableText = [&](const TArray<FName>& CandidateNames, const FText& InText)
 	{
-		TitleText->SetText(Title);
-	}
+		for (const FName& CandidateName : CandidateNames)
+		{
+			if (UTextBlock* TextBlock = Cast<UTextBlock>(TitleCardWidgetInstance->GetWidgetFromName(CandidateName)))
+			{
+				TextBlock->SetText(InText);
+				return;
+			}
+		}
+	};
 
-	if (UTextBlock* ContextText = Cast<UTextBlock>(TitleCardWidgetInstance->GetWidgetFromName(TEXT("EventContext"))))
-	{
-		ContextText->SetText(Context);
-	}
+	SetFirstAvailableText({ TEXT("EventTitle"), TEXT("TitleText"), TEXT("Txt_Title"), TEXT("ResultTitle") }, Title);
+	SetFirstAvailableText({ TEXT("EventContext"), TEXT("DescriptionText"), TEXT("Txt_Description"), TEXT("ResultDescription"), TEXT("BodyText") }, Context);
 
 	if (!TitleCardWidgetInstance->IsInViewport())
 	{
@@ -200,7 +222,8 @@ void AA302GameHUD::HideTitleCard()
 {
 	if (TitleCardWidgetInstance)
 	{
-		TitleCardWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+		TitleCardWidgetInstance->RemoveFromParent();
+		TitleCardWidgetInstance = nullptr;
 	}
 }
 
@@ -342,7 +365,8 @@ void AA302GameHUD::ShowResultScreen(const FText& Title, const FText& Description
 
 	if (TitleCardWidgetInstance)
 	{
-		TitleCardWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+		TitleCardWidgetInstance->RemoveFromParent();
+		TitleCardWidgetInstance = nullptr;
 	}
 
 	PC->SetInputMode(FInputModeUIOnly());

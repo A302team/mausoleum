@@ -22,6 +22,9 @@ class UPlayerEventComponent;
 class UTextBlock;
 class UUserWidget;
 class UBasePersonalEvent;
+class UMaliceBGMComponent; // Added
+class UGameBGMComponent;  // Added
+class UCursedSwordBGMComponent; // Added
 
 UCLASS()
 class A302SHARED_API AMyPlayerController : public APlayerController
@@ -49,6 +52,21 @@ public:
 	virtual void ConfigureMatchTimer(float MatchStartServerTime, float DurationSeconds, bool bVisible);
 	virtual void ShowResultScreen(const FText& Title, const FText& Description, float DisplaySeconds);
 	virtual void ToggleVoiceChatCapture();
+
+	// Added: Malice BGM Component
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Audio")
+	TObjectPtr<UMaliceBGMComponent> MaliceBGMComp;
+	// End Added
+
+	// Added: Game BGM Component (GameBGM <-> MaliceBGM 상태 전환)
+	UPROPERTY(VisibleAnywhere, Category = "Audio")
+	TObjectPtr<UGameBGMComponent> GameBGMComp;
+	// End Added
+
+	// Added: CursedSword BGM Component (최우선 BGM 관리)
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UCursedSwordBGMComponent> CursedSwordBGMComp;
+	// End Added
 
 	// UI 위젯 속성은 모두 AA302GameHUD로 이동되었습니다.
 
@@ -81,6 +99,9 @@ public:
 
 	UFUNCTION(Client, Reliable)
 	void Client_ShowResultScreen(const FText& Title, const FText& Description, float DisplaySeconds);
+
+	UFUNCTION(Client, Reliable)
+	void Client_RemoveQuickSlotItemByServer(int32 SlotIndex, FName ExpectedItemId);
 
 
 	UFUNCTION(Server, Reliable)

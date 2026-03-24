@@ -22,23 +22,16 @@ void UPersonalEventAnothersPortrait::ExecuteEvent_Implementation(ACharacter* Ins
 		return;
 	}
 
-	UPlayerEventComponent* EventComp = PlayerController->GetPlayerEventComponent();
-	if (!EventComp)
+	if (AMyPlayerController* PlayerControllerX = Cast<AMyPlayerController>(InstigatorCharacter->GetController()))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[AnothersPortrait] PlayerEventComponent is missing."));
-		return;
+		PlayerControllerX->Client_ShowTitleCard(
+			FText::FromString(TEXT("타인의 초상")),
+			FText::FromString(TEXT("불길하게 생긴 거울을 발견했습니다. 그 속에 비친 것은 자신의 모습이 아닌, 다른 사람의 일그러진 욕망입니다. 거울에 금이 가는 순간, 서로가 품어온 업보의 무게가 거울 너머로 쏟아져 들어가 서로의 자리를 대신할 것입니다.")),
+			5.0f
+		);
 	}
 
-	TArray<FText> Choices;
-	Choices.Add(FText::FromString(TEXT("확인")));
-
-	EventComp->SetActivePersonalEvent(this);
-	EventComp->ShowPersonalEvent(
-		EventID,
-		FText::FromString(TEXT("타인의 초상")),
-		FText::FromString(TEXT("불길하게 생긴 거울을 발견했습니다. 그 속에 비친 것은 자신의 모습이 아닌, 다른 사람의 일그러진 욕망입니다. 거울에 금이 가는 순간, 서로가 품어온 업보의 무게가 거울 너머로 쏟아져 들어가 서로의 자리를 대신할 것입니다.")),
-		Choices
-	);
+	OnEventResolved(InstigatorCharacter, 0);
 }
 
 void UPersonalEventAnothersPortrait::OnEventResolved(ACharacter* InstigatorCharacter, int32 ChoiceIndex)
