@@ -614,6 +614,14 @@ void AA302GameHUD::ConfigureMatchTimer(float MatchStartServerTime, float Duratio
 	}
 }
 
+void AA302GameHUD::UpdatePhaseClearProgress(uint8 PhaseAsByte, int32 CurrentCount, int32 RequiredCount, uint8 bVisibleInt)
+{
+	if (PlayerHUDComponent)
+	{
+		PlayerHUDComponent->UpdatePhaseClearProgress(PhaseAsByte, CurrentCount, RequiredCount, bVisibleInt != 0);
+	}
+}
+
 void AA302GameHUD::ShowPersonalEvent(FName EventID, const FText& EventTitle, const FText& EventDescription, const TArray<FText>& Choices)
 {
 	if (PlayerHUDComponent) PlayerHUDComponent->ShowPersonalEventUI(PersonalEventWidgetClass, EventID, EventTitle, EventDescription, Choices);
