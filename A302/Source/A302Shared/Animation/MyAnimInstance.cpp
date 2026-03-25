@@ -172,3 +172,34 @@ void UMyAnimInstance::PlayTimeKnifeAnimation()
 {
     PlayTimeKnifeMontage();
 }
+
+// 석상 상호작용 애니메이션 재생
+void UMyAnimInstance::PlayStatueInteractMontage()
+{
+    if (!StatueInteractMontage) return;
+
+    if (!Montage_IsPlaying(StatueInteractMontage))
+    {
+        Montage_Play(StatueInteractMontage);
+    }
+}
+
+void UMyAnimInstance::StopStatueInteractMontage()
+{
+    if (!StatueInteractMontage) return;
+
+    if (Montage_IsPlaying(StatueInteractMontage))
+    {
+        Montage_Stop(0.25f, StatueInteractMontage);
+    }
+}
+
+void UMyAnimInstance::PlayStatueInteractAnimation()
+{
+    PlayStatueInteractMontage();
+}
+
+void UMyAnimInstance::StopStatueInteractAnimation()
+{
+    StopStatueInteractMontage();
+}
