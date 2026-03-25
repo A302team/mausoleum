@@ -68,6 +68,8 @@ private:
 	UWidget* FindPhaseClearContainer() const;
 	UTextBlock* FindPhaseClearCurrentText() const;
 	UTextBlock* FindPhaseClearRequiredText() const;
+	UTextBlock* FindQuestNameText() const;
+	UTextBlock* FindQuestContextText() const;
 	UWidget* FindPublicMaliceAnnouncementWidget() const;
 	UTextBlock* FindPublicMaliceAnnouncementText(const FName& WidgetName) const;
 	void SetPublicMaliceAnnouncementVisible(bool bVisible);
