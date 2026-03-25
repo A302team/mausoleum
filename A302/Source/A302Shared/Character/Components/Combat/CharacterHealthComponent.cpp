@@ -33,11 +33,14 @@ void UCharacterHealthComponent::GetLifetimeReplicatedProps(TArray<FLifetimePrope
 
 void UCharacterHealthComponent::OnRep_IsDead()
 {
+	AMyCharacter* OwnerCharacter = GetOwnerCharacter();
+	if (!OwnerCharacter)
+	{
+		return;
+	}
+
 	if (bIsDead)
 	{
-		AMyCharacter* OwnerCharacter = GetOwnerCharacter();
-		if (!OwnerCharacter) return;
-
 		if (OwnerCharacter->GetCharacterMovement())
 		{
 			OwnerCharacter->GetCharacterMovement()->DisableMovement();
@@ -46,6 +49,23 @@ void UCharacterHealthComponent::OnRep_IsDead()
 		if (IA302AnimationBridge* Anim = Cast<IA302AnimationBridge>(OwnerCharacter->GetMesh()->GetAnimInstance()))
 		{
 			Anim->PlayDeathAnimation();
+		}
+	}
+
+	// Listen server client windows can miss server-side death UI calls.
+	// Ensure the owning local client opens/closes death spectator UI via replication too.
+	if (OwnerCharacter->IsLocallyControlled())
+	{
+		if (AMyPlayerController* OwnerController = Cast<AMyPlayerController>(OwnerCharacter->GetController()))
+		{
+			if (bIsDead)
+			{
+				OwnerController->ShowDeathSpectatorUI();
+			}
+			else
+			{
+				OwnerController->HideDeathSpectatorUI();
+			}
 		}
 	}
 }
@@ -184,6 +204,11 @@ void UCharacterHealthComponent::HandleDead()
 		if (APlayerController* PC = Cast<APlayerController>(OwnerCharacter->GetController()))
 		{
 			PC->SetIgnoreMoveInput(true);
+		}
+
+		if (AMyPlayerController* OwnerController = Cast<AMyPlayerController>(OwnerCharacter->GetController()))
+		{
+			OwnerController->ShowDeathSpectatorUI();
 		}
 	}
 
