@@ -371,6 +371,50 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	}
 }
 
+void AMyCharacter::CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult)
+{
+	Super::CalcCamera(DeltaTime, OutResult);
+
+	if (IsLocallyControlled())
+	{
+		return;
+	}
+
+	UCameraComponent* TargetCamera = ResolveCameraForMode(EA302CameraViewMode::ThirdPerson);
+	if (!TargetCamera)
+	{
+		TArray<UCameraComponent*> Cameras;
+		GetComponents<UCameraComponent>(Cameras);
+		TargetCamera = Cameras.Num() > 0 ? Cameras[0] : nullptr;
+	}
+
+	if (!TargetCamera)
+	{
+		return;
+	}
+
+	const FRotator SpectateViewRotation = GetBaseAimRotation();
+	if (USpringArmComponent* ThirdPersonSpringArm = Cast<USpringArmComponent>(TargetCamera->GetAttachParent()))
+	{
+		const FVector ArmOrigin =
+			ThirdPersonSpringArm->GetComponentLocation()
+			+ SpectateViewRotation.RotateVector(ThirdPersonSpringArm->TargetOffset);
+		const FVector CameraLocation =
+			ArmOrigin
+			- SpectateViewRotation.Vector() * ThirdPersonSpringArm->TargetArmLength
+			+ SpectateViewRotation.RotateVector(ThirdPersonSpringArm->SocketOffset);
+
+		OutResult.Location = CameraLocation;
+		OutResult.Rotation = SpectateViewRotation;
+		OutResult.FOV = TargetCamera->FieldOfView;
+		return;
+	}
+
+	OutResult.Location = TargetCamera->GetComponentLocation();
+	OutResult.Rotation = SpectateViewRotation;
+	OutResult.FOV = TargetCamera->FieldOfView;
+}
+
 void AMyCharacter::NotifyKilledCharacter()
 {
 	if (PlayerEventComponent)

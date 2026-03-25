@@ -151,6 +151,7 @@ private:
 	UPROPERTY()
 	TObjectPtr<ACharacter> CachedOwnerCharacter = nullptr;
 
+	bool bIsHoldingInteraction = false;
 	bool bLocalUIInitialized = false;
 
 	TSet<TWeakObjectPtr<AActor>> NearbyHighlightedActors;
