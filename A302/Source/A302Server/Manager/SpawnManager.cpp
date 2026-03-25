@@ -207,7 +207,7 @@ FTransform ASpawnManager::GetRandomPlayerSpawnTransform(int32 StageNum, const FS
         if (ASpawnArea* SpawnArea = Cast<ASpawnArea>(Actor))
         {
             const bool bInRoom = IsSpawnAreaInRoomSpace(SpawnArea, RoomCode);
-            const bool bStageMatch = (SpawnArea->TargetStage == 0 || SpawnArea->TargetStage == StageNum);
+            const bool bStageMatch = (SpawnArea->TargetStage == StageNum);
             if (bInRoom && bStageMatch)
             {
                 ValidAreas.Add(SpawnArea);

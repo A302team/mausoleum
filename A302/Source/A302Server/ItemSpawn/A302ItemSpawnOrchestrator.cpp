@@ -2,10 +2,10 @@
 
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
-#include "GameData/Items/ItemDefinition.h"
+#include "GameData/RewardDefinition.h"
 #include "GameData/Spawn/ItemSpawnPolicy.h"
 #include "GamePlay/Items/BaseItem.h"
-#include "GamePlay/Items/ItemCursedSword.h"
+#include "GamePlay/Events/PersonalEvents/BasePersonalEvent.h"
 #include "Object/BaseInteractable.h"
 #include "Room/RoomWorldOffset.h"
 
@@ -236,21 +236,21 @@ void UA302ItemSpawnOrchestrator::BuildPhaseRuntimeEntries(
 	int32 NotSpawnableLootCount = 0;
 	for (const FWeightedSpawnLootEntry& LootEntry : PhasePolicy->LootPool)
 	{
-		UItemDefinition* ItemDefinition = LootEntry.ItemDefinition.LoadSynchronous();
-		if (!ItemDefinition)
+		URewardDefinition* RewardDefinition = LootEntry.ItemDefinition.LoadSynchronous();
+		if (!RewardDefinition)
 		{
 			++InvalidLootAssetCount;
 			continue;
 		}
 
-		if (!IsSpawnableItemDefinition(ItemDefinition))
+		if (!IsSpawnableRewardDefinition(RewardDefinition))
 		{
 			++NotSpawnableLootCount;
 			continue;
 		}
 
 		FItemSpawnRuntimeEntry& OutEntry = OutItems.AddDefaulted_GetRef();
-		OutEntry.ItemDefinition = ItemDefinition;
+		OutEntry.RewardDefinition = RewardDefinition;
 		OutEntry.MinSpawnCount = FMath::Max(0, LootEntry.MinSpawnCount);
 		OutEntry.MaxSpawnCount = LootEntry.MaxSpawnCount;
 		OutEntry.Weight = FMath::Max(0.0f, LootEntry.Weight);
@@ -384,8 +384,8 @@ void UA302ItemSpawnOrchestrator::TrySpawnForPhase(const FString& RoomCode, EGame
 	int32 TotalMinRequired = 0;
 	for (const FItemSpawnRuntimeEntry& Entry : EffectiveEntries)
 	{
-		const UItemDefinition* ItemDefinition = Entry.ItemDefinition;
-		if (!IsSpawnableItemDefinition(ItemDefinition))
+		const URewardDefinition* RewardDefinition = Entry.RewardDefinition;
+		if (!IsSpawnableRewardDefinition(RewardDefinition))
 		{
 			continue;
 		}
@@ -397,9 +397,9 @@ void UA302ItemSpawnOrchestrator::TrySpawnForPhase(const FString& RoomCode, EGame
 			continue;
 		}
 
-		const FName ItemId = ItemDefinition->ItemId.IsNone()
-			? FName(*ItemDefinition->GetPathName())
-			: ItemDefinition->ItemId;
+		const FName ItemId = RewardDefinition->ItemId.IsNone()
+			? FName(*RewardDefinition->GetPathName())
+			: RewardDefinition->ItemId;
 
 		FResolvedSpawnEntry& Resolved = ResolvedEntries.AddDefaulted_GetRef();
 		Resolved.Source = &Entry;
@@ -523,21 +523,24 @@ void UA302ItemSpawnOrchestrator::TrySpawnForPhase(const FString& RoomCode, EGame
 	}
 }
 
-bool UA302ItemSpawnOrchestrator::IsSpawnableItemDefinition(const UItemDefinition* ItemDefinition) const
+bool UA302ItemSpawnOrchestrator::IsSpawnableRewardDefinition(const URewardDefinition* RewardDefinition) const
 {
-	if (!ItemDefinition)
+	if (!RewardDefinition)
 	{
 		return false;
 	}
 
-	UClass* LogicClass = ItemDefinition->ResolveRewardLogicClass();
-	const bool bIsCursedSwordLogic = LogicClass && LogicClass->IsChildOf(UItemCursedSword::StaticClass());
-	if (ItemDefinition->RewardCategory != ERewardCategory::BasicItem && !bIsCursedSwordLogic)
+	UClass* LogicClass = RewardDefinition->ResolveRewardLogicClass();
+	if (!LogicClass)
 	{
 		return false;
 	}
 
-	return LogicClass && LogicClass->IsChildOf(UBaseItem::StaticClass());
+	// Item spawner supports:
+	// - Basic items (inventory grant)
+	// - Personal-event rewards (e.g. Phase1Collect instant progression event)
+	return LogicClass->IsChildOf(UBaseItem::StaticClass())
+		|| LogicClass->IsChildOf(UBasePersonalEvent::StaticClass());
 }
 
 FString UA302ItemSpawnOrchestrator::NormalizeRoomCode(const FString& RoomCode)

@@ -230,7 +230,6 @@ void AMyPlayerController::OnRep_Pawn()
 {
 	Super::OnRep_Pawn();
 	EnsureLocalVoiceComponent();
-	NotifyLocalGameplayPawnReady();
 
 #if !UE_SERVER
 	if (IsLocalController() && ShouldAttemptGameplayHUDInitialization())
@@ -776,6 +775,25 @@ void AMyPlayerController::ShowResultScreen(const FText& Title, const FText& Desc
 			};
 
 			FParams Params { Title, Description, DisplaySeconds };
+			GameHUD->ProcessEvent(Func, &Params);
+		}
+	}
+}
+
+void AMyPlayerController::ShowItemDescription(const FText& ItemName, const FText& Description, float DisplaySeconds)
+{
+	if (AHUD* GameHUD = GetHUD())
+	{
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("ShowItemDescription")))
+		{
+			struct FParams
+			{
+				FText InItemName;
+				FText InDescription;
+				float InDisplaySeconds;
+			};
+
+			FParams Params { ItemName, Description, DisplaySeconds };
 			GameHUD->ProcessEvent(Func, &Params);
 		}
 	}
