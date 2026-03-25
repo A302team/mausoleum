@@ -21,7 +21,7 @@ public:
 	// 생성자
 	ASpawnArea();
 	UPROPERTY(EditAnywhere, Category = "Spawn")
-	int32 TargetStage = 0; // 스폰 영역이 활성화되는 스테이지 번호
+	int32 TargetStage = 1; // 스폰 영역이 활성화되는 스테이지 번호 (1=Phase0, 2=Phase1, 3=Phase2)
 
 	FVector GetRandomPointInBox() const;
 };
