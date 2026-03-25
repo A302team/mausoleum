@@ -70,6 +70,7 @@ bool UA302ServerPhaseSubsystem::StartRoomPhaseTimeline(const FString& RoomCode)
     RoomState.bFinished = false;
 
     EnsurePhaseTimer();
+    BroadcastPhaseClearProgressToRoom(NormalizedRoomCode, RoomState, true);
     BroadcastMatchTimerStateToRoom(NormalizedRoomCode, 0.0f, MatchTimeLimitSeconds, false); // 타이머 UI 숨김
     OnRoomPhaseChanged.Broadcast(NormalizedRoomCode, RoomState.CurrentPhase);
 
@@ -182,6 +183,7 @@ void UA302ServerPhaseSubsystem::NotifyRoomRewardResolved(const FString& RoomCode
 
     if (bCounted)
     {
+        BroadcastPhaseClearProgressToRoom(NormalizedRoomCode, *RoomState, true);
         UE_LOG(
             LogA302Phase,
             Log,
@@ -228,6 +230,7 @@ bool UA302ServerPhaseSubsystem::NotifyRoomMatchTimerStart(const FString& RoomCod
 
     // 클라이언트 타이머 UI 표시
     BroadcastMatchTimerStateToRoom(NormalizedRoomCode, RoomState->MatchStartServerTime, MatchTimeLimitSeconds, MatchTimeLimitSeconds > 0.0f);
+    BroadcastPhaseClearProgressToRoom(NormalizedRoomCode, *RoomState, true);
 
     // GameState 복제 → 클라이언트가 서버 시간 참조 가능
     if (UWorld* World = ResolveWorld())
@@ -382,6 +385,8 @@ void UA302ServerPhaseSubsystem::UpdateRoomPhase(const FString& RoomCode, double 
     {
         BroadcastMatchTimerStateToRoom(NormalizedRoomCode, RoomState->MatchStartServerTime, MatchTimeLimitSeconds, false);
     }
+
+    BroadcastPhaseClearProgressToRoom(NormalizedRoomCode, *RoomState, !RoomState->bFinished);
 
     UE_LOG(
         LogA302Phase,
@@ -582,6 +587,64 @@ void UA302ServerPhaseSubsystem::BroadcastMatchTimerStateToRoom(const FString& Ro
         if (AMyPlayerController* MyPlayerController = Cast<AMyPlayerController>(PlayerController))
         {
             MyPlayerController->ConfigureMatchTimer(MatchStartServerTime, DurationSeconds, bVisible);
+        }
+    }
+}
+
+void UA302ServerPhaseSubsystem::BroadcastPhaseClearProgressToRoom(const FString& RoomCode, const FA302RoomPhaseState& RoomState, bool bVisible) const
+{
+    UWorld* World = ResolveWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    const AA302GameMode* GameMode = Cast<AA302GameMode>(World->GetAuthGameMode());
+    if (!GameMode)
+    {
+        return;
+    }
+
+    URoomMembershipRegistry* Registry = GameMode->GetRoomMembershipRegistry();
+    if (!Registry)
+    {
+        return;
+    }
+
+    int32 CurrentCount = 0;
+    int32 RequiredCount = 0;
+    switch (RoomState.CurrentPhase)
+    {
+    case EGamePhase::Phase0:
+        CurrentCount = RoomState.Phase0ItemCount;
+        RequiredCount = Phase0RequiredItemCount;
+        break;
+    case EGamePhase::Phase1:
+        CurrentCount = RoomState.Phase1ClearObjectCount;
+        RequiredCount = Phase1RequiredClearObjectCount;
+        break;
+    case EGamePhase::Phase2:
+        CurrentCount = RoomState.Phase2GroupEventCount;
+        RequiredCount = Phase2RequiredGroupEventCount;
+        break;
+    default:
+        break;
+    }
+
+    TArray<APlayerController*> Players;
+    Registry->GatherPlayersInRoom(World, RoomCode, Players);
+
+    const bool bShouldShow = bVisible && RoomState.CurrentPhase != EGamePhase::Ended;
+    for (APlayerController* PlayerController : Players)
+    {
+        if (AMyPlayerController* MyPlayerController = Cast<AMyPlayerController>(PlayerController))
+        {
+            MyPlayerController->UpdatePhaseClearProgress(
+                static_cast<uint8>(RoomState.CurrentPhase),
+                FMath::Max(0, CurrentCount),
+                FMath::Max(0, RequiredCount),
+                bShouldShow
+            );
         }
     }
 }

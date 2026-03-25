@@ -20,6 +20,7 @@
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/HUD.h"
 #include "GameFramework/PlayerState.h"
+#include "GameMode/A302GameState.h"
 #include "GameMode/A302PlayerState.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
@@ -492,6 +493,33 @@ void UPlayerHUDComponent::ConfigureMatchTimer(float MatchStartServerTime, float 
 	}
 }
 
+void UPlayerHUDComponent::UpdatePhaseClearProgress(uint8 PhaseAsByte, int32 CurrentCount, int32 RequiredCount, bool bVisible)
+{
+	UWidget* PhaseClearContainer = FindPhaseClearContainer();
+	if (!PhaseClearContainer)
+	{
+		return;
+	}
+
+	const bool bShouldShow = bVisible && PhaseAsByte != static_cast<uint8>(EGamePhase::Ended);
+	PhaseClearContainer->SetVisibility(bShouldShow ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+
+	if (!bShouldShow)
+	{
+		return;
+	}
+
+	if (UTextBlock* CurrentCountText = FindPhaseClearCurrentText())
+	{
+		CurrentCountText->SetText(FText::AsNumber(FMath::Max(0, CurrentCount)));
+	}
+
+	if (UTextBlock* RequiredCountText = FindPhaseClearRequiredText())
+	{
+		RequiredCountText->SetText(FText::AsNumber(FMath::Max(0, RequiredCount)));
+	}
+}
+
 void UPlayerHUDComponent::InitializeQuickSlotWidget()
 {
 	AMyPlayerController* OwnerController = GetOwnerController();
@@ -591,6 +619,8 @@ void UPlayerHUDComponent::InitializeQuickSlotWidget()
 		MatchTimerText->SetText(FText::GetEmpty());
 		MatchTimerText->SetVisibility(ESlateVisibility::Hidden);
 	}
+
+	UpdatePhaseClearProgress(static_cast<uint8>(EGamePhase::Phase0), 0, 0, false);
 }
 
 void UPlayerHUDComponent::InitializeQuickSlotVisualState()
@@ -760,6 +790,57 @@ UTextBlock* UPlayerHUDComponent::FindMatchTimerText() const
 	}
 
 	return nullptr;
+}
+
+UWidget* UPlayerHUDComponent::FindPhaseClearContainer() const
+{
+	if (!QuickSlotBarWidget)
+	{
+		return nullptr;
+	}
+
+	if (UWidget* PhaseClearWidget = QuickSlotBarWidget->GetWidgetFromName(TEXT("WBP_Phase0Clear")))
+	{
+		return PhaseClearWidget;
+	}
+
+	return QuickSlotBarWidget->GetWidgetFromName(TEXT("Phase0Clear"));
+}
+
+UTextBlock* UPlayerHUDComponent::FindPhaseClearCurrentText() const
+{
+	if (!QuickSlotBarWidget)
+	{
+		return nullptr;
+	}
+
+	if (UUserWidget* PhaseClearUserWidget = Cast<UUserWidget>(FindPhaseClearContainer()))
+	{
+		if (UTextBlock* Text = Cast<UTextBlock>(PhaseClearUserWidget->GetWidgetFromName(TEXT("NumOfNowCollect"))))
+		{
+			return Text;
+		}
+	}
+
+	return Cast<UTextBlock>(QuickSlotBarWidget->GetWidgetFromName(TEXT("NumOfNowCollect")));
+}
+
+UTextBlock* UPlayerHUDComponent::FindPhaseClearRequiredText() const
+{
+	if (!QuickSlotBarWidget)
+	{
+		return nullptr;
+	}
+
+	if (UUserWidget* PhaseClearUserWidget = Cast<UUserWidget>(FindPhaseClearContainer()))
+	{
+		if (UTextBlock* Text = Cast<UTextBlock>(PhaseClearUserWidget->GetWidgetFromName(TEXT("NumOfPhaseCollect"))))
+		{
+			return Text;
+		}
+	}
+
+	return Cast<UTextBlock>(QuickSlotBarWidget->GetWidgetFromName(TEXT("NumOfPhaseCollect")));
 }
 
 UWidget* UPlayerHUDComponent::FindPublicMaliceAnnouncementWidget() const
