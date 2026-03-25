@@ -114,6 +114,9 @@ public:
 	void ConfigureMatchTimer(float MatchStartServerTime, float DurationSeconds, uint8 bVisibleInt);
 
 	UFUNCTION()
+	void UpdatePhaseClearProgress(uint8 PhaseAsByte, int32 CurrentCount, int32 RequiredCount, uint8 bVisibleInt);
+
+	UFUNCTION()
 	void ShowPersonalEvent(FName EventID, const FText& EventTitle, const FText& EventDescription, const TArray<FText>& Choices);
 
 	UFUNCTION()

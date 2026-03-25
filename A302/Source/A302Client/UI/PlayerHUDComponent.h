@@ -47,6 +47,7 @@ public:
 	bool UpdateItemTimerText(float RemainingSeconds);
 	void SetItemTimerVisible(bool bVisible);
 	void ConfigureMatchTimer(float MatchStartServerTime, float DurationSeconds, bool bVisible);
+	void UpdatePhaseClearProgress(uint8 PhaseAsByte, int32 CurrentCount, int32 RequiredCount, bool bVisible);
 
 private:
 	AMyPlayerController* GetOwnerController() const;
@@ -64,6 +65,9 @@ private:
 	UTextBlock* FindMaliceCountText() const;
 	UTextBlock* FindItemTimerText() const;
 	UTextBlock* FindMatchTimerText() const;
+	UWidget* FindPhaseClearContainer() const;
+	UTextBlock* FindPhaseClearCurrentText() const;
+	UTextBlock* FindPhaseClearRequiredText() const;
 	UWidget* FindPublicMaliceAnnouncementWidget() const;
 	UTextBlock* FindPublicMaliceAnnouncementText(const FName& WidgetName) const;
 	void SetPublicMaliceAnnouncementVisible(bool bVisible);
