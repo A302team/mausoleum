@@ -78,6 +78,7 @@ public:
 
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+	virtual void CalcCamera(float DeltaTime, struct FMinimalViewInfo& OutResult) override;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputMappingContext> IMC_Default = nullptr;
