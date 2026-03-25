@@ -60,6 +60,7 @@ public:
 	virtual void ShowDeathSpectatorUI();
 	virtual void HideDeathSpectatorUI();
 	virtual void UpdateDeathSpectatorTargetName(const FString& TargetPlayerName);
+	void ShowGameplayStartTitleCard();
 
 	// Added: Malice BGM Component
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Audio")
@@ -147,16 +148,20 @@ private:
     void HandleReplicatedGamePhaseChanged(EGamePhase PreviousPhase, EGamePhase NewPhase, float PhaseChangedServerTime);
     void QueuePhaseTransition(EGamePhase NewPhase, float PhaseChangedServerTime);
     void FlushQueuedPhaseTransition();
+	void FlushQueuedGameplayStartTitleCard();
 	void NotifyLocalGameplayPawnReady();
     void EnsureLocalVoiceComponent();
 	bool bInGameHUDInitialized = false;
 	bool bHasPendingMatchTimerConfig = false;
 	bool bHasQueuedPhaseTransition = false;
+	bool bHasQueuedGameplayStartTitleCard = false;
 	bool bPendingMatchTimerVisible = false;
 	float PendingMatchTimerStartServerTime = 0.0f;
 	float PendingMatchTimerDurationSeconds = 0.0f;
 	float QueuedPhaseChangedServerTime = 0.0f;
 	EGamePhase QueuedPhaseTransition = EGamePhase::Phase0;
+	FText QueuedGameplayStartTitle;
+	FText QueuedGameplayStartContext;
 	TWeakObjectPtr<AA302GameState> BoundGameState;
 	FTimerHandle DeferredHUDInitTimerHandle;
 	FTimerHandle VoiceRoomCodeRetryTimerHandle;
