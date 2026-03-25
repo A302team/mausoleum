@@ -17,6 +17,7 @@
 #include "Character/Components/TraceHelper.h"
 #include "UI/StatueProgressWidget.h"
 #include "Object/StatueInteractable.h"
+#include "Animation/MyAnimInstance.h"
 
 UInteractComponent::UInteractComponent()
 {
@@ -132,6 +133,29 @@ void UInteractComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 
 	CheckForInteractables();
 	UpdateNearbyHighlights();
+
+	// 스태츄 홀드 중일 때 애니메이션 반복 재생 처리
+	if (bIsHoldingInteraction && Cast<AStatueInteractable>(LastInteractableActor))
+	{
+		ACharacter* OwnerCharacter = GetOwnerCharacter();
+		if (OwnerCharacter && OwnerCharacter->IsLocallyControlled())
+		{
+			if (IA302AnimationBridge* Anim = Cast<IA302AnimationBridge>(OwnerCharacter->GetMesh()->GetAnimInstance()))
+			{
+				if (UAnimInstance* AnimInst = OwnerCharacter->GetMesh()->GetAnimInstance())
+				{
+					if (UMyAnimInstance* MyAnim = Cast<UMyAnimInstance>(AnimInst))
+					{
+						// 몽타주가 재생 중이 아니면 다시 재생
+						if (MyAnim->StatueInteractMontage && !AnimInst->Montage_IsPlaying(MyAnim->StatueInteractMontage))
+						{
+							Anim->PlayStatueInteractAnimation();
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 ACharacter* UInteractComponent::GetOwnerCharacter() const
@@ -347,11 +371,21 @@ bool UInteractComponent::HandleInteractHoldProgress(float DeltaTime)
 				AccumulatedHoldSyncTime = 0.0f;
 			}
 
-			InteractionProgressRatio += (DeltaTime / MaxHoldTime);
+			// 스태츄 상호작용인 경우 StatueMaxHoldTime(7초) 기준으로 프로그레스 계산
+			const bool bIsStatue = Cast<AStatueInteractable>(LastInteractableActor) != nullptr;
+			const float TargetHoldTime = bIsStatue ? StatueMaxHoldTime : MaxHoldTime;
+			
+			InteractionProgressRatio += (DeltaTime / TargetHoldTime);
+			
+			if (bIsStatue)
+			{
+				StatueHoldElapsedTime += DeltaTime;
+			}
           
 			if (InteractionProgressRatio >= 1.0f)
 			{
 				InteractionProgressRatio = 0.0f;
+				StatueHoldElapsedTime = 0.0f;
 				HandleInteractHoldComplete();
 				return true;
 			}
@@ -363,6 +397,7 @@ bool UInteractComponent::HandleInteractHoldProgress(float DeltaTime)
 void UInteractComponent::HandleInteractHoldStarted()
 {
 	bIsHoldingInteraction = true;
+	StatueHoldElapsedTime = 0.0f;
 	
 	// 석상을 홀드할 때만 기존 동그란 상호작용 UI를 숨깁니다. 다른 일반 아이템은 그대로 두게 합니다.
 	if (InteractionWidgetInstance && LastInteractableActor && LastInteractableActor->IsA(AStatueInteractable::StaticClass()))
@@ -396,6 +431,7 @@ void UInteractComponent::HandleInteractHoldStarted()
 void UInteractComponent::HandleInteractHoldComplete()
 {
 	bIsHoldingInteraction = false;
+	StatueHoldElapsedTime = 0.0f;
 	
 	// 숨겼던 기본 UI를 다시 복구해줍니다 (석상 상호작용이 끝난 후 다시 바라볼 때 표시)
 	if (InteractionWidgetInstance && LastInteractableActor)
@@ -406,6 +442,22 @@ void UInteractComponent::HandleInteractHoldComplete()
 	LastInteractedActor = nullptr;
 	ACharacter* OwnerCharacter = GetOwnerCharacter();
 	if (!OwnerCharacter || !LastInteractableActor) return;
+
+	// 프로그레스 100% 완료 시 Statue인 경우 1인칭 카메라로 전환
+	if (OwnerCharacter->IsLocallyControlled() && Cast<AStatueInteractable>(LastInteractableActor))
+	{
+		if (AMyCharacter* MyChar = Cast<AMyCharacter>(OwnerCharacter))
+		{
+			MyChar->SetCameraViewMode(EA302CameraViewMode::FirstPersonChest);
+			UE_LOG(LogTemp, Warning, TEXT("[InteractComponent] Statue 상호작용 완료(100%%) - 1인칭 카메라 전환"));
+		}
+		
+		// 애니메이션 중지
+		if (IA302AnimationBridge* Anim = Cast<IA302AnimationBridge>(OwnerCharacter->GetMesh()->GetAnimInstance()))
+		{
+			Anim->StopStatueInteractAnimation();
+		}
+	}
 
 	if (IInteractableInterface* Interactable = Cast<IInteractableInterface>(LastInteractableActor))
 	{
@@ -428,6 +480,7 @@ void UInteractComponent::HandleInteractHoldComplete()
 void UInteractComponent::HandleInteractHoldCanceled()
 {
 	bIsHoldingInteraction = false;
+	StatueHoldElapsedTime = 0.0f;
 
 	// 상호작용 취소 시에도 숨겨놨던 기본 UI를 복구
 	if (InteractionWidgetInstance && LastInteractableActor)
