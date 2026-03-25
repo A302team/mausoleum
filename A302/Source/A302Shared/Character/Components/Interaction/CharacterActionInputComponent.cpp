@@ -106,6 +106,7 @@ void UCharacterActionInputComponent::OnLook(const FInputActionValue& Value)
 {
 	AMyCharacter* OwnerCharacter = GetOwnerCharacter();
 	if (!OwnerCharacter) return;
+	if (OwnerCharacter->IsDead()) return;
 
 	const FVector2D Axis = Value.Get<FVector2D>();
 	float LookSensitivityMultiplier = 1.0f;
@@ -169,6 +170,15 @@ void UCharacterActionInputComponent::OnAttack(const FInputActionValue& Value)
 {
 	AMyCharacter* OwnerCharacter = GetOwnerCharacter();
 	if (!OwnerCharacter) return;
+
+	if (OwnerCharacter->IsDead())
+	{
+		if (AMyPlayerController* OwnerController = Cast<AMyPlayerController>(OwnerCharacter->GetController()))
+		{
+			OwnerController->CycleAlivePlayerViewTarget();
+		}
+		return;
+	}
 
 	UQuickSlotComponent* QuickSlotComp = OwnerCharacter->FindComponentByClass<UQuickSlotComponent>();
 	UEquipmentComponent* EquipmentComp = OwnerCharacter->FindComponentByClass<UEquipmentComponent>();
