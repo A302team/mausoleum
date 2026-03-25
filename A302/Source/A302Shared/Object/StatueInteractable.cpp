@@ -47,25 +47,32 @@ void AStatueInteractable::OnRep_IsCompleted()
 {
 	if (bIsCompleted)
 	{
-		if (StatueEffectComponent)
-		{
-			if (ExplosionEffectSystem)
-			{
-				StatueEffectComponent->SetAsset(ExplosionEffectSystem);
-				StatueEffectComponent->SetVariableFloat(AlphaParameterName, 1.0f); // 폭발은 원래 밝기
-				StatueEffectComponent->ReinitializeSystem();
-			}
-			else
-			{
-				StatueEffectComponent->Deactivate();
-			}
-		}
+		Multicast_ForcePlayEffectAndDisableCollision_Implementation();
+	}
+}
 
-		// 100% 완료된 석상은 더 이상 상호작용 불가능하도록 레이캐스트(시선) 충돌을 무시합니다.
-		if (Mesh)
+void AStatueInteractable::Multicast_ForcePlayEffectAndDisableCollision_Implementation()
+{
+	if (StatueEffectComponent)
+	{
+		if (ExplosionEffectSystem)
 		{
-			Mesh->SetCollisionResponseToChannel(ECC_Visibility, ECR_Ignore);
+			StatueEffectComponent->SetAsset(ExplosionEffectSystem);
+			StatueEffectComponent->SetVariableFloat(AlphaParameterName, 1.0f); // 폭발은 원래 밝기
+			StatueEffectComponent->ReinitializeSystem();
 		}
+		else
+		{
+			StatueEffectComponent->Deactivate();
+		}
+	}
+
+	// 100% 완료된 석상은 더 이상 상호작용 불가능하도록 모든 컴포넌트의 레이캐스트 충돌을 무시합니다.
+	TArray<UPrimitiveComponent*> Prims;
+	GetComponents<UPrimitiveComponent>(Prims);
+	for (UPrimitiveComponent* Prim : Prims)
+	{
+		Prim->SetCollisionResponseToChannel(ECC_Visibility, ECR_Ignore);
 	}
 }
 
@@ -90,4 +97,19 @@ void AStatueInteractable::OnServerHoldProgress(float DeltaTime, ACharacter* Inte
 			}
 		}
 	}
+}
+
+void AStatueInteractable::ForceComplete()
+{
+	if (!HasAuthority() || bIsCompleted) return;
+
+	CurrentProgress = MaxProgress;
+	bIsCompleted = true;
+	OnRep_CurrentProgress();
+	
+	// 로컬 OnRep 호출 대신, 클라이언트들에게 확실하게 뿌리기 위해 NetMulticast 호출
+	Multicast_ForcePlayEffectAndDisableCollision();
+
+	// Note: We don't trigger the group event reward again to avoid multiple Phase advancement calls,
+	// since this is just forcing the visualization and state for the remaining statues.
 }

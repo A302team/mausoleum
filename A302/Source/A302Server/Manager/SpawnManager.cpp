@@ -196,7 +196,44 @@ bool ASpawnManager::SpawnAndPossessPlayer(APlayerController* PlayerController, T
 
 FTransform ASpawnManager::GetRandomPlayerSpawnTransform(int32 StageNum, const FString& RoomCode) const
 {
-    // 레벨에 배치된 ASpawnArea 중 해당 룸 공간에 있는 것을 탐색합니다.
+    // 1. 최우선적으로 해당 룸의 Phase0 용 APhaseSpawnPoint가 있는지 확인합니다. (사용자 요청 사항)
+    {
+        TArray<AActor*> FoundSpawnPoints;
+        UGameplayStatics::GetAllActorsOfClass(GetWorld(), APhaseSpawnPoint::StaticClass(), FoundSpawnPoints);
+
+        TArray<APhaseSpawnPoint*> ValidPhase0Points;
+        for (AActor* Actor : FoundSpawnPoints)
+        {
+            if (APhaseSpawnPoint* Point = Cast<APhaseSpawnPoint>(Actor))
+            {
+                if (Point->PhaseTarget == EGamePhase::Phase0 && IsPointInRoomSpace(Point->GetActorLocation(), RoomCode))
+                {
+                    ValidPhase0Points.Add(Point);
+                }
+            }
+        }
+
+        if (ValidPhase0Points.Num() > 0)
+        {
+            // 중복 스폰을 방지하기 위해 섞은 후, 첫 번째로 안전한 위치(충돌 없는 위치)를 찾습니다.
+            Algo::RandomShuffle(ValidPhase0Points);
+            for (APhaseSpawnPoint* Point : ValidPhase0Points)
+            {
+                if (IsLocationSafe(Point->GetActorLocation()))
+                {
+                    UE_LOG(LogTemp, Log, TEXT("[SpawnManager] Fount Phase0 SpawnPoint. Empty slot found at (%.0f, %.0f, %.0f) room=%s"), 
+                        Point->GetActorLocation().X, Point->GetActorLocation().Y, Point->GetActorLocation().Z, *RoomCode);
+                    return FTransform(Point->GetActorRotation(), Point->GetActorLocation());
+                }
+            }
+
+            // 만약 6개 모두 누군가 서있다면(예외상황), 그냥 첫 번째 스폰포인트를 반환합니다.
+            UE_LOG(LogTemp, Warning, TEXT("[SpawnManager] All Phase0 SpawnPoints are occupied! Spawning on top of the first one. room=%s"), *RoomCode);
+            return FTransform(ValidPhase0Points[0]->GetActorRotation(), ValidPhase0Points[0]->GetActorLocation());
+        }
+    }
+
+    // 2. APhaseSpawnPoint(Phase0)가 없으면 기존의 ASpawnArea (박스 영역) 랜덤 스폰 로직으로 Fallback
     TArray<AActor*> FoundActors;
     UGameplayStatics::GetAllActorsOfClass(GetWorld(), ASpawnArea::StaticClass(), FoundActors);
 
