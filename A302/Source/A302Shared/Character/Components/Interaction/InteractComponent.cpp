@@ -146,6 +146,12 @@ AMyCharacter* UInteractComponent::GetOwnerCharacterBridge() const
 
 void UInteractComponent::CheckForInteractables()
 {
+	// 상호작용 홀드 중일 때는 시선을 돌려도 타겟팅이 유지되도록 레이캐스트를 중단합니다.
+	if (bIsHoldingInteraction)
+	{
+		return;
+	}
+
 	ACharacter* OwnerCharacter = GetOwnerCharacter();
 	if (!OwnerCharacter || !OwnerCharacter->IsLocallyControlled())
 	{
@@ -356,6 +362,12 @@ bool UInteractComponent::HandleInteractHoldProgress(float DeltaTime)
 
 void UInteractComponent::HandleInteractHoldStarted()
 {
+	bIsHoldingInteraction = true;
+	if (InteractionWidgetInstance)
+	{
+		InteractionWidgetInstance->SetVisibility(ESlateVisibility::Hidden);
+	}
+
 	if (LastInteractableActor)
 	{
 		OnHoldInteractionStarted.Broadcast(LastInteractableActor);
@@ -364,6 +376,7 @@ void UInteractComponent::HandleInteractHoldStarted()
 
 void UInteractComponent::HandleInteractHoldComplete()
 {
+	bIsHoldingInteraction = false;
 	LastInteractedActor = nullptr;
 	ACharacter* OwnerCharacter = GetOwnerCharacter();
 	if (!OwnerCharacter || !LastInteractableActor) return;
@@ -388,6 +401,7 @@ void UInteractComponent::HandleInteractHoldComplete()
 
 void UInteractComponent::HandleInteractHoldCanceled()
 {
+	bIsHoldingInteraction = false;
 	InteractionProgressRatio = 0.0f;
 	AccumulatedHoldSyncTime = 0.0f;
 
