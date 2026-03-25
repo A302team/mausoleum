@@ -781,6 +781,38 @@ void AMyPlayerController::ConfigureMatchTimer(float MatchStartServerTime, float 
 	ApplyMatchTimerConfigToHUD();
 }
 
+void AMyPlayerController::UpdatePhaseClearProgress(uint8 PhaseAsByte, int32 CurrentCount, int32 RequiredCount, bool bVisible)
+{
+	if (HasAuthority() && !IsLocalController())
+	{
+		Client_UpdatePhaseClearProgress(PhaseAsByte, CurrentCount, RequiredCount, bVisible);
+		return;
+	}
+
+	if (AHUD* GameHUD = GetHUD())
+	{
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("UpdatePhaseClearProgress")))
+		{
+			struct FParams
+			{
+				uint8 InPhaseAsByte;
+				int32 InCurrentCount;
+				int32 InRequiredCount;
+				uint8 bInVisible;
+			};
+
+			FParams Params
+			{
+				PhaseAsByte,
+				CurrentCount,
+				RequiredCount,
+				static_cast<uint8>(bVisible ? 1 : 0)
+			};
+			GameHUD->ProcessEvent(Func, &Params);
+		}
+	}
+}
+
 void AMyPlayerController::ShowResultScreen(const FText& Title, const FText& Description, float DisplaySeconds)
 {
 	if (AHUD* GameHUD = GetHUD())
@@ -1092,6 +1124,11 @@ void AMyPlayerController::Client_SetItemTimerVisible_Implementation(bool bVisibl
 void AMyPlayerController::Client_ConfigureMatchTimer_Implementation(float MatchStartServerTime, float DurationSeconds, bool bVisible)
 {
 	ConfigureMatchTimer(MatchStartServerTime, DurationSeconds, bVisible);
+}
+
+void AMyPlayerController::Client_UpdatePhaseClearProgress_Implementation(uint8 PhaseAsByte, int32 CurrentCount, int32 RequiredCount, bool bVisible)
+{
+	UpdatePhaseClearProgress(PhaseAsByte, CurrentCount, RequiredCount, bVisible);
 }
 
 void AMyPlayerController::Client_ShowResultScreen_Implementation(const FText& Title, const FText& Description, float DisplaySeconds)
