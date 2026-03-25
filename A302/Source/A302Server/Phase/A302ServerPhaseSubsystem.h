@@ -65,13 +65,13 @@ public:
     float Phase2Duration = 30.0f;
 
     UPROPERTY(Config, EditAnywhere, Category = "Phase")
-    int32 Phase0RequiredItemCount = 3;
+    int32 Phase0RequiredItemCount = 1;
 
     UPROPERTY(Config, EditAnywhere, Category = "Phase")
-    int32 Phase1RequiredClearObjectCount = 6;
+    int32 Phase1RequiredClearObjectCount = 1;
 
     UPROPERTY(Config, EditAnywhere, Category = "Phase")
-    int32 Phase2RequiredGroupEventCount = 3;
+    int32 Phase2RequiredGroupEventCount = 1;
 
     UPROPERTY(Config, EditAnywhere, Category = "Phase")
     float MatchTimeLimitSeconds = 666.0f;
