@@ -360,6 +360,23 @@ void UInteractComponent::HandleInteractHoldStarted()
 	{
 		OnHoldInteractionStarted.Broadcast(LastInteractableActor);
 	}
+
+	// Statue 상호작용 대상일 때만 로컬 캐릭터에서 몽타주 재생 + 3인칭 전환
+	ACharacter* OwnerCharacter = GetOwnerCharacter();
+	if (OwnerCharacter && OwnerCharacter->IsLocallyControlled() && Cast<AStatueInteractable>(LastInteractableActor))
+	{
+		if (IA302AnimationBridge* Anim = Cast<IA302AnimationBridge>(OwnerCharacter->GetMesh()->GetAnimInstance()))
+		{
+			Anim->PlayStatueInteractAnimation();
+		}
+
+		// 3인칭 카메라로 전환
+		if (AMyCharacter* MyChar = Cast<AMyCharacter>(OwnerCharacter))
+		{
+			MyChar->SetCameraViewMode(EA302CameraViewMode::ThirdPerson);
+			UE_LOG(LogTemp, Warning, TEXT("[InteractComponent] Statue 상호작용 시작 - 3인칭 카메라 전환"));
+		}
+	}
 }
 
 void UInteractComponent::HandleInteractHoldComplete()
@@ -392,6 +409,23 @@ void UInteractComponent::HandleInteractHoldCanceled()
 	AccumulatedHoldSyncTime = 0.0f;
 
 	OnHoldInteractionEnded.Broadcast();
+
+	// Statue 상호작용 몽타주 중지 + 1인칭 복귀 (로컬 캐릭터에서만)
+	ACharacter* OwnerCharacter = GetOwnerCharacter();
+	if (OwnerCharacter && OwnerCharacter->IsLocallyControlled())
+	{
+		if (IA302AnimationBridge* Anim = Cast<IA302AnimationBridge>(OwnerCharacter->GetMesh()->GetAnimInstance()))
+		{
+			Anim->StopStatueInteractAnimation();
+		}
+
+		// 1인칭 카메라로 복귀
+		if (AMyCharacter* MyChar = Cast<AMyCharacter>(OwnerCharacter))
+		{
+			MyChar->SetCameraViewMode(EA302CameraViewMode::FirstPersonChest);
+			UE_LOG(LogTemp, Warning, TEXT("[InteractComponent] Statue 상호작용 취소 - 1인칭 카메라 복귀"));
+		}
+	}
 }
 
 void UInteractComponent::OnInteractHoldProgress(const FInputActionValue& Value)
@@ -506,7 +540,18 @@ void UInteractComponent::InteractionCompleteResult()
 
 	if (IA302AnimationBridge* Anim = Cast<IA302AnimationBridge>(OwnerCharacter->GetMesh()->GetAnimInstance()))
 	{
+		Anim->StopStatueInteractAnimation();
 		Anim->PlayInteractAnimation();
+	}
+
+	// Statue 상호작용 완료 시 1인칭 복귀
+	if (OwnerCharacter->IsLocallyControlled() && Cast<AStatueInteractable>(LastInteractedActor))
+	{
+		if (AMyCharacter* MyChar = Cast<AMyCharacter>(OwnerCharacter))
+		{
+			MyChar->SetCameraViewMode(EA302CameraViewMode::FirstPersonChest);
+			UE_LOG(LogTemp, Warning, TEXT("[InteractComponent] Statue 상호작용 완료 - 1인칭 카메라 복귀"));
+		}
 	}
 
 	ABaseInteractable* Interactable = Cast<ABaseInteractable>(LastInteractedActor);
