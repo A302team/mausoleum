@@ -45,6 +45,9 @@ public:
     void SetGamePhase(EGamePhase NewGamePhase, float ChangedServerTime);
     void SetMatchTimer(float StartServerTime, float TimeLimitSeconds);
 
+    UFUNCTION(BlueprintImplementableEvent, Category = "Phase")
+    void Bp_OnEscapeUnlocked(const TArray<AActor*>& TargetActors);
+
     FOnGamePhaseChangedNative& OnGamePhaseChanged() { return GamePhaseChangedDelegate; }
 
     virtual void GetLifetimeReplicatedProps(
@@ -53,6 +56,8 @@ public:
 private:
     UFUNCTION()
     void OnRep_GamePhase();
+
+    void HandlePhaseEnded();
 
     EGamePhase LastNotifiedGamePhase = EGamePhase::Phase0;
     FOnGamePhaseChangedNative GamePhaseChangedDelegate;
