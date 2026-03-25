@@ -12,6 +12,7 @@
 #include "GamePlay/Events/GroupEvents/BaseGroupEvent.h"
 #include "Object/BaseInteractable.h"
 #include "Interface/A302ServerRewardBridge.h"
+#include "Interface/A302ServerRewardSignals.h"
 #include "A302GameplayGuards.h"
 #include "Engine/World.h"
 #include "GameFramework/GameModeBase.h"
@@ -311,6 +312,10 @@ void UCharacterRewardComponent::ResolveInteractionRewardOnServer(ABaseInteractab
 		if (IA302ServerRewardBridge* RewardBridge = Cast<IA302ServerRewardBridge>(GetWorld() ? GetWorld()->GetAuthGameMode() : nullptr))
 		{
 			RewardBridge->NotifyInteractionRewardResolved(OwnerCharacter, RewardDefinition, EffectiveCategory);
+		}
+		else if (OwnerCharacter->HasAuthority())
+		{
+			A302GetServerRewardResolvedSignal().Broadcast(OwnerCharacter, RewardDefinition, EffectiveCategory);
 		}
 	}
 
