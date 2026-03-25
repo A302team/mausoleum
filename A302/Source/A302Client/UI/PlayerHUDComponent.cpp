@@ -501,6 +501,33 @@ void UPlayerHUDComponent::UpdatePhaseClearProgress(uint8 PhaseAsByte, int32 Curr
 		return;
 	}
 
+	FText QuestNameText = FText::FromString(TEXT("Stage 1"));
+	FText QuestContextText = FText::FromString(TEXT("생존을 위한 아이템을 모으세요."));
+
+	switch (static_cast<EGamePhase>(PhaseAsByte))
+	{
+	case EGamePhase::Phase1:
+		QuestNameText = FText::FromString(TEXT("Stage 2"));
+		QuestContextText = FText::FromString(TEXT("탈출을 위한 오브젝트를 모으세요."));
+		break;
+	case EGamePhase::Phase2:
+		QuestNameText = FText::FromString(TEXT("Stage 3"));
+		QuestContextText = FText::FromString(TEXT("탈출을 위해서는 모든 조각상을 정화해야합니다."));
+		break;
+	default:
+		break;
+	}
+
+	if (UTextBlock* QuestNameBlock = FindQuestNameText())
+	{
+		QuestNameBlock->SetText(QuestNameText);
+	}
+
+	if (UTextBlock* QuestContextBlock = FindQuestContextText())
+	{
+		QuestContextBlock->SetText(QuestContextText);
+	}
+
 	const bool bShouldShow = bVisible && PhaseAsByte != static_cast<uint8>(EGamePhase::Ended);
 	PhaseClearContainer->SetVisibility(bShouldShow ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
 
@@ -799,12 +826,7 @@ UWidget* UPlayerHUDComponent::FindPhaseClearContainer() const
 		return nullptr;
 	}
 
-	if (UWidget* PhaseClearWidget = QuickSlotBarWidget->GetWidgetFromName(TEXT("WBP_Phase0Clear")))
-	{
-		return PhaseClearWidget;
-	}
-
-	return QuickSlotBarWidget->GetWidgetFromName(TEXT("Phase0Clear"));
+	return QuickSlotBarWidget->GetWidgetFromName(TEXT("WBP_PhaseClear"));
 }
 
 UTextBlock* UPlayerHUDComponent::FindPhaseClearCurrentText() const
@@ -841,6 +863,16 @@ UTextBlock* UPlayerHUDComponent::FindPhaseClearRequiredText() const
 	}
 
 	return Cast<UTextBlock>(QuickSlotBarWidget->GetWidgetFromName(TEXT("NumOfPhaseCollect")));
+}
+
+UTextBlock* UPlayerHUDComponent::FindQuestNameText() const
+{
+	return QuickSlotBarWidget ? Cast<UTextBlock>(QuickSlotBarWidget->GetWidgetFromName(TEXT("QuestName"))) : nullptr;
+}
+
+UTextBlock* UPlayerHUDComponent::FindQuestContextText() const
+{
+	return QuickSlotBarWidget ? Cast<UTextBlock>(QuickSlotBarWidget->GetWidgetFromName(TEXT("QuestContext"))) : nullptr;
 }
 
 UWidget* UPlayerHUDComponent::FindPublicMaliceAnnouncementWidget() const
