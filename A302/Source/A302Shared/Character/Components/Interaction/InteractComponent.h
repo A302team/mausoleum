@@ -71,7 +71,7 @@ public:
 	float AccumulatedHoldSyncTime = 0.0f;
 
 	UPROPERTY(EditAnywhere, Category = "Interaction")
-	float MaxHoldTime = 2.0f;
+	float MaxHoldTime = 7.0f; // 애니메이션 길이와 맞춰서 설정 (예시: 7초)
 	
 	UPROPERTY(EditAnywhere, Category = "Interaction")
 	float InteractionDistance = 300.f;
