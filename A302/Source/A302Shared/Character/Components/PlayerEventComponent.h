@@ -35,7 +35,7 @@ public:
 	void ClearTimedKillEvent(UObject* EventInstance);
 	void SetTimedKnifeAttackInProgress(bool bInProgress);
 	bool IsTimedKnifeAttackInProgress() const { return bTimedKnifeAttackInProgress; }
-	void StartTimedKnifeCountdown(float DurationSeconds, const FName& ItemId);
+	void StartTimedKnifeCountdown(float DurationSeconds, const FName& ItemId, const FText& Title = FText());
 	void StopTimedKnifeCountdown(bool bHideTimer, bool bConsumeItem);
 
 	UFUNCTION(Client, Reliable)
@@ -86,6 +86,9 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item|Timed", meta = (AllowPrivateAccess = "true"))
 	FName ActiveTimedKnifeItemId = NAME_None;
+
+	UPROPERTY()
+	FText ActiveTimedKnifeTitle;
 
 	FTimerHandle TimedKnifeCountdownTimerHandle;
 

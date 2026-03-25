@@ -5,6 +5,8 @@
 #include "Character/MyCharacter.h"
 #include "Character/Components/PlayerEventComponent.h"
 #include "GameData/Items/ItemDefinition.h"
+#include "Character/Components/PlayerEventComponent.h"
+#include "GameData/Items/ItemDefinition.h"
 #include "Character/Components/Combat/EquipmentComponent.h"
 
 void UItemCursedSword::OnItemAcquired(ACharacter* OwnerCharacter) const
@@ -25,7 +27,10 @@ void UItemCursedSword::OnItemAcquired(ACharacter* OwnerCharacter) const
 	if (UPlayerEventComponent* PlayerEventComponent = OwnerCharacter->FindComponentByClass<UPlayerEventComponent>())
 	{
 		constexpr float TimedKnifeDurationSeconds = 10.0f;
-		PlayerEventComponent->StartTimedKnifeCountdown(TimedKnifeDurationSeconds, Definition->ItemId);
+		const FText Title = Definition->DisplayName.IsEmpty()
+			? FText::FromString(TEXT("저주받은 검"))
+			: Definition->DisplayName;
+		PlayerEventComponent->StartTimedKnifeCountdown(TimedKnifeDurationSeconds, Definition->ItemId, Title);
 	}
 }
 
