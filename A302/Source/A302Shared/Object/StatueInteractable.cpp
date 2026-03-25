@@ -60,6 +60,12 @@ void AStatueInteractable::OnRep_IsCompleted()
 				StatueEffectComponent->Deactivate();
 			}
 		}
+
+		// 100% 완료된 석상은 더 이상 상호작용 불가능하도록 레이캐스트(시선) 충돌을 무시합니다.
+		if (Mesh)
+		{
+			Mesh->SetCollisionResponseToChannel(ECC_Visibility, ECR_Ignore);
+		}
 	}
 }
 
