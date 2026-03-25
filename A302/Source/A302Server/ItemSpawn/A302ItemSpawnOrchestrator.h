@@ -8,7 +8,7 @@
 class ABaseInteractable;
 class AItemSpawnArea;
 class UGameInstance;
-class UItemDefinition;
+class URewardDefinition;
 class UItemSpawnPolicy;
 class UStaticMesh;
 enum class EInteractType : uint8;
@@ -48,7 +48,7 @@ struct FItemSpawnRuntimeEntry
 	GENERATED_BODY()
 
 	UPROPERTY()
-	TObjectPtr<UItemDefinition> ItemDefinition = nullptr;
+	TObjectPtr<URewardDefinition> RewardDefinition = nullptr;
 
 	UPROPERTY()
 	int32 MinSpawnCount = 0;
@@ -120,7 +120,7 @@ private:
 	void CleanupInvalidActorRefs(FRoomItemSpawnRuntimeState& RoomState) const;
 	void DestroyRoomActors(FRoomItemSpawnRuntimeState& RoomState) const;
 	void DestroyPhaseActors(FRoomItemSpawnRuntimeState& RoomState, EGamePhase PhaseToKeep) const;
-	bool IsSpawnableItemDefinition(const UItemDefinition* ItemDefinition) const;
+	bool IsSpawnableRewardDefinition(const URewardDefinition* RewardDefinition) const;
 	UStaticMesh* PickWeightedWorldMesh(const TArray<FSpawnVisualRuntimeEntry>& VisualEntries) const;
 	EInteractType PickWeightedInteractType(float HoldWeight, float QTEWeight) const;
 	static FString NormalizeRoomCode(const FString& RoomCode);
