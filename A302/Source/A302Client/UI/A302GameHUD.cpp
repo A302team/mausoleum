@@ -3,12 +3,14 @@
 #include "Components/Border.h"
 #include "Components/TextBlock.h"
 #include "Components/PanelWidget.h"
+#include "Components/Widget.h"
 #include "UI/PersonalEventWidget.h"
 #include "UI/PlayerHUDComponent.h"
 #include "UI/StatueProgressWidget.h"
 #include "UObject/ConstructorHelpers.h"
 #include "TimerManager.h"
 #include "Engine/World.h"
+#include "Blueprint/WidgetTree.h"
 
 AA302GameHUD::AA302GameHUD()
 {
@@ -75,6 +77,12 @@ AA302GameHUD::AA302GameHUD()
 	if (ResultWidgetBPClass.Succeeded())
 	{
 		ResultWidgetClass = ResultWidgetBPClass.Class;
+	}
+
+	static ConstructorHelpers::FClassFinder<UUserWidget> DieWidgetBPClass(TEXT("/Game/WorkSpace/UI/WBP_Die"));
+	if (DieWidgetBPClass.Succeeded())
+	{
+		DieWidgetClass = DieWidgetBPClass.Class;
 	}
 
 	PlayerHUDComponent = CreateDefaultSubobject<UPlayerHUDComponent>(TEXT("PlayerHUDComponent"));
@@ -691,4 +699,126 @@ void AA302GameHUD::ShowResultScreen(const FText& Title, const FText& Description
 	PC->bShowMouseCursor = true;
 	PC->bEnableClickEvents = true;
 	PC->bEnableMouseOverEvents = true;
+}
+
+void AA302GameHUD::ShowDeathSpectatorUI()
+{
+	APlayerController* PC = GetOwningPlayerController();
+	if (!PC)
+	{
+		return;
+	}
+
+	if (!DieWidgetClass)
+	{
+		if (UClass* LoadedDieClass = LoadClass<UUserWidget>(nullptr, TEXT("/Game/WorkSpace/UI/WBP_Die.WBP_Die_C")))
+		{
+			DieWidgetClass = LoadedDieClass;
+		}
+	}
+
+	if (!DieWidgetClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[A302GameHUD] Die widget class is missing."));
+		return;
+	}
+
+	if (!DieWidgetInstance)
+	{
+		DieWidgetInstance = CreateWidget<UUserWidget>(PC, DieWidgetClass);
+	}
+
+	if (!DieWidgetInstance)
+	{
+		return;
+	}
+
+	if (!DieWidgetInstance->IsInViewport())
+	{
+		DieWidgetInstance->AddToViewport(290);
+	}
+
+	DieWidgetInstance->SetVisibility(ESlateVisibility::Visible);
+	SetDeathWidgetOtherPlayerSectionVisible(false);
+
+	if (UWidget* YouDiedImage = DieWidgetInstance->GetWidgetFromName(TEXT("YouDiedImage")))
+	{
+		YouDiedImage->SetVisibility(ESlateVisibility::Visible);
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(DieWidgetIntroTimerHandle);
+		World->GetTimerManager().SetTimer(
+			DieWidgetIntroTimerHandle,
+			this,
+			&AA302GameHUD::HandleDeathWidgetIntroFinished,
+			3.0f,
+			false
+		);
+	}
+}
+
+void AA302GameHUD::HideDeathSpectatorUI()
+{
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(DieWidgetIntroTimerHandle);
+	}
+
+	if (DieWidgetInstance)
+	{
+		DieWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+	}
+}
+
+void AA302GameHUD::UpdateDeathSpectatorTargetName(const FString& TargetPlayerName)
+{
+	if (!DieWidgetInstance)
+	{
+		return;
+	}
+
+	if (UTextBlock* OtherPlayerNameText = Cast<UTextBlock>(DieWidgetInstance->GetWidgetFromName(TEXT("OtherPlayerName"))))
+	{
+		OtherPlayerNameText->SetText(FText::FromString(TargetPlayerName));
+	}
+}
+
+void AA302GameHUD::SetDeathWidgetOtherPlayerSectionVisible(bool bVisible)
+{
+	if (!DieWidgetInstance || !DieWidgetInstance->WidgetTree)
+	{
+		return;
+	}
+
+	TArray<UWidget*> AllWidgets;
+	DieWidgetInstance->WidgetTree->GetAllWidgets(AllWidgets);
+	for (UWidget* Widget : AllWidgets)
+	{
+		if (!Widget)
+		{
+			continue;
+		}
+
+		if (Widget->GetName().StartsWith(TEXT("OtherPlayer"), ESearchCase::CaseSensitive))
+		{
+			Widget->SetVisibility(bVisible ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+		}
+	}
+}
+
+void AA302GameHUD::HandleDeathWidgetIntroFinished()
+{
+	if (!DieWidgetInstance)
+	{
+		return;
+	}
+
+	if (UWidget* YouDiedImage = DieWidgetInstance->GetWidgetFromName(TEXT("YouDiedImage")))
+	{
+		YouDiedImage->SetVisibility(ESlateVisibility::Collapsed);
+	}
+
+	SetDeathWidgetOtherPlayerSectionVisible(true);
 }
