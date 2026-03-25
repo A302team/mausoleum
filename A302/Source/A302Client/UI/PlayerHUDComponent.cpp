@@ -49,6 +49,42 @@ namespace
 	const TCHAR* InterfaceVolumeConfigKey = TEXT("InterfaceVolume");
 	constexpr float DefaultInspectMaliceSelectionTimeoutSeconds = 10.0f;
 	constexpr float DefaultInspectMaliceResultDisplaySeconds = 3.0f;
+	const TCHAR* PhaseSubsystemConfigSection = TEXT("/Script/A302Server.A302ServerPhaseSubsystem");
+
+	int32 GetConfiguredRequiredCount(EGamePhase Phase)
+	{
+		const TCHAR* ConfigKey = nullptr;
+		switch (Phase)
+		{
+		case EGamePhase::Phase0:
+			ConfigKey = TEXT("Phase0RequiredItemCount");
+			break;
+		case EGamePhase::Phase1:
+			ConfigKey = TEXT("Phase1RequiredClearObjectCount");
+			break;
+		case EGamePhase::Phase2:
+			ConfigKey = TEXT("Phase2RequiredGroupEventCount");
+			break;
+		default:
+			return 0;
+		}
+
+		int32 Value = 0;
+		if (GConfig)
+		{
+			if (GConfig->GetInt(PhaseSubsystemConfigSection, ConfigKey, Value, GGameIni))
+			{
+				return FMath::Max(0, Value);
+			}
+
+			if (GConfig->GetInt(PhaseSubsystemConfigSection, ConfigKey, Value, GEngineIni))
+			{
+				return FMath::Max(0, Value);
+			}
+		}
+
+		return 0;
+	}
 
 	FText BuildClockText(float RemainingSeconds)
 	{
@@ -496,10 +532,6 @@ void UPlayerHUDComponent::ConfigureMatchTimer(float MatchStartServerTime, float 
 void UPlayerHUDComponent::UpdatePhaseClearProgress(uint8 PhaseAsByte, int32 CurrentCount, int32 RequiredCount, bool bVisible)
 {
 	UWidget* PhaseClearContainer = FindPhaseClearContainer();
-	if (!PhaseClearContainer)
-	{
-		return;
-	}
 
 	FText QuestNameText = FText::FromString(TEXT("Stage 1"));
 	FText QuestContextText = FText::FromString(TEXT("생존을 위한 아이템을 모으세요."));
@@ -529,7 +561,10 @@ void UPlayerHUDComponent::UpdatePhaseClearProgress(uint8 PhaseAsByte, int32 Curr
 	}
 
 	const bool bShouldShow = bVisible && PhaseAsByte != static_cast<uint8>(EGamePhase::Ended);
-	PhaseClearContainer->SetVisibility(bShouldShow ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	if (PhaseClearContainer)
+	{
+		PhaseClearContainer->SetVisibility(bShouldShow ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	}
 
 	if (!bShouldShow)
 	{
@@ -647,7 +682,8 @@ void UPlayerHUDComponent::InitializeQuickSlotWidget()
 		MatchTimerText->SetVisibility(ESlateVisibility::Hidden);
 	}
 
-	UpdatePhaseClearProgress(static_cast<uint8>(EGamePhase::Phase0), 0, 0, false);
+	const int32 InitialPhase0RequiredCount = GetConfiguredRequiredCount(EGamePhase::Phase0);
+	UpdatePhaseClearProgress(static_cast<uint8>(EGamePhase::Phase0), 0, InitialPhase0RequiredCount, true);
 }
 
 void UPlayerHUDComponent::InitializeQuickSlotVisualState()
@@ -826,7 +862,21 @@ UWidget* UPlayerHUDComponent::FindPhaseClearContainer() const
 		return nullptr;
 	}
 
-	return QuickSlotBarWidget->GetWidgetFromName(TEXT("WBP_PhaseClear"));
+	static const FName CandidateNames[] =
+	{
+		TEXT("WBP_PhaseClear"),
+		TEXT("WBP_Phase0Clear")
+	};
+
+	for (const FName& CandidateName : CandidateNames)
+	{
+		if (UWidget* FoundWidget = QuickSlotBarWidget->GetWidgetFromName(CandidateName))
+		{
+			return FoundWidget;
+		}
+	}
+
+	return nullptr;
 }
 
 UTextBlock* UPlayerHUDComponent::FindPhaseClearCurrentText() const
