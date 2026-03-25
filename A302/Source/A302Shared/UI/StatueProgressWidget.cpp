@@ -56,12 +56,17 @@ void UStatueProgressWidget::NativeTick(const FGeometry& MyGeometry, float InDelt
 
 	if (CurrentStatue && ProgressBar_Progress)
 	{
-		float Ratio = 0.0f;
+		float TargetRatio = 0.0f;
 		if (CurrentStatue->MaxProgress > 0.0f)
 		{
-			Ratio = FMath::Clamp(CurrentStatue->CurrentProgress / CurrentStatue->MaxProgress, 0.0f, 1.0f);
+			TargetRatio = FMath::Clamp(CurrentStatue->CurrentProgress / CurrentStatue->MaxProgress, 0.0f, 1.0f);
 		}
-		ProgressBar_Progress->SetPercent(Ratio);
+		
+		float CurrentRatio = ProgressBar_Progress->GetPercent();
+		// 서버에서 값(0.25초 주기)이 튀어도 게이지가 부드럽게 차오르도록 보간 처리 (InterpSpeed: 5.0f)
+		float SmoothRatio = FMath::FInterpTo(CurrentRatio, TargetRatio, InDeltaTime, 5.0f);
+		
+		ProgressBar_Progress->SetPercent(SmoothRatio);
 	}
 }
 
