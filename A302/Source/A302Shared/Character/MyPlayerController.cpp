@@ -9,6 +9,7 @@
 #include "GameMode/A302PlayerState.h"
 #include "GameData/Items/ItemDefinition.h"
 #include "GameFramework/Pawn.h"
+#include "GameFramework/GameStateBase.h"
 #include "GameFramework/PlayerState.h"
 #include "InputMappingContext.h"
 #include "UObject/ConstructorHelpers.h"
@@ -215,6 +216,15 @@ void AMyPlayerController::BeginPlay()
 void AMyPlayerController::AcknowledgePossession(APawn* P)
 {
 	Super::AcknowledgePossession(P);
+	DeadSpectateCycleIndex = INDEX_NONE;
+
+	if (const AA302PlayerState* A302PlayerState = GetPlayerState<AA302PlayerState>())
+	{
+		if (A302PlayerState->bIsAlive)
+		{
+			HideDeathSpectatorUI();
+		}
+	}
 
 #if !UE_SERVER
 	if (IsLocalController() && ShouldAttemptGameplayHUDInitialization())
@@ -229,8 +239,17 @@ void AMyPlayerController::AcknowledgePossession(APawn* P)
 void AMyPlayerController::OnRep_Pawn()
 {
 	Super::OnRep_Pawn();
+	DeadSpectateCycleIndex = INDEX_NONE;
+
+	if (const AA302PlayerState* A302PlayerState = GetPlayerState<AA302PlayerState>())
+	{
+		if (A302PlayerState->bIsAlive)
+		{
+			HideDeathSpectatorUI();
+		}
+	}
+
 	EnsureLocalVoiceComponent();
-	NotifyLocalGameplayPawnReady();
 
 #if !UE_SERVER
 	if (IsLocalController() && ShouldAttemptGameplayHUDInitialization())
@@ -798,6 +817,148 @@ void AMyPlayerController::ShowItemDescription(const FText& ItemName, const FText
 			GameHUD->ProcessEvent(Func, &Params);
 		}
 	}
+}
+
+void AMyPlayerController::ShowDeathSpectatorUI()
+{
+	if (AHUD* GameHUD = GetHUD())
+	{
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("ShowDeathSpectatorUI")))
+		{
+			GameHUD->ProcessEvent(Func, nullptr);
+		}
+	}
+
+	FString CurrentViewTargetName;
+	if (const APawn* CurrentViewPawn = Cast<APawn>(GetViewTarget()))
+	{
+		if (const APlayerState* ViewPlayerState = CurrentViewPawn->GetPlayerState())
+		{
+			CurrentViewTargetName = ViewPlayerState->GetPlayerName();
+		}
+
+		if (CurrentViewTargetName.IsEmpty())
+		{
+			CurrentViewTargetName = CurrentViewPawn->GetName();
+		}
+	}
+
+	UpdateDeathSpectatorTargetName(CurrentViewTargetName);
+}
+
+void AMyPlayerController::HideDeathSpectatorUI()
+{
+	if (AHUD* GameHUD = GetHUD())
+	{
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("HideDeathSpectatorUI")))
+		{
+			GameHUD->ProcessEvent(Func, nullptr);
+		}
+	}
+}
+
+void AMyPlayerController::UpdateDeathSpectatorTargetName(const FString& TargetPlayerName)
+{
+	if (AHUD* GameHUD = GetHUD())
+	{
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("UpdateDeathSpectatorTargetName")))
+		{
+			struct FParams
+			{
+				FString InTargetPlayerName;
+			};
+
+			FParams Params{ TargetPlayerName };
+			GameHUD->ProcessEvent(Func, &Params);
+		}
+	}
+}
+
+void AMyPlayerController::CycleAlivePlayerViewTarget()
+{
+	if (!IsLocalController())
+	{
+		return;
+	}
+
+	APawn* ControlledPawn = GetPawn();
+	const AA302PlayerState* LocalPlayerState = GetPlayerState<AA302PlayerState>();
+	if (!ControlledPawn || !LocalPlayerState || LocalPlayerState->bIsAlive)
+	{
+		return;
+	}
+
+	auto ResolveDisplayNameFromPawn = [](const APawn* InPawn) -> FString
+	{
+		if (!InPawn)
+		{
+			return FString();
+		}
+
+		if (const APlayerState* InPlayerState = InPawn->GetPlayerState())
+		{
+			const FString PlayerName = InPlayerState->GetPlayerName();
+			if (!PlayerName.IsEmpty())
+			{
+				return PlayerName;
+			}
+		}
+
+		return InPawn->GetName();
+	};
+
+	AGameStateBase* GameState = GetWorld() ? GetWorld()->GetGameState() : nullptr;
+	if (!GameState)
+	{
+		return;
+	}
+
+	TArray<APawn*> AliveCandidatePawns;
+	AliveCandidatePawns.Reserve(GameState->PlayerArray.Num());
+
+	for (APlayerState* CandidatePlayerState : GameState->PlayerArray)
+	{
+		const AA302PlayerState* CandidateA302State = Cast<AA302PlayerState>(CandidatePlayerState);
+		if (!CandidateA302State || !CandidateA302State->bIsAlive || CandidateA302State->bIsEscaped)
+		{
+			continue;
+		}
+
+		if (!A302RoomScope::ArePlayersInSameLogicalRoom(LocalPlayerState, CandidateA302State))
+		{
+			continue;
+		}
+
+		APawn* CandidatePawn = CandidatePlayerState ? CandidatePlayerState->GetPawn() : nullptr;
+		if (!CandidatePawn || CandidatePawn == ControlledPawn)
+		{
+			continue;
+		}
+
+		AliveCandidatePawns.Add(CandidatePawn);
+	}
+
+	if (AliveCandidatePawns.Num() == 0)
+	{
+		DeadSpectateCycleIndex = INDEX_NONE;
+		SetViewTarget(ControlledPawn);
+		UpdateDeathSpectatorTargetName(ResolveDisplayNameFromPawn(ControlledPawn));
+		return;
+	}
+
+	AliveCandidatePawns.Sort([](const APawn& LeftPawn, const APawn& RightPawn)
+	{
+		const APlayerState* LeftState = LeftPawn.GetPlayerState();
+		const APlayerState* RightState = RightPawn.GetPlayerState();
+		const int32 LeftPlayerId = LeftState ? LeftState->GetPlayerId() : MAX_int32;
+		const int32 RightPlayerId = RightState ? RightState->GetPlayerId() : MAX_int32;
+		return LeftPlayerId < RightPlayerId;
+	});
+
+	DeadSpectateCycleIndex = (DeadSpectateCycleIndex + 1) % AliveCandidatePawns.Num();
+	APawn* SpectateTargetPawn = AliveCandidatePawns[DeadSpectateCycleIndex];
+	SetViewTargetWithBlend(SpectateTargetPawn, 0.15f);
+	UpdateDeathSpectatorTargetName(ResolveDisplayNameFromPawn(SpectateTargetPawn));
 }
 
 void AMyPlayerController::ToggleVoiceChatCapture()

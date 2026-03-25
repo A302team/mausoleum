@@ -55,6 +55,10 @@ public:
 	virtual void ShowResultScreen(const FText& Title, const FText& Description, float DisplaySeconds);
 	virtual void ShowItemDescription(const FText& ItemName, const FText& Description, float DisplaySeconds);
 	virtual void ToggleVoiceChatCapture();
+	virtual void CycleAlivePlayerViewTarget();
+	virtual void ShowDeathSpectatorUI();
+	virtual void HideDeathSpectatorUI();
+	virtual void UpdateDeathSpectatorTargetName(const FString& TargetPlayerName);
 
 	// Added: Malice BGM Component
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Audio")
@@ -153,4 +157,5 @@ private:
 	FTimerHandle DeferredHUDInitTimerHandle;
 	FTimerHandle VoiceRoomCodeRetryTimerHandle;
 	int32 VoiceRoomCodeRetryCount = 0;
+	int32 DeadSpectateCycleIndex = INDEX_NONE;
 };
