@@ -66,6 +66,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Combat")
     UAnimMontage* TimeKnifeMontage;
 
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Interaction")
+    UAnimMontage* StatueInteractMontage;
+
 
     // Gameplay → AnimInstance 호출용 함수
 
@@ -84,11 +87,19 @@ public:
     UFUNCTION(BlueprintCallable)
     void PlayTimeKnifeMontage();
 
+    UFUNCTION(BlueprintCallable)
+    void PlayStatueInteractMontage();
+
+    UFUNCTION(BlueprintCallable)
+    void StopStatueInteractMontage();
+
     virtual void PlayAttackAnimation() override;
     virtual void PlayBlockAnimation() override;
     virtual void PlayInteractAnimation() override;
     virtual void PlayDeathAnimation() override;
     virtual void PlayTimeKnifeAnimation() override;
+    virtual void PlayStatueInteractAnimation() override;
+    virtual void StopStatueInteractAnimation() override;
 
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
