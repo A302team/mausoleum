@@ -363,7 +363,9 @@ bool UInteractComponent::HandleInteractHoldProgress(float DeltaTime)
 void UInteractComponent::HandleInteractHoldStarted()
 {
 	bIsHoldingInteraction = true;
-	if (InteractionWidgetInstance)
+	
+	// 석상을 홀드할 때만 기존 동그란 상호작용 UI를 숨깁니다. 다른 일반 아이템은 그대로 두게 합니다.
+	if (InteractionWidgetInstance && LastInteractableActor && LastInteractableActor->IsA(AStatueInteractable::StaticClass()))
 	{
 		InteractionWidgetInstance->SetVisibility(ESlateVisibility::Hidden);
 	}
@@ -377,6 +379,13 @@ void UInteractComponent::HandleInteractHoldStarted()
 void UInteractComponent::HandleInteractHoldComplete()
 {
 	bIsHoldingInteraction = false;
+	
+	// 숨겼던 기본 UI를 다시 복구해줍니다 (석상 상호작용이 끝난 후 다시 바라볼 때 표시)
+	if (InteractionWidgetInstance && LastInteractableActor)
+	{
+		InteractionWidgetInstance->SetVisibility(ESlateVisibility::Visible);
+	}
+
 	LastInteractedActor = nullptr;
 	ACharacter* OwnerCharacter = GetOwnerCharacter();
 	if (!OwnerCharacter || !LastInteractableActor) return;
@@ -402,6 +411,13 @@ void UInteractComponent::HandleInteractHoldComplete()
 void UInteractComponent::HandleInteractHoldCanceled()
 {
 	bIsHoldingInteraction = false;
+
+	// 상호작용 취소 시에도 숨겨놨던 기본 UI를 복구
+	if (InteractionWidgetInstance && LastInteractableActor)
+	{
+		InteractionWidgetInstance->SetVisibility(ESlateVisibility::Visible);
+	}
+
 	InteractionProgressRatio = 0.0f;
 	AccumulatedHoldSyncTime = 0.0f;
 
