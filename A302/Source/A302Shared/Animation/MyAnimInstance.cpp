@@ -180,7 +180,7 @@ void UMyAnimInstance::PlayStatueInteractMontage()
 
     if (!Montage_IsPlaying(StatueInteractMontage))
     {
-        Montage_Play(StatueInteractMontage);
+        Montage_Play(StatueInteractMontage, 1.0f);
     }
 }
 
