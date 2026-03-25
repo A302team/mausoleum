@@ -56,6 +56,9 @@ public:
 	virtual void ShowItemDescription(const FText& ItemName, const FText& Description, float DisplaySeconds);
 	virtual void ToggleVoiceChatCapture();
 	virtual void CycleAlivePlayerViewTarget();
+	virtual void ShowDeathSpectatorUI();
+	virtual void HideDeathSpectatorUI();
+	virtual void UpdateDeathSpectatorTargetName(const FString& TargetPlayerName);
 
 	// Added: Malice BGM Component
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Audio")
