@@ -22,6 +22,22 @@ namespace
         return false;
 #endif
     }
+
+    int32 ResolveSpawnStageFromPhase(EGamePhase Phase)
+    {
+        switch (Phase)
+        {
+        case EGamePhase::Phase0:
+            return 1;
+        case EGamePhase::Phase1:
+            return 2;
+        case EGamePhase::Phase2:
+            return 3;
+        case EGamePhase::Ended:
+        default:
+            return 1;
+        }
+    }
 }
 
 void UA302ServerPlayerSubsystem::HandlePlayerLogin(APlayerController* NewPlayer)
@@ -175,22 +191,36 @@ void UA302ServerPlayerSubsystem::QueueSpawnPlayer(APlayerController* PlayerContr
         );
     }
 
+    int32 SpawnStage = 1;
+    if (PlayerRoomCode.Len() > 0 && GetWorld())
+    {
+        if (UA302ServerPhaseSubsystem* PhaseSubsystem = GetWorld()->GetGameInstance()->GetSubsystem<UA302ServerPhaseSubsystem>())
+        {
+            FA302RoomPhaseState RoomPhaseState;
+            if (PhaseSubsystem->TryGetRoomPhaseState(PlayerRoomCode, RoomPhaseState))
+            {
+                SpawnStage = ResolveSpawnStageFromPhase(RoomPhaseState.CurrentPhase);
+            }
+        }
+    }
+
     ASpawnManager* SpawnManager = ASpawnManager::FindOrSpawn(GetWorld());
     if (SpawnManager)
     {
         SpawnManager->QueueSpawnAndPossessPlayer(
             PlayerController,
             GM->CharacterClass,
-            1, // Default Stage
+            SpawnStage,
             PlayerRoomCode,
             3.0f // 레벨 스트리밍 후 물리 콜리전 초기화 대기 (1.0f → 3.0f)
         );
         UE_LOG(
             LogTemp,
             Log,
-            TEXT("[ServerPlayerSubsystem] QueueSpawnPlayer queued. player=%s room=%s force=%s"),
+            TEXT("[ServerPlayerSubsystem] QueueSpawnPlayer queued. player=%s room=%s stage=%d force=%s"),
             *GetNameSafe(PlayerController),
             *PlayerRoomCode,
+            SpawnStage,
             bForceSpawn ? TEXT("true") : TEXT("false")
         );
     }

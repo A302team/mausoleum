@@ -68,7 +68,7 @@ public:
     int32 Phase0RequiredItemCount = 3;
 
     UPROPERTY(Config, EditAnywhere, Category = "Phase")
-    int32 Phase1RequiredClearObjectCount = 1;
+    int32 Phase1RequiredClearObjectCount = 6;
 
     UPROPERTY(Config, EditAnywhere, Category = "Phase")
     int32 Phase2RequiredGroupEventCount = 3;

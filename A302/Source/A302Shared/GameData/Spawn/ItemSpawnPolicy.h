@@ -6,7 +6,7 @@
 #include "ItemSpawnPolicy.generated.h"
 
 class ABaseInteractable;
-class UItemDefinition;
+class URewardDefinition;
 class UStaticMesh;
 
 USTRUCT(BlueprintType)
@@ -27,7 +27,7 @@ struct FWeightedSpawnLootEntry
 	GENERATED_BODY()
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Loot")
-	TSoftObjectPtr<UItemDefinition> ItemDefinition;
+	TSoftObjectPtr<URewardDefinition> ItemDefinition;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Loot", meta = (ClampMin = "0.0"))
 	float Weight = 1.0f;
@@ -80,4 +80,3 @@ public:
 
 	const FPhaseItemSpawnPolicy* FindPhasePolicy(EGamePhase Phase) const;
 };
-
