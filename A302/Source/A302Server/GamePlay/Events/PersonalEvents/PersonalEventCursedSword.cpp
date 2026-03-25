@@ -100,7 +100,7 @@ void UPersonalEventCursedSword::OnEventResolved(ACharacter* InstigatorCharacter,
 
 	if (UClass* LogicClass = GrantedCursedSwordDefinition->ResolveRewardLogicClass())
 	{
-		if (LogicClass->IsChildOf(UBaseItem::StaticClass()))
+		if (LogicClass->IsChildOf(UBaseItem::StaticClass()) && !LogicClass->IsChildOf(UItemCursedSword::StaticClass()))
 		{
 			if (const UBaseItem* BaseItemLogic = Cast<UBaseItem>(LogicClass->GetDefaultObject()))
 			{
