@@ -163,8 +163,7 @@ void UA302ServerPhaseSubsystem::NotifyRoomRewardResolved(const FString& RoomCode
         }
         break;
     case EGamePhase::Phase1:
-        // 일반 아이템(BasicItem)을 줍거나, 명시된 수집 이벤트를 달성할 경우 카운트 증가
-        if (RewardCategory == ERewardCategory::BasicItem || Cast<UPersonalEventPhase1CollectDefinition>(const_cast<URewardDefinition*>(RewardDefinition)) != nullptr)
+        if (Cast<UPersonalEventPhase1CollectDefinition>(const_cast<URewardDefinition*>(RewardDefinition)) != nullptr)
         {
             ++RoomState->Phase1ClearObjectCount;
             bCounted = true;
