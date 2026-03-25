@@ -22,6 +22,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, ReplicatedUsing = OnRep_CurrentProgress, Category = "Statue")
 	float CurrentProgress = 0.0f;
 
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Statue")
+	void ForceComplete();
+
 	UFUNCTION()
 	void OnRep_CurrentProgress();
 
@@ -33,6 +36,9 @@ public:
 
 	UFUNCTION()
 	void OnRep_IsCompleted();
+
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_ForcePlayEffectAndDisableCollision();
 
 	// 1초 누를 때마다 이만큼 상승 (권장 20 = 5초짜리)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Statue")
