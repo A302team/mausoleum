@@ -52,10 +52,14 @@ public:
 	virtual void UpdateItemTimer(float RemainingSeconds);
 	virtual void SetItemTimerVisibleForClient(bool bVisible);
 	virtual void ConfigureMatchTimer(float MatchStartServerTime, float DurationSeconds, bool bVisible);
+	virtual void UpdatePhaseClearProgress(uint8 PhaseAsByte, int32 CurrentCount, int32 RequiredCount, bool bVisible);
 	virtual void ShowResultScreen(const FText& Title, const FText& Description, float DisplaySeconds);
 	virtual void ShowItemDescription(const FText& ItemName, const FText& Description, float DisplaySeconds);
 	virtual void ToggleVoiceChatCapture();
 	virtual void CycleAlivePlayerViewTarget();
+	virtual void ShowDeathSpectatorUI();
+	virtual void HideDeathSpectatorUI();
+	virtual void UpdateDeathSpectatorTargetName(const FString& TargetPlayerName);
 
 	// Added: Malice BGM Component
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Audio")
@@ -103,6 +107,9 @@ public:
 
 	UFUNCTION(Client, Reliable)
 	void Client_ConfigureMatchTimer(float MatchStartServerTime, float DurationSeconds, bool bVisible);
+
+	UFUNCTION(Client, Reliable)
+	void Client_UpdatePhaseClearProgress(uint8 PhaseAsByte, int32 CurrentCount, int32 RequiredCount, bool bVisible);
 
 	UFUNCTION(Client, Reliable)
 	void Client_ShowResultScreen(const FText& Title, const FText& Description, float DisplaySeconds);

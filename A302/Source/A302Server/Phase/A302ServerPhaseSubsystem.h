@@ -112,6 +112,7 @@ private:
     void EvaluateRoomPhases();
     void EnsurePhaseTimer();
     void BroadcastMatchTimerStateToRoom(const FString& RoomCode, float MatchStartServerTime, float DurationSeconds, bool bVisible) const;
+    void BroadcastPhaseClearProgressToRoom(const FString& RoomCode, const FA302RoomPhaseState& RoomState, bool bVisible) const;
     void UpdateRoomPhase(const FString& RoomCode, double CurrentServerTime);
     bool HasAnyActiveRoom() const;
     UWorld* ResolveWorld() const;

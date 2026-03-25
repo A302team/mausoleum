@@ -8,6 +8,7 @@ class UPersonalEventWidget;
 class UBorder;
 class UUserWidget;
 class UStatueProgressWidget;
+class UWidget;
 
 enum class EA302PhaseTransitionState : uint8
 {
@@ -54,6 +55,9 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<UUserWidget> ResultWidgetClass;
+
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<UUserWidget> DieWidgetClass;
 
 	// 석상 전용 위젯 클래스
 	UPROPERTY(EditDefaultsOnly, Category = "UI|Statue")
@@ -110,6 +114,9 @@ public:
 	void ConfigureMatchTimer(float MatchStartServerTime, float DurationSeconds, uint8 bVisibleInt);
 
 	UFUNCTION()
+	void UpdatePhaseClearProgress(uint8 PhaseAsByte, int32 CurrentCount, int32 RequiredCount, uint8 bVisibleInt);
+
+	UFUNCTION()
 	void ShowPersonalEvent(FName EventID, const FText& EventTitle, const FText& EventDescription, const TArray<FText>& Choices);
 
 	UFUNCTION()
@@ -120,6 +127,15 @@ public:
 
 	UFUNCTION()
 	void ShowResultScreen(const FText& Title, const FText& Description, float DisplaySeconds);
+
+	UFUNCTION()
+	void ShowDeathSpectatorUI();
+
+	UFUNCTION()
+	void HideDeathSpectatorUI();
+
+	UFUNCTION()
+	void UpdateDeathSpectatorTargetName(const FString& TargetPlayerName);
 
 	UFUNCTION()
 	void ShowItemDescription(const FText& ItemName, const FText& ItemDescription, float DisplaySeconds = 4.0f);
@@ -149,6 +165,9 @@ protected:
 	TObjectPtr<UUserWidget> ItemDescriptionWidgetInstance;
 
 	UPROPERTY(Transient)
+	TObjectPtr<UUserWidget> DieWidgetInstance;
+
+	UPROPERTY(Transient)
 	TObjectPtr<UStatueProgressWidget> StatueProgressWidgetInstance;
 
 private:
@@ -163,6 +182,7 @@ private:
 	FTimerHandle PhaseTransitionInputRestoreTimerHandle;
 	FTimerHandle TitleCardHideTimerHandle;
 	FTimerHandle ItemDescriptionHideTimerHandle;
+	FTimerHandle DieWidgetIntroTimerHandle;
 	EA302PhaseTransitionState PhaseTransitionState = EA302PhaseTransitionState::Idle;
 	float PhaseTransitionStepDuration = 0.0f;
 	float PhaseTransitionStepStartTime = 0.0f;
@@ -172,4 +192,7 @@ private:
 	bool bPhaseTransitionInputLocked = false;
 	FText PendingPhaseTransitionTitle;
 	FText PendingPhaseTransitionContext;
+
+	void SetDeathWidgetOtherPlayerSectionVisible(bool bVisible);
+	void HandleDeathWidgetIntroFinished();
 };

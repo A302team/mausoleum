@@ -20,4 +20,7 @@ public:
 	virtual void PlayInteractAnimation() = 0;
 	virtual void PlayDeathAnimation() = 0;
 	virtual void PlayTimeKnifeAnimation() = 0;
+
+	virtual void PlayStatueInteractAnimation() = 0;
+	virtual void StopStatueInteractAnimation() = 0;
 };

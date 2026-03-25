@@ -218,6 +218,14 @@ void AMyPlayerController::AcknowledgePossession(APawn* P)
 	Super::AcknowledgePossession(P);
 	DeadSpectateCycleIndex = INDEX_NONE;
 
+	if (const AA302PlayerState* A302PlayerState = GetPlayerState<AA302PlayerState>())
+	{
+		if (A302PlayerState->bIsAlive)
+		{
+			HideDeathSpectatorUI();
+		}
+	}
+
 #if !UE_SERVER
 	if (IsLocalController() && ShouldAttemptGameplayHUDInitialization())
 	{
@@ -232,6 +240,15 @@ void AMyPlayerController::OnRep_Pawn()
 {
 	Super::OnRep_Pawn();
 	DeadSpectateCycleIndex = INDEX_NONE;
+
+	if (const AA302PlayerState* A302PlayerState = GetPlayerState<AA302PlayerState>())
+	{
+		if (A302PlayerState->bIsAlive)
+		{
+			HideDeathSpectatorUI();
+		}
+	}
+
 	EnsureLocalVoiceComponent();
 
 #if !UE_SERVER
@@ -764,6 +781,38 @@ void AMyPlayerController::ConfigureMatchTimer(float MatchStartServerTime, float 
 	ApplyMatchTimerConfigToHUD();
 }
 
+void AMyPlayerController::UpdatePhaseClearProgress(uint8 PhaseAsByte, int32 CurrentCount, int32 RequiredCount, bool bVisible)
+{
+	if (HasAuthority() && !IsLocalController())
+	{
+		Client_UpdatePhaseClearProgress(PhaseAsByte, CurrentCount, RequiredCount, bVisible);
+		return;
+	}
+
+	if (AHUD* GameHUD = GetHUD())
+	{
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("UpdatePhaseClearProgress")))
+		{
+			struct FParams
+			{
+				uint8 InPhaseAsByte;
+				int32 InCurrentCount;
+				int32 InRequiredCount;
+				uint8 bInVisible;
+			};
+
+			FParams Params
+			{
+				PhaseAsByte,
+				CurrentCount,
+				RequiredCount,
+				static_cast<uint8>(bVisible ? 1 : 0)
+			};
+			GameHUD->ProcessEvent(Func, &Params);
+		}
+	}
+}
+
 void AMyPlayerController::ShowResultScreen(const FText& Title, const FText& Description, float DisplaySeconds)
 {
 	if (AHUD* GameHUD = GetHUD())
@@ -802,6 +851,61 @@ void AMyPlayerController::ShowItemDescription(const FText& ItemName, const FText
 	}
 }
 
+void AMyPlayerController::ShowDeathSpectatorUI()
+{
+	if (AHUD* GameHUD = GetHUD())
+	{
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("ShowDeathSpectatorUI")))
+		{
+			GameHUD->ProcessEvent(Func, nullptr);
+		}
+	}
+
+	FString CurrentViewTargetName;
+	if (const APawn* CurrentViewPawn = Cast<APawn>(GetViewTarget()))
+	{
+		if (const APlayerState* ViewPlayerState = CurrentViewPawn->GetPlayerState())
+		{
+			CurrentViewTargetName = ViewPlayerState->GetPlayerName();
+		}
+
+		if (CurrentViewTargetName.IsEmpty())
+		{
+			CurrentViewTargetName = CurrentViewPawn->GetName();
+		}
+	}
+
+	UpdateDeathSpectatorTargetName(CurrentViewTargetName);
+}
+
+void AMyPlayerController::HideDeathSpectatorUI()
+{
+	if (AHUD* GameHUD = GetHUD())
+	{
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("HideDeathSpectatorUI")))
+		{
+			GameHUD->ProcessEvent(Func, nullptr);
+		}
+	}
+}
+
+void AMyPlayerController::UpdateDeathSpectatorTargetName(const FString& TargetPlayerName)
+{
+	if (AHUD* GameHUD = GetHUD())
+	{
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("UpdateDeathSpectatorTargetName")))
+		{
+			struct FParams
+			{
+				FString InTargetPlayerName;
+			};
+
+			FParams Params{ TargetPlayerName };
+			GameHUD->ProcessEvent(Func, &Params);
+		}
+	}
+}
+
 void AMyPlayerController::CycleAlivePlayerViewTarget()
 {
 	if (!IsLocalController())
@@ -815,6 +919,25 @@ void AMyPlayerController::CycleAlivePlayerViewTarget()
 	{
 		return;
 	}
+
+	auto ResolveDisplayNameFromPawn = [](const APawn* InPawn) -> FString
+	{
+		if (!InPawn)
+		{
+			return FString();
+		}
+
+		if (const APlayerState* InPlayerState = InPawn->GetPlayerState())
+		{
+			const FString PlayerName = InPlayerState->GetPlayerName();
+			if (!PlayerName.IsEmpty())
+			{
+				return PlayerName;
+			}
+		}
+
+		return InPawn->GetName();
+	};
 
 	AGameStateBase* GameState = GetWorld() ? GetWorld()->GetGameState() : nullptr;
 	if (!GameState)
@@ -851,6 +974,7 @@ void AMyPlayerController::CycleAlivePlayerViewTarget()
 	{
 		DeadSpectateCycleIndex = INDEX_NONE;
 		SetViewTarget(ControlledPawn);
+		UpdateDeathSpectatorTargetName(ResolveDisplayNameFromPawn(ControlledPawn));
 		return;
 	}
 
@@ -864,7 +988,9 @@ void AMyPlayerController::CycleAlivePlayerViewTarget()
 	});
 
 	DeadSpectateCycleIndex = (DeadSpectateCycleIndex + 1) % AliveCandidatePawns.Num();
-	SetViewTargetWithBlend(AliveCandidatePawns[DeadSpectateCycleIndex], 0.15f);
+	APawn* SpectateTargetPawn = AliveCandidatePawns[DeadSpectateCycleIndex];
+	SetViewTargetWithBlend(SpectateTargetPawn, 0.15f);
+	UpdateDeathSpectatorTargetName(ResolveDisplayNameFromPawn(SpectateTargetPawn));
 }
 
 void AMyPlayerController::ToggleVoiceChatCapture()
@@ -998,6 +1124,11 @@ void AMyPlayerController::Client_SetItemTimerVisible_Implementation(bool bVisibl
 void AMyPlayerController::Client_ConfigureMatchTimer_Implementation(float MatchStartServerTime, float DurationSeconds, bool bVisible)
 {
 	ConfigureMatchTimer(MatchStartServerTime, DurationSeconds, bVisible);
+}
+
+void AMyPlayerController::Client_UpdatePhaseClearProgress_Implementation(uint8 PhaseAsByte, int32 CurrentCount, int32 RequiredCount, bool bVisible)
+{
+	UpdatePhaseClearProgress(PhaseAsByte, CurrentCount, RequiredCount, bVisible);
 }
 
 void AMyPlayerController::Client_ShowResultScreen_Implementation(const FText& Title, const FText& Description, float DisplaySeconds)
