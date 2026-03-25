@@ -149,6 +149,14 @@ void UInteractComponent::CheckForInteractables()
 	// 상호작용 홀드 중일 때는 시선을 돌려도 타겟팅이 유지되도록 레이캐스트를 중단합니다.
 	if (bIsHoldingInteraction)
 	{
+		// 홀드 도중 석상이 강제 완료되었는지 체크하여 즉시 상호작용을 취소합니다.
+		if (LastInteractableActor && LastInteractableActor->IsA(AStatueInteractable::StaticClass()))
+		{
+			if (Cast<AStatueInteractable>(LastInteractableActor)->bIsCompleted)
+			{
+				HandleInteractHoldCanceled();
+			}
+		}
 		return;
 	}
 
