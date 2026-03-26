@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameMode/A302GameState.h"
+#include "GamePlay/Events/PersonalEvents/InspectMaliceCandidateData.h"
 #include "GameFramework/PlayerController.h"
 #include "TimerManager.h"
 #include "MyPlayerController.generated.h"
@@ -44,6 +45,7 @@ public:
 	virtual void ShowPersonalEvent(FName EventID, const FText& Title, const FText& Description, const TArray<FText>& Choices);
 	virtual void ShowInspectMaliceSelectionWidget();
 	virtual void ShowInspectMaliceSelectionWidgetWithConfig(float SelectionTimeoutSeconds, float ResultDisplaySeconds);
+	virtual void ShowInspectMaliceSelectionWidgetWithCandidatesAndConfig(const TArray<FInspectMaliceCandidateData>& Candidates, float SelectionTimeoutSeconds, float ResultDisplaySeconds);
 	virtual void OpenGroupEventVote(FName EventID, const FText& EventTitle, const FText& EventDescription, float VoteDuration);
 	virtual void FinishGroupEventVote(FName EventID, const FText& ResultText);
 	virtual void ApplyConfiscationToLocalInventory();
@@ -84,6 +86,9 @@ public:
 
 	UFUNCTION(Client, Reliable)
 	void Client_ShowInspectMaliceSelectionWidgetWithConfig(float SelectionTimeoutSeconds, float ResultDisplaySeconds);
+
+	UFUNCTION(Client, Reliable)
+	void Client_ShowInspectMaliceSelectionWidgetWithCandidatesAndConfig(const TArray<FInspectMaliceCandidateData>& Candidates, float SelectionTimeoutSeconds, float ResultDisplaySeconds);
 
 	UFUNCTION(Client, Reliable)
 	void Client_ShowTitleCard(const FText& Title, const FText& Context, float DisplaySeconds);
