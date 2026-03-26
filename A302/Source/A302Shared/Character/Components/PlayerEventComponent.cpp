@@ -70,6 +70,11 @@ void UPlayerEventComponent::ShowInspectMaliceSelectionWidgetWithConfig(float Sel
 	Client_ShowInspectMaliceSelectionWidgetWithConfig(SelectionTimeoutSeconds, ResultDisplaySeconds);
 }
 
+void UPlayerEventComponent::ShowInspectMaliceSelectionWidgetWithCandidatesAndConfig(const TArray<FInspectMaliceCandidateData>& Candidates, float SelectionTimeoutSeconds, float ResultDisplaySeconds)
+{
+	Client_ShowInspectMaliceSelectionWidgetWithCandidatesAndConfig(Candidates, SelectionTimeoutSeconds, ResultDisplaySeconds);
+}
+
 void UPlayerEventComponent::OpenGroupEventVote(FName EventID, const FText& EventTitle, const FText& EventDescription, float VoteDuration)
 {
 	PauseTimedKillCountdownForVote();
@@ -362,6 +367,17 @@ void UPlayerEventComponent::Client_ShowInspectMaliceSelectionWidgetWithConfig_Im
 	}
 
 	OwnerController->Client_ShowInspectMaliceSelectionWidgetWithConfig(SelectionTimeoutSeconds, ResultDisplaySeconds);
+}
+
+void UPlayerEventComponent::Client_ShowInspectMaliceSelectionWidgetWithCandidatesAndConfig_Implementation(const TArray<FInspectMaliceCandidateData>& Candidates, float SelectionTimeoutSeconds, float ResultDisplaySeconds)
+{
+	AMyPlayerController* OwnerController = GetOwnerController();
+	if (!OwnerController)
+	{
+		return;
+	}
+
+	OwnerController->Client_ShowInspectMaliceSelectionWidgetWithCandidatesAndConfig(Candidates, SelectionTimeoutSeconds, ResultDisplaySeconds);
 }
 
 void UPlayerEventComponent::Client_OpenGroupEventVote_Implementation(FName EventID, const FText& EventTitle, const FText& EventDescription, float VoteDuration)
