@@ -69,6 +69,16 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Interaction")
     UAnimMontage* StatueInteractMontage;
 
+    // Dance Montages – 블루프린트(BP_MyCharacter)의 AnimInstance에서 할당
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Dance")
+    UAnimMontage* DanceMontage1 = nullptr;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Dance")
+    UAnimMontage* DanceMontage2 = nullptr;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Dance")
+    UAnimMontage* DanceMontage3 = nullptr;
+
 
     // Gameplay → AnimInstance 호출용 함수
 
@@ -92,6 +102,13 @@ public:
 
     UFUNCTION(BlueprintCallable)
     void StopStatueInteractMontage();
+
+    // Dance 몽타주 재생/중단 – DanceComponent 에서 호출
+    UFUNCTION(BlueprintCallable)
+    void PlayDanceMontage(int32 Index);
+
+    UFUNCTION(BlueprintCallable)
+    void StopDanceMontage();
 
     virtual void PlayAttackAnimation() override;
     virtual void PlayBlockAnimation() override;
