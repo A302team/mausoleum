@@ -14,6 +14,11 @@ bool NetworkService::start() {
         return true;
     }
 
+    if (!io_.configureEndpoints(udpEndpointConfigs_, tcpListenerConfigs_)) {
+        running_ = false;
+        return false;
+    }
+
     if (!io_.start()) {
         running_ = false;
         return false;
@@ -45,11 +50,26 @@ void NetworkService::stop() {
 }
 
 bool NetworkService::addUdpEndpoint(int port, int maxPacketSize) {
-    return io_.addUdpEndpoint(port, maxPacketSize);
+    if (running_) {
+        LOG_ERROR("NetworkService", "실행 중에는 UDP 엔드포인트를 등록할 수 없습니다.");
+        return false;
+    }
+    NetworkUdpEndpointConfig cfg;
+    cfg.port = port;
+    cfg.maxPacketSize = maxPacketSize;
+    udpEndpointConfigs_.push_back(cfg);
+    return true;
 }
 
 bool NetworkService::addTcpListener(int port) {
-    return io_.addTcpListener(port);
+    if (running_) {
+        LOG_ERROR("NetworkService", "실행 중에는 TCP 리스너를 등록할 수 없습니다.");
+        return false;
+    }
+    NetworkTcpListenerConfig cfg;
+    cfg.port = port;
+    tcpListenerConfigs_.push_back(cfg);
+    return true;
 }
 
 void NetworkService::registerHandler(NetProtocol protocol, Handler handler) {
