@@ -1,6 +1,7 @@
 #include "GamePlay/Events/PersonalEvents/PersonalEventBizarreForge.h"
 #include "Character/Components/MaliceComponent.h"
 #include "Character/Components/Inventory/ItemManagerComponent.h"
+#include "Character/Components/Interaction/CharacterRewardComponent.h"
 #include "GameFramework/Character.h"
 #include "GameData/Events/PersonalEvents/Interactable/PersonalEventBizarreForgeDefinition.h"
 #include "GamePlay/Items/BaseItem.h"
@@ -98,6 +99,18 @@ void UPersonalEventBizarreForge::OnEventResolved(ACharacter* InstigatorCharacter
                         if (const UBaseItem* BaseItemLogic = Cast<UBaseItem>(LogicClass->GetDefaultObject()))
                         {
                             BaseItemLogic->OnItemAcquired(InstigatorCharacter);
+                        }
+                    }
+
+                    if (UCharacterRewardComponent* RewardComponent = InstigatorCharacter->FindComponentByClass<UCharacterRewardComponent>())
+                    {
+                        const bool bNeedsClientMirrorGrant =
+                            !InstigatorCharacter->IsLocallyControlled() &&
+                            Cast<AMyPlayerController>(InstigatorCharacter->GetController()) != nullptr;
+
+                        if (bNeedsClientMirrorGrant)
+                        {
+                            RewardComponent->Client_GrantInteractionReward(ItemToGrant);
                         }
                     }
                     
