@@ -15,6 +15,7 @@ class A302SERVER_API URoomMembershipRegistry : public UObject
 public:
 	void RegisterPendingRoomCode(APlayerController* PlayerController, const FString& Options);
 	void ClearPendingRoomCode(APlayerController* PlayerController);
+	void UnregisterPlayer(APlayerController* PlayerController);
 	FString ResolveInitialRoomCode(APlayerController* PlayerController) const;
 	void AssignPlayerToRoom(APlayerController* PlayerController);
 	FString GetPlayerRoomCode(const APlayerController* PlayerController) const;
@@ -23,6 +24,12 @@ public:
 	int32 CountPlayersInRoom(UWorld* World, const FString& RoomCode) const;
 
 private:
+	void TrackPlayerRoom(APlayerController* PlayerController, const FString& RoomCode);
+	void UntrackPlayerRoom(APlayerController* PlayerController);
+
 	UPROPERTY()
 	TMap<TObjectPtr<APlayerController>, FString> PendingRoomCodeByController;
+
+	TMap<TWeakObjectPtr<APlayerController>, FString> AssignedRoomCodeByController;
+	TMap<FString, TSet<TWeakObjectPtr<APlayerController>>> PlayersByRoomCode;
 };

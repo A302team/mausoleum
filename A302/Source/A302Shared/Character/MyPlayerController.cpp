@@ -734,6 +734,33 @@ void AMyPlayerController::ShowInspectMaliceSelectionWidgetWithConfig(float Selec
 	ShowInspectMaliceSelectionWidget();
 }
 
+void AMyPlayerController::ShowInspectMaliceSelectionWidgetWithCandidatesAndConfig(const TArray<FInspectMaliceCandidateData>& Candidates, float SelectionTimeoutSeconds, float ResultDisplaySeconds)
+{
+	if (AHUD* GameHUD = GetHUD())
+	{
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("ShowInspectMaliceSelectionWidgetWithCandidatesAndConfig")))
+		{
+			struct FParams
+			{
+				TArray<FInspectMaliceCandidateData> InCandidates;
+				float InSelectionTimeoutSeconds;
+				float InResultDisplaySeconds;
+			};
+
+			FParams Params
+			{
+				Candidates,
+				SelectionTimeoutSeconds,
+				ResultDisplaySeconds
+			};
+			GameHUD->ProcessEvent(Func, &Params);
+			return;
+		}
+	}
+
+	ShowInspectMaliceSelectionWidgetWithConfig(SelectionTimeoutSeconds, ResultDisplaySeconds);
+}
+
 void AMyPlayerController::OpenGroupEventVote(FName EventID, const FText& EventTitle, const FText& EventDescription, float VoteDuration)
 {
 	if (PlayerEventComponent)
@@ -1182,6 +1209,11 @@ void AMyPlayerController::Client_ShowInspectMaliceSelectionWidget_Implementation
 void AMyPlayerController::Client_ShowInspectMaliceSelectionWidgetWithConfig_Implementation(float SelectionTimeoutSeconds, float ResultDisplaySeconds)
 {
 	ShowInspectMaliceSelectionWidgetWithConfig(SelectionTimeoutSeconds, ResultDisplaySeconds);
+}
+
+void AMyPlayerController::Client_ShowInspectMaliceSelectionWidgetWithCandidatesAndConfig_Implementation(const TArray<FInspectMaliceCandidateData>& Candidates, float SelectionTimeoutSeconds, float ResultDisplaySeconds)
+{
+	ShowInspectMaliceSelectionWidgetWithCandidatesAndConfig(Candidates, SelectionTimeoutSeconds, ResultDisplaySeconds);
 }
 
 void AMyPlayerController::Client_ShowPublicMaliceAnnouncement_Implementation(const FString& PlayerName, int32 MaliceCount)
