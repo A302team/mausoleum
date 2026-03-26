@@ -199,7 +199,19 @@ void ABaseInteractable::Multicast_PlayDisappearVFX_Implementation(
 
 	if (Sound)
 	{
-		UGameplayStatics::PlaySoundAtLocation(World, Sound, Location, VolumeMultiplier);
+		if (Sound->IsLooping())
+		{
+			UE_LOG(
+				LogTemp,
+				Warning,
+				TEXT("[BaseInteractable] Looping sound '%s' is not valid for one-shot disappear effect. Use AudioComponent or AmbientSound Actor."),
+				*GetNameSafe(Sound)
+			);
+		}
+		else
+		{
+			UGameplayStatics::PlaySoundAtLocation(World, Sound, Location, VolumeMultiplier);
+		}
 	}
 }
 
