@@ -12,11 +12,11 @@ public:
     virtual ~INetworkEventLoop() = default;
 
     virtual void udpLoop(std::atomic<bool>& running,
-                         std::vector<NetworkUdpEndpoint>& udpEndpoints,
+                         const std::vector<NetworkUdpEndpoint>& udpEndpoints,
                          ConcurrentQueue<NetPacket>& inboundQueue) = 0;
 
     virtual void tcpLoop(std::atomic<bool>& running,
-                         std::vector<NetworkTcpListener>& tcpListeners,
+                         const std::vector<NetworkTcpListener>& tcpListeners,
                          ConnectionRegistry& connections,
                          ConcurrentQueue<NetPacket>& inboundQueue) = 0;
 };
