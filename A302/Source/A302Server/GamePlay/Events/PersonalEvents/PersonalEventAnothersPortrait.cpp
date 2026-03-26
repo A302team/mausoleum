@@ -1,6 +1,7 @@
 #include "GamePlay/Events/PersonalEvents/PersonalEventAnothersPortrait.h"
 
 #include "Character/Components/Inventory/ItemManagerComponent.h"
+#include "Character/Components/Interaction/CharacterRewardComponent.h"
 #include "Character/Components/PlayerEventComponent.h"
 #include "Character/MyCharacter.h"
 #include "Character/MyPlayerController.h"
@@ -72,6 +73,18 @@ void UPersonalEventAnothersPortrait::OnEventResolved(ACharacter* InstigatorChara
 			{
 				BaseItemLogic->OnItemAcquired(InstigatorCharacter);
 			}
+		}
+	}
+
+	if (UCharacterRewardComponent* RewardComponent = InstigatorCharacter->FindComponentByClass<UCharacterRewardComponent>())
+	{
+		const bool bNeedsClientMirrorGrant =
+			!InstigatorCharacter->IsLocallyControlled() &&
+			Cast<AMyPlayerController>(InstigatorCharacter->GetController()) != nullptr;
+
+		if (bNeedsClientMirrorGrant)
+		{
+			RewardComponent->Client_GrantInteractionReward(EventDefinition->OminousMirrorDefinition);
 		}
 	}
 }
