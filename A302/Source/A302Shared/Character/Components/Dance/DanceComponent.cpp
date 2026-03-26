@@ -81,13 +81,13 @@ AMyCharacter* UDanceComponent::GetOwnerCharacter() const
 
 UAnimMontage* UDanceComponent::GetDanceMontage(int32 Index) const
 {
-	switch (Index)
+	// Index는 1~12, DanceMontages 배열은 0~11
+	const int32 ArrayIndex = Index - 1;
+	if (DanceMontages.IsValidIndex(ArrayIndex))
 	{
-	case 1: return DanceMontage1;
-	case 2: return DanceMontage2;
-	case 3: return DanceMontage3;
-	default: return nullptr;
+		return DanceMontages[ArrayIndex];
 	}
+	return nullptr;
 }
 
 bool UDanceComponent::CanDance() const
@@ -108,9 +108,9 @@ bool UDanceComponent::CanDance() const
 // ------------------------------------------------------------
 void UDanceComponent::OnDance(const FInputActionValue& Value)
 {
-	// IMC에서 F1→Scalar(1.0), F2→Scalar(2.0), F3→Scalar(3.0)으로 매핑
+	// IMC에서 F1→Scalar(1.0), F2→Scalar(2.0), ..., F12→Scalar(12.0)으로 매핑
 	const int32 Index = FMath::RoundToInt(Value.Get<float>());
-	if (Index >= 1 && Index <= 3)
+	if (Index >= 1 && Index <= 12)
 	{
 		RequestDance(Index);
 	}
