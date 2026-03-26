@@ -31,6 +31,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Escape")
 	float FadeDuration = 3.0f;
 
+	// 외부(PhaseSubsystem 등)에서 직접 탈출로를 열 때 호출
+	void OpenEscapeRoute();
+
 private:
 	UFUNCTION()
 	void OnGamePhaseChanged(EGamePhase PreviousPhase, EGamePhase NewPhase, float ServerTime);
@@ -40,7 +43,5 @@ private:
 	bool bGameStateBound = false;
 	float CurrentFadeTime = 0.0f;
 	FVector InitialScale;
-
-	void OpenEscapeRoute();
 };
 
