@@ -1,12 +1,16 @@
 #pragma once
 #include <atomic>
+#include <memory>
 #include <thread>
 #include <vector>
 #include "common/ConcurrentQueue.h"
 #include "common/Platform.h"
 #include "common/logging/Logger.h"
 #include "network/ConnectionRegistry.h"
+#include "network/NetworkIOPrimitives.h"
 #include "network/NetworkTypes.h"
+
+class INetworkEventLoop;
 
 class NetworkIO {
 public:
@@ -18,27 +22,17 @@ public:
     bool start();
     void stop();
 
-    bool addUdpEndpoint(int port, int maxPacketSize = 2048);
-    bool addTcpListener(int port);
+    bool configureEndpoints(const std::vector<NetworkUdpEndpointConfig>& udpConfigs,
+                            const std::vector<NetworkTcpListenerConfig>& tcpConfigs);
 
 private:
-    struct UdpEndpoint {
-        SocketType sock = INVALID_SOCK;
-        int port = 0;
-        int maxPacketSize = 2048;
-    };
-
-    struct TcpListener {
-        SocketType sock = INVALID_SOCK;
-        int port = 0;
-    };
-
     ConnectionRegistry& connections_;
     ConcurrentQueue<NetPacket>& inboundQueue_;
     ConcurrentQueue<NetPacket>& outboundQueue_;
+    std::unique_ptr<INetworkEventLoop> eventLoop_;
 
-    std::vector<UdpEndpoint> udpEndpoints_;
-    std::vector<TcpListener> tcpListeners_;
+    std::vector<NetworkUdpEndpoint> udpEndpoints_;
+    std::vector<NetworkTcpListener> tcpListeners_;
 
     std::thread udpThread_;
     std::thread tcpThread_;
@@ -52,7 +46,8 @@ private:
     void sendLoop();
 
     bool ensurePlatform();
-    bool setNonBlocking(SocketType sock);
+    bool registerUdpEndpoint(int port, int maxPacketSize);
+    bool registerTcpListener(int port);
     void closeUdpSockets();
     void closeTcpSockets();
     void closeAllSockets();
