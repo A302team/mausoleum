@@ -323,17 +323,28 @@ void AMyCharacter::FinalizeEscapedSequence()
 
 void AMyCharacter::HandleEscapedState()
 {
+	// 이동 비활성화는 모든 머신에서 실행 — 사망 패턴(HandleDead)과 동일
 	if (UCharacterMovementComponent* MovementComponent = GetCharacterMovement())
 	{
 		MovementComponent->StopMovementImmediately();
 		MovementComponent->DisableMovement();
 	}
 
-	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	// 입력 차단 + 탈출 관전 UI는 로컬 컨트롤 중인 머신에서만 실행 — 사망 패턴과 동일
+	// GetController()는 서버에서 모든 플레이어의 PC를 반환하므로
+	// IsLocallyControlled() 가드 없이 사용하면 다른 플레이어 입력에 영향을 줄 수 있음
+	if (IsLocallyControlled())
 	{
-		PC->SetIgnoreMoveInput(true);
-		PC->SetIgnoreLookInput(true);
-		DisableInput(PC);
+		if (APlayerController* PC = Cast<APlayerController>(GetController()))
+		{
+			PC->SetIgnoreMoveInput(true);
+			PC->SetIgnoreLookInput(true);
+		}
+
+		if (AMyPlayerController* PC = Cast<AMyPlayerController>(GetController()))
+		{
+			PC->BeginEscapeSpectatorMode();
+		}
 	}
 
 	ForceNetUpdate();

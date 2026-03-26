@@ -1,6 +1,7 @@
 #include "Character/Components/Interaction/CharacterActionInputComponent.h"
 #include "Character/MyCharacter.h"
 #include "Character/MyPlayerController.h"
+#include "GameMode/A302PlayerState.h"
 #include "Character/Components/Combat/CharacterHealthComponent.h"
 #include "Character/Components/Inventory/QuickSlotComponent.h"
 #include "Character/Components/Inventory/ItemTargetingComponent.h"
@@ -171,6 +172,20 @@ void UCharacterActionInputComponent::OnAttack(const FInputActionValue& Value)
 	AMyCharacter* OwnerCharacter = GetOwnerCharacter();
 	if (!OwnerCharacter) return;
 
+	// 탈출 후 관전 대기 중: 다음 관전 대상으로 전환 (사망 관전보다 먼저 체크)
+	if (const AA302PlayerState* A302PS = OwnerCharacter->GetPlayerState<AA302PlayerState>())
+	{
+		if (A302PS->bIsEscaped && A302PS->bIsAlive)
+		{
+			if (AMyPlayerController* OwnerController = Cast<AMyPlayerController>(OwnerCharacter->GetController()))
+			{
+				OwnerController->CycleEscapeSpectatorViewTarget();
+			}
+			return;
+		}
+	}
+
+	// 사망 후 관전 중: 다음 살아있는 플레이어로 전환
 	if (OwnerCharacter->IsDead())
 	{
 		if (AMyPlayerController* OwnerController = Cast<AMyPlayerController>(OwnerCharacter->GetController()))

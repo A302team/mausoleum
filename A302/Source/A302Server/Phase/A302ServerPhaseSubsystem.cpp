@@ -395,9 +395,9 @@ void UA302ServerPhaseSubsystem::UpdateRoomPhase(const FString& RoomCode, double 
         else
         {
             TransitionReason = FString::Printf(
-                TEXT("Escape count reached (%d/%d)"),
+                TEXT("All alive players escaped (escaped=%d, stillPlaying=%d)"),
                 CountEscapedPlayersInRoom(RoomState->RoomCode),
-                FMath::Max(1, EscapeRequiredCount)
+                CountAlivePlayersInRoom(RoomState->RoomCode)
             );
         }
     }
@@ -581,9 +581,12 @@ EGamePhase UA302ServerPhaseSubsystem::ResolvePhase(const FA302RoomPhaseState& Ro
     case EGamePhase::Phase2:
     {
         // 석상 미션 완료는 포탈 접근을 열어주는 역할만 함 (별도 이벤트로 처리).
-        // Phase2 → Ended 전환은 포탈로 탈출한 플레이어 수 기준.
-        const int32 RequiredEscapes = FMath::Max(1, EscapeRequiredCount);
-        if (CountEscapedPlayersInRoom(RoomState.RoomCode) >= RequiredEscapes)
+        // Phase2 → Ended 전환은 살아있는 모든 플레이어가 탈출했을 때.
+        // CountAlivePlayersInRoom: bIsAlive && !bIsEscaped (아직 플레이 중인 인원)
+        // CountEscapedPlayersInRoom: bIsEscaped (탈출한 인원)
+        const bool bAtLeastOneEscaped = CountEscapedPlayersInRoom(RoomState.RoomCode) > 0;
+        const bool bNoOneStillPlaying = CountAlivePlayersInRoom(RoomState.RoomCode) == 0;
+        if (bAtLeastOneEscaped && bNoOneStillPlaying)
         {
             return EGamePhase::Ended;
         }

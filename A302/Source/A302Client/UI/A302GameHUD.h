@@ -8,6 +8,7 @@ class UPersonalEventWidget;
 class UBorder;
 class UUserWidget;
 class UStatueProgressWidget;
+class UEscapeWaitingWidget;
 class UWidget;
 
 enum class EA302PhaseTransitionState : uint8
@@ -58,6 +59,9 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<UUserWidget> DieWidgetClass;
+
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<UEscapeWaitingWidget> EscapeWaitingWidgetClass;
 
 	// 석상 전용 위젯 클래스
 	UPROPERTY(EditDefaultsOnly, Category = "UI|Statue")
@@ -138,6 +142,15 @@ public:
 	void UpdateDeathSpectatorTargetName(const FString& TargetPlayerName);
 
 	UFUNCTION()
+	void ShowEscapeWaitingUI();
+
+	UFUNCTION()
+	void HideEscapeWaitingUI();
+
+	UFUNCTION()
+	void UpdateEscapeSpectatorTargetName(const FString& TargetPlayerName);
+
+	UFUNCTION()
 	void ShowItemDescription(const FText& ItemName, const FText& ItemDescription, float DisplaySeconds = 4.0f);
 
 	UFUNCTION()
@@ -166,6 +179,9 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UUserWidget> DieWidgetInstance;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UEscapeWaitingWidget> EscapeWaitingWidgetInstance;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UStatueProgressWidget> StatueProgressWidgetInstance;

@@ -247,6 +247,7 @@ void AMyPlayerController::AcknowledgePossession(APawn* P)
 {
 	Super::AcknowledgePossession(P);
 	DeadSpectateCycleIndex = INDEX_NONE;
+	EscapeSpectateCycleIndex = INDEX_NONE;
 	TryRegisterPlayerDisplayName();
 
 	if (const AA302PlayerState* A302PlayerState = GetPlayerState<AA302PlayerState>())
@@ -271,6 +272,7 @@ void AMyPlayerController::OnRep_Pawn()
 {
 	Super::OnRep_Pawn();
 	DeadSpectateCycleIndex = INDEX_NONE;
+	EscapeSpectateCycleIndex = INDEX_NONE;
 	TryRegisterPlayerDisplayName();
 
 	if (const AA302PlayerState* A302PlayerState = GetPlayerState<AA302PlayerState>())
@@ -1074,6 +1076,147 @@ void AMyPlayerController::CycleAlivePlayerViewTarget()
 	APawn* SpectateTargetPawn = AliveCandidatePawns[DeadSpectateCycleIndex];
 	SetViewTargetWithBlend(SpectateTargetPawn, 0.15f);
 	UpdateDeathSpectatorTargetName(ResolveDisplayNameFromPawn(SpectateTargetPawn));
+}
+
+void AMyPlayerController::BeginEscapeSpectatorMode()
+{
+	if (!IsLocalController())
+	{
+		return;
+	}
+
+	EscapeSpectateCycleIndex = INDEX_NONE;
+	ShowEscapeWaitingUI();
+
+	// 아직 플레이 중인(살아있고 탈출 안 한) 플레이어가 있으면 첫 번째로 카메라 전환
+	// 없으면 자기 자신을 바라보며 대기
+	CycleEscapeSpectatorViewTarget();
+}
+
+void AMyPlayerController::CycleEscapeSpectatorViewTarget()
+{
+	if (!IsLocalController())
+	{
+		return;
+	}
+
+	APawn* ControlledPawn = GetPawn();
+	const AA302PlayerState* LocalPlayerState = GetPlayerState<AA302PlayerState>();
+
+	// 탈출한 살아있는 플레이어만 이 모드 진입 가능
+	if (!ControlledPawn || !LocalPlayerState || !LocalPlayerState->bIsEscaped || !LocalPlayerState->bIsAlive)
+	{
+		return;
+	}
+
+	auto ResolveDisplayNameFromPawn = [](const APawn* InPawn) -> FString
+	{
+		if (!InPawn)
+		{
+			return FString();
+		}
+
+		if (const APlayerState* InPlayerState = InPawn->GetPlayerState())
+		{
+			const FString PlayerName = InPlayerState->GetPlayerName();
+			if (!PlayerName.IsEmpty())
+			{
+				return PlayerName;
+			}
+		}
+
+		return InPawn->GetName();
+	};
+
+	AGameStateBase* GameState = GetWorld() ? GetWorld()->GetGameState() : nullptr;
+	if (!GameState)
+	{
+		return;
+	}
+
+	// 아직 플레이 중인 플레이어(살아있고 탈출 안 한) 수집
+	TArray<APawn*> StillPlayingPawns;
+	StillPlayingPawns.Reserve(GameState->PlayerArray.Num());
+
+	for (APlayerState* CandidatePlayerState : GameState->PlayerArray)
+	{
+		const AA302PlayerState* CandidateA302State = Cast<AA302PlayerState>(CandidatePlayerState);
+		if (!CandidateA302State || !CandidateA302State->bIsAlive || CandidateA302State->bIsEscaped)
+		{
+			continue;
+		}
+
+		if (!A302RoomScope::ArePlayersInSameLogicalRoom(LocalPlayerState, CandidateA302State))
+		{
+			continue;
+		}
+
+		APawn* CandidatePawn = CandidatePlayerState ? CandidatePlayerState->GetPawn() : nullptr;
+		if (!CandidatePawn)
+		{
+			continue;
+		}
+
+		StillPlayingPawns.Add(CandidatePawn);
+	}
+
+	// 관전할 대상이 없으면 자기 자신을 바라보며 대기 (Panel_SpectatorInfo 숨김)
+	if (StillPlayingPawns.Num() == 0)
+	{
+		EscapeSpectateCycleIndex = INDEX_NONE;
+		SetViewTarget(ControlledPawn);
+		UpdateEscapeSpectatorTargetName(FString());  // 빈 문자열 → Panel_SpectatorInfo Collapsed
+		return;
+	}
+
+	StillPlayingPawns.Sort([](const APawn& LeftPawn, const APawn& RightPawn)
+	{
+		const APlayerState* LeftState = LeftPawn.GetPlayerState();
+		const APlayerState* RightState = RightPawn.GetPlayerState();
+		const int32 LeftPlayerId = LeftState ? LeftState->GetPlayerId() : MAX_int32;
+		const int32 RightPlayerId = RightState ? RightState->GetPlayerId() : MAX_int32;
+		return LeftPlayerId < RightPlayerId;
+	});
+
+	EscapeSpectateCycleIndex = (EscapeSpectateCycleIndex + 1) % StillPlayingPawns.Num();
+	APawn* SpectateTargetPawn = StillPlayingPawns[EscapeSpectateCycleIndex];
+	SetViewTargetWithBlend(SpectateTargetPawn, 0.15f);
+	UpdateEscapeSpectatorTargetName(ResolveDisplayNameFromPawn(SpectateTargetPawn));
+}
+
+void AMyPlayerController::ShowEscapeWaitingUI()
+{
+	if (AHUD* GameHUD = GetHUD())
+	{
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("ShowEscapeWaitingUI")))
+		{
+			GameHUD->ProcessEvent(Func, nullptr);
+		}
+	}
+}
+
+void AMyPlayerController::HideEscapeWaitingUI()
+{
+	if (AHUD* GameHUD = GetHUD())
+	{
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("HideEscapeWaitingUI")))
+		{
+			GameHUD->ProcessEvent(Func, nullptr);
+		}
+	}
+}
+
+void AMyPlayerController::UpdateEscapeSpectatorTargetName(const FString& TargetPlayerName)
+{
+	if (AHUD* GameHUD = GetHUD())
+	{
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("UpdateEscapeSpectatorTargetName")))
+		{
+			struct FParams { FString InTargetPlayerName; };
+			FParams Params{ TargetPlayerName };
+			GameHUD->ProcessEvent(Func, &Params);
+		}
+	}
 }
 
 void AMyPlayerController::ToggleVoiceChatCapture()

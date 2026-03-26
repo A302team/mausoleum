@@ -60,6 +60,13 @@ public:
 	virtual void ShowDeathSpectatorUI();
 	virtual void HideDeathSpectatorUI();
 	virtual void UpdateDeathSpectatorTargetName(const FString& TargetPlayerName);
+
+	// 탈출 관전 모드: 포탈을 통해 탈출한 뒤 남은 플레이어들을 구경하며 게임 종료를 대기
+	virtual void BeginEscapeSpectatorMode();
+	virtual void CycleEscapeSpectatorViewTarget();
+	virtual void ShowEscapeWaitingUI();
+	virtual void HideEscapeWaitingUI();
+	virtual void UpdateEscapeSpectatorTargetName(const FString& TargetPlayerName);
 	void ShowGameplayStartTitleCard();
 
 	// Added: Malice BGM Component
@@ -168,4 +175,5 @@ private:
 	FTimerHandle VoiceRoomCodeRetryTimerHandle;
 	int32 VoiceRoomCodeRetryCount = 0;
 	int32 DeadSpectateCycleIndex = INDEX_NONE;
+	int32 EscapeSpectateCycleIndex = INDEX_NONE;
 };

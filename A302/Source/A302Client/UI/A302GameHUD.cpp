@@ -4,6 +4,7 @@
 #include "Components/TextBlock.h"
 #include "Components/PanelWidget.h"
 #include "Components/Widget.h"
+#include "UI/EscapeWaitingWidget.h"
 #include "UI/PersonalEventWidget.h"
 #include "UI/PlayerHUDComponent.h"
 #include "UI/StatueProgressWidget.h"
@@ -83,6 +84,12 @@ AA302GameHUD::AA302GameHUD()
 	if (DieWidgetBPClass.Succeeded())
 	{
 		DieWidgetClass = DieWidgetBPClass.Class;
+	}
+
+	static ConstructorHelpers::FClassFinder<UEscapeWaitingWidget> EscapeWaitingWidgetBPClass(TEXT("/Game/WorkSpace/UI/WBP_EscapeWaiting"));
+	if (EscapeWaitingWidgetBPClass.Succeeded())
+	{
+		EscapeWaitingWidgetClass = EscapeWaitingWidgetBPClass.Class;
 	}
 
 	PlayerHUDComponent = CreateDefaultSubobject<UPlayerHUDComponent>(TEXT("PlayerHUDComponent"));
@@ -829,4 +836,61 @@ void AA302GameHUD::HandleDeathWidgetIntroFinished()
 	}
 
 	SetDeathWidgetOtherPlayerSectionVisible(true);
+}
+
+void AA302GameHUD::ShowEscapeWaitingUI()
+{
+	APlayerController* PC = GetOwningPlayerController();
+	if (!PC)
+	{
+		return;
+	}
+
+	if (!EscapeWaitingWidgetClass)
+	{
+		if (UClass* LoadedClass = LoadClass<UEscapeWaitingWidget>(nullptr, TEXT("/Game/WorkSpace/UI/WBP_EscapeWaiting.WBP_EscapeWaiting_C")))
+		{
+			EscapeWaitingWidgetClass = LoadedClass;
+		}
+	}
+
+	if (!EscapeWaitingWidgetClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[A302GameHUD] EscapeWaitingWidgetClass is missing."));
+		return;
+	}
+
+	if (!EscapeWaitingWidgetInstance)
+	{
+		EscapeWaitingWidgetInstance = CreateWidget<UEscapeWaitingWidget>(PC, EscapeWaitingWidgetClass);
+	}
+
+	if (!EscapeWaitingWidgetInstance)
+	{
+		return;
+	}
+
+	if (!EscapeWaitingWidgetInstance->IsInViewport())
+	{
+		// DieWidget(290)보다 높은 Z-Order로 표시
+		EscapeWaitingWidgetInstance->AddToViewport(291);
+	}
+
+	EscapeWaitingWidgetInstance->SetVisibility(ESlateVisibility::Visible);
+}
+
+void AA302GameHUD::HideEscapeWaitingUI()
+{
+	if (EscapeWaitingWidgetInstance)
+	{
+		EscapeWaitingWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+	}
+}
+
+void AA302GameHUD::UpdateEscapeSpectatorTargetName(const FString& TargetPlayerName)
+{
+	if (EscapeWaitingWidgetInstance)
+	{
+		EscapeWaitingWidgetInstance->UpdateSpectatorTargetName(TargetPlayerName);
+	}
 }
