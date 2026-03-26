@@ -203,3 +203,39 @@ void UMyAnimInstance::StopStatueInteractAnimation()
 {
     StopStatueInteractMontage();
 }
+
+// 댄스 몽타주 재생 (Index: 1~3)
+void UMyAnimInstance::PlayDanceMontage(int32 Index)
+{
+    UAnimMontage* TargetMontage = nullptr;
+    switch (Index)
+    {
+    case 1: TargetMontage = DanceMontage1; break;
+    case 2: TargetMontage = DanceMontage2; break;
+    case 3: TargetMontage = DanceMontage3; break;
+    default: break;
+    }
+
+    if (!TargetMontage) return;
+
+    if (!Montage_IsPlaying(TargetMontage))
+    {
+        Montage_Play(TargetMontage);
+    }
+}
+
+// 현재 재생 중인 댄스 몽타주 중단
+void UMyAnimInstance::StopDanceMontage()
+{
+    auto TryStop = [this](UAnimMontage* Montage)
+    {
+        if (Montage && Montage_IsPlaying(Montage))
+        {
+            Montage_Stop(0.25f, Montage);
+        }
+    };
+
+    TryStop(DanceMontage1);
+    TryStop(DanceMontage2);
+    TryStop(DanceMontage3);
+}
