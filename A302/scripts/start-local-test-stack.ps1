@@ -8,6 +8,8 @@ param(
     [switch]$SkipCloseEditor,
     [switch]$ForceRebuildStaged,
     [switch]$CookAllMaps,
+    [ValidateRange(1, 64)]
+    [int]$CookProcessCount = 4,
     [string]$ArchiveDirectory = ""
 )
 
@@ -172,7 +174,8 @@ function Build-StagedServer {
         [Parameter(Mandatory = $true)][string]$UProject,
         [Parameter(Mandatory = $true)][string]$ArchiveRoot,
         [Parameter(Mandatory = $true)][string[]]$MapPaths,
-        [Parameter(Mandatory = $true)][bool]$BuildAllMaps
+        [Parameter(Mandatory = $true)][bool]$BuildAllMaps,
+        [Parameter(Mandatory = $true)][int]$CookProcessCount
     )
 
     if (-not (Test-Path $RunUATBat)) {
@@ -185,6 +188,7 @@ function Build-StagedServer {
         "-noP4",
         "-build",
         "-cook",
+        "-CookProcessCount=$CookProcessCount",
         "-stage",
         "-pak",
         "-archive",
@@ -214,6 +218,12 @@ function Build-StagedServer {
 
     Write-Host "[LOCAL-TEST] Building staged dedicated server via BuildCookRun..."
     Write-Host "[LOCAL-TEST] Archive directory: $ArchiveRoot"
+    if ($CookProcessCount -gt 1) {
+        Write-Host "[LOCAL-TEST] Multi-process cook enabled: CookProcessCount=$CookProcessCount"
+    }
+    else {
+        Write-Host "[LOCAL-TEST] Single-process cook: CookProcessCount=1"
+    }
 
     for ($attempt = 1; $attempt -le 2; $attempt++) {
         & $RunUATBat @uatArgs
@@ -384,7 +394,8 @@ if (-not $SkipGameServer) {
             -UProject $UProject `
             -ArchiveRoot $ArchiveDirectory `
             -MapPaths $CookMaps `
-            -BuildAllMaps ([bool]$CookAllMaps)
+            -BuildAllMaps ([bool]$CookAllMaps) `
+            -CookProcessCount $CookProcessCount
 
         $StagedServerExe = Resolve-StagedServerExe -ArchiveRoot $ArchiveDirectory -ProjectRoot $ProjectRoot -ProjectName $ProjectName
     }

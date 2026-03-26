@@ -239,7 +239,7 @@ void UPrivateVoiceChatComponent::SetDistanceMode(float NewDistance)
 
 void UPrivateVoiceChatComponent::SetRoomCode(const FString& InRoomCode)
 {
-    UE_LOG(LogVoiceChat, Warning, TEXT("[Voice] SetRoomCode Called: Old='%s' New='%s'"), *roomCode, *InRoomCode);
+    UE_LOG(LogVoiceChat, Verbose, TEXT("[Voice] SetRoomCode: Old='%s' New='%s'"), *roomCode, *InRoomCode);
     roomCode = InRoomCode;
 }
 

@@ -27,7 +27,7 @@
 
 // ===== 프로파일링 ON/OFF 스위치 =====
 #ifndef VOICE_PROFILING_ENABLED
-#define VOICE_PROFILING_ENABLED 1
+#define VOICE_PROFILING_ENABLED 0
 #endif
 
 // ===== 전용 로그 카테고리 =====

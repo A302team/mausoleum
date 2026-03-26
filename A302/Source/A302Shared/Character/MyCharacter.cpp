@@ -85,6 +85,10 @@ AMyCharacter::AMyCharacter()
 	PrimaryActorTick.bCanEverTick = false;
 	bReplicates = true;
 
+	// Keep capsule upright. Looking up/down should rotate camera only, not the character body.
+	bUseControllerRotationPitch = false;
+	bUseControllerRotationRoll = false;
+
 	SetReplicateMovement(true);
 
 	ItemManagerComponent = CreateDefaultSubobject<UItemManagerComponent>(TEXT("ItemManagerComponent"));
@@ -120,6 +124,15 @@ void AMyCharacter::OnRep_Controller()
 void AMyCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Runtime safety: even if BP defaults enable pitch/roll rotation, force an upright capsule.
+	bUseControllerRotationPitch = false;
+	bUseControllerRotationRoll = false;
+	const FRotator CurrentRotation = GetActorRotation();
+	if (!FMath::IsNearlyZero(CurrentRotation.Pitch) || !FMath::IsNearlyZero(CurrentRotation.Roll))
+	{
+		SetActorRotation(FRotator(0.f, CurrentRotation.Yaw, 0.f));
+	}
 
 	if (UCapsuleComponent* CollisionCapsule = GetCapsuleComponent())
 	{
@@ -609,7 +622,6 @@ void AMyCharacter::BroadcastPublicMaliceAnnouncement(const FString& PlayerName, 
 		MaliceComponent->BroadcastPublicMaliceAnnouncement(PlayerName, MaliceCount);
 	}
 }
-
 
 
 
