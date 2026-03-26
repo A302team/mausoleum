@@ -83,7 +83,7 @@ void UA302ServerPlayerSubsystem::HandlePlayerLogout(AController* Exiting)
         if (Registry)
         {
             LeavingRoomCode = Registry->GetPlayerRoomCode(ExitingPC);
-            Registry->ClearPendingRoomCode(ExitingPC);
+            Registry->UnregisterPlayer(ExitingPC);
         }
 
         LeavingRoomCode = A302RoomScope::NormalizeRoomCode(LeavingRoomCode);
