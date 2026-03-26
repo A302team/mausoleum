@@ -73,6 +73,10 @@ public:
     UPROPERTY(Config, EditAnywhere, Category = "Phase")
     int32 Phase2RequiredGroupEventCount = 1;
 
+    // 포탈을 통해 탈출한 플레이어 수가 이 값 이상이면 Ended
+    UPROPERTY(Config, EditAnywhere, Category = "Phase")
+    int32 EscapeRequiredCount = 1;
+
     UPROPERTY(Config, EditAnywhere, Category = "Phase")
     float MatchTimeLimitSeconds = 666.0f;
 
@@ -119,6 +123,8 @@ private:
     EGamePhase ResolvePhase(const FA302RoomPhaseState& RoomState, double CurrentServerTime) const;
     int32 CountAlivePlayersInRoom(const FString& RoomCode) const;
     int32 CountEscapedPlayersInRoom(const FString& RoomCode) const;
+    // Phase2 석상이 모두 완료됐을 때 나머지 석상 강제완료 + EscapeRouteBlocker 해제
+    void TriggerAllStatuesCompleteInRoom(const FString& RoomCode);
     FString BuildRoomProgressSummary(const FA302RoomPhaseState& RoomState) const;
     static const TCHAR* ToString(EGamePhase Phase);
     static const TCHAR* ToString(ERewardCategory RewardCategory);

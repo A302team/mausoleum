@@ -481,7 +481,12 @@ void AA302GameMode::NotifyInteractionRewardResolved(
     ERewardCategory EffectiveCategory
 )
 {
-    if (!InstigatorCharacter || !RewardDefinition || !PhaseSubsystem)
+    // GroupEvent(석상 등)는 RewardDefinition 없이 페이즈 카운터만 올리면 됨
+    if (!InstigatorCharacter || !PhaseSubsystem)
+    {
+        return;
+    }
+    if (!RewardDefinition && EffectiveCategory != ERewardCategory::GroupEvent)
     {
         return;
     }

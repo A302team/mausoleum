@@ -18,9 +18,14 @@ void AA302GameState::SetGamePhase(EGamePhase NewGamePhase, float ChangedServerTi
         return;
     }
 
+    const EGamePhase PreviousPhase = LastNotifiedGamePhase;
     GamePhase = NewGamePhase;
     PhaseChangedServerTime = ChangedServerTime;
     LastNotifiedGamePhase = GamePhase;
+
+    // 서버에서 직접 호출되는 경로이므로 OnRep_GamePhase가 실행되지 않음.
+    // EscapeRouteBlocker 등 Delegate에 바인딩된 서버 측 액터들을 위해 여기서도 Broadcast.
+    GamePhaseChangedDelegate.Broadcast(PreviousPhase, GamePhase, PhaseChangedServerTime);
 
     if (GamePhase == EGamePhase::Ended)
     {

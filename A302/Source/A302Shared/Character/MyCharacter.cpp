@@ -263,6 +263,7 @@ bool AMyCharacter::TryHandleEscapePortalOverlap(AActor* OtherActor)
 		return false;
 	}
 
+	// 포탈 접근 제한은 EscapeRouteBlocker가 물리적으로 처리하므로 여기서는 별도 페이즈 체크 불필요
 	AA302PlayerState* A302PlayerState = GetPlayerState<AA302PlayerState>();
 	if (!A302PlayerState || A302PlayerState->bIsEscaped || !A302PlayerState->bIsAlive || !A302PlayerState->bGameplayEnabled)
 	{
