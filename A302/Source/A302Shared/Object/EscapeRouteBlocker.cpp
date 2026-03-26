@@ -56,7 +56,11 @@ void AEscapeRouteBlocker::Tick(float DeltaTime)
 
 		if (Alpha <= 0.0f)
 		{
-			Destroy(); // 완전히 사라지면 삭제
+			// 복제된 액터는 서버에서만 Destroy해야 클라이언트에도 자동으로 제거됨
+			if (HasAuthority())
+			{
+				Destroy();
+			}
 		}
 	}
 }
