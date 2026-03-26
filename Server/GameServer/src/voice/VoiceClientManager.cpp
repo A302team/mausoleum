@@ -92,23 +92,28 @@ std::vector<std::pair<CLIENT_KEY, ClientInfo>> VoiceClientManager::getClientsSna
 }
 
 std::vector<std::pair<CLIENT_KEY, ClientInfo>> VoiceClientManager::getRoomClientsSnapshot(const std::string& roomCode) const {
-    std::lock_guard<std::mutex> lock(mutex_);
     std::vector<std::pair<CLIENT_KEY, ClientInfo>> snapshot;
+    getRoomClientsSnapshot(roomCode, snapshot);
+    return snapshot;
+}
+
+void VoiceClientManager::getRoomClientsSnapshot(const std::string& roomCode,
+                                                std::vector<std::pair<CLIENT_KEY, ClientInfo>>& outSnapshot) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    outSnapshot.clear();
 
     auto roomIt = rooms.find(roomCode);
     if (roomIt == rooms.end()) {
-        return snapshot;
+        return;
     }
 
-    snapshot.reserve(roomIt->second.size());
+    outSnapshot.reserve(roomIt->second.size());
     for (const CLIENT_KEY clientKey : roomIt->second) {
         auto clientIt = clients.find(clientKey);
         if (clientIt != clients.end()) {
-            snapshot.emplace_back(clientIt->first, clientIt->second);
+            outSnapshot.emplace_back(clientIt->first, clientIt->second);
         }
     }
-
-    return snapshot;
 }
 
 void VoiceClientManager::cleanupStaleClients() {
