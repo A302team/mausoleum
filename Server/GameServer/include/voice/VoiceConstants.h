@@ -11,5 +11,6 @@ namespace Voice::Config {
     constexpr int CLEANUP_INTERVAL_SECONDS = 60;
     constexpr int CLIENT_TIMEOUT_SECONDS = 300;
     constexpr int UDP_MAX_PACKET_SIZE = 4096;
+    constexpr uint32_t MAX_VOICE_PAYLOAD_SIZE = 2048;
     constexpr uint32_t LOG_PAYLOAD_MIN_SIZE = 2;
 }

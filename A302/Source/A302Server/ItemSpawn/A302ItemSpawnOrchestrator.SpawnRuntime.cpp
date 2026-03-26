@@ -1,12 +1,85 @@
 #include "ItemSpawn/A302ItemSpawnOrchestrator.h"
 
 #include "GameData/RewardDefinition.h"
+#include "Components/ShapeComponent.h"
 #include "Engine/EngineTypes.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 #include "Object/BaseInteractable.h"
 #include "Object/ItemSpawnArea.h"
 #include "Room/RoomWorldOffset.h"
+
+namespace
+{
+	bool TryResolveGroundPointInSpawnArea(
+		UWorld* World,
+		const AItemSpawnArea* Area,
+		const FVector2D& XY,
+		FVector& OutSpawnLocation
+	)
+	{
+		if (!World || !Area)
+		{
+			return false;
+		}
+
+		const UShapeComponent* ShapeComp = Area->GetCollisionComponent();
+		if (!ShapeComp)
+		{
+			return false;
+		}
+
+		const FVector BoundsOrigin = ShapeComp->Bounds.Origin;
+		const FVector BoundsExtent = ShapeComp->Bounds.BoxExtent;
+		const float TraceStartZ = BoundsOrigin.Z + BoundsExtent.Z + 100.0f;
+		const float TraceEndZ = BoundsOrigin.Z - BoundsExtent.Z - 100.0f;
+
+		const FVector TraceStart(XY.X, XY.Y, TraceStartZ);
+		const FVector TraceEnd(XY.X, XY.Y, TraceEndZ);
+
+		TArray<FHitResult> Hits;
+		FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(ItemSpawnGroundSnap), false);
+		QueryParams.AddIgnoredActor(Area);
+
+		if (!World->LineTraceMultiByChannel(Hits, TraceStart, TraceEnd, ECC_WorldStatic, QueryParams) || Hits.Num() == 0)
+		{
+			return false;
+		}
+
+		// 아래쪽(바닥) 표면을 우선 선택해 지붕/천장 스냅을 방지한다.
+		bool bFound = false;
+		float LowestZ = TNumericLimits<float>::Max();
+		FVector ChosenPoint = FVector::ZeroVector;
+		for (const FHitResult& Hit : Hits)
+		{
+			if (!Hit.bBlockingHit)
+			{
+				continue;
+			}
+
+			// 벽/경사면 오검출 방지.
+			if (Hit.ImpactNormal.Z < 0.35f)
+			{
+				continue;
+			}
+
+			if (Hit.ImpactPoint.Z < LowestZ)
+			{
+				LowestZ = Hit.ImpactPoint.Z;
+				ChosenPoint = Hit.ImpactPoint;
+				bFound = true;
+			}
+		}
+
+		if (!bFound)
+		{
+			return false;
+		}
+
+		OutSpawnLocation = ChosenPoint + FVector(0.0f, 0.0f, 20.0f);
+		return true;
+	}
+}
 
 bool UA302ItemSpawnOrchestrator::TrySpawnSingleItem(
 	const FString& RoomCode,
@@ -136,19 +209,10 @@ bool UA302ItemSpawnOrchestrator::TrySpawnSingleItem(
 
 		const FVector RawSpawnPoint = SelectedArea->GetRandomPointInBox();
 		FVector SpawnLocation = RawSpawnPoint;
-
-		// Keep random XY in area, but snap Z to nearby walkable/static geometry when possible.
+		const FVector2D SpawnXY(RawSpawnPoint.X, RawSpawnPoint.Y);
+		if (!TryResolveGroundPointInSpawnArea(World, SelectedArea, SpawnXY, SpawnLocation))
 		{
-			const FVector TraceStart(RawSpawnPoint.X, RawSpawnPoint.Y, RawSpawnPoint.Z + 3000.0f);
-			const FVector TraceEnd(RawSpawnPoint.X, RawSpawnPoint.Y, RawSpawnPoint.Z - 3000.0f);
-			FHitResult Hit;
-			FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(ItemSpawnGroundSnap), false);
-			QueryParams.AddIgnoredActor(SelectedArea);
-
-			if (World->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_WorldStatic, QueryParams))
-			{
-				SpawnLocation = Hit.ImpactPoint + FVector(0.0f, 0.0f, 20.0f);
-			}
+			continue;
 		}
 
 		const FTransform SpawnTransform(
