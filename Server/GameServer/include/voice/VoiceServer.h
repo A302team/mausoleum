@@ -1,5 +1,10 @@
 #pragma once
+#include <atomic>
 #include <chrono>
+#include <memory>
+#include <thread>
+#include <vector>
+#include "common/ConcurrentQueue.h"
 #include "common/IServer.h"
 #include "common/logging/Logger.h"
 #include "network/NetworkService.h"
@@ -10,10 +15,19 @@
 
 class VoiceServer : public IServer{
 private:
+    struct VoiceInboundTask {
+        NetPacket packet;
+    };
+
+    static constexpr size_t kVoiceWorkerCount = 2;
+
     VoiceClientManager clientManager;
     VoicePacketRouter packetRouter;
     NetworkService network;
     std::chrono::steady_clock::time_point lastCleanupTime;
+    std::vector<std::unique_ptr<ConcurrentQueue<VoiceInboundTask>>> voiceInboundQueues_;
+    std::vector<std::thread> voiceWorkers_;
+    std::atomic<bool> voiceWorkersRunning_{false};
 
 public:
     VoiceServer();
@@ -24,8 +38,13 @@ protected:
     bool initSocket(int port) override { return true; }
     void runLoop() override {}
 private:
-    void onUdpPacket(const NetPacket& packet);
+    void onUdpPacket(NetPacket&& packet);
     bool buildPacket(const NetPacket& packet, ParsedPacket& outPacket);
+    bool extractRoomCode(const NetPacket& packet, std::string& outRoomCode) const;
+    size_t shardIndexForRoom(const std::string& roomCode) const;
+    void startVoiceWorkers();
+    void stopVoiceWorkers();
+    void voiceWorkerLoop(size_t workerIndex);
     void handleJoin(ParsedPacket& packet);
     void handleVoiceData(ParsedPacket& packet);
     void handleLeave(ParsedPacket& packet);

@@ -140,6 +140,7 @@ protected:
 	int32 MappingPriority = 0;
 
 private:
+	void TryRegisterPlayerDisplayName();
 	bool ShouldAttemptGameplayHUDInitialization() const;
 	void TryInitializeInGameHUD();
 	void PollDeferredHUDInitialization();

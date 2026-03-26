@@ -1,4 +1,5 @@
 #include "voice/VoiceServer.h"
+#include <memory>
 #include <thread>
 
 namespace {
@@ -24,20 +25,25 @@ VoiceServer::VoiceServer() : lastCleanupTime(std::chrono::steady_clock::now()) {
     });
 
     // 네트워크 수신 핸들러 등록
-    network.registerHandler(NetProtocol::Udp, [this](const NetPacket& packet, NetworkService&){
-        onUdpPacket(packet);
+    network.registerHandler(NetProtocol::Udp, [this](NetPacket&& packet, NetworkService&){
+        onUdpPacket(std::move(packet));
     });
 }
 
 void VoiceServer::run(int port) {
     running = true;
+    startVoiceWorkers();
 
     if (!network.addUdpEndpoint(port, Voice::Config::UDP_MAX_PACKET_SIZE)) {
         LOG_ERROR(tag(), "UDP 엔드포인트 등록 실패: " << port);
+        running = false;
+        stopVoiceWorkers();
         return;
     }
     if (!network.start()) {
         LOG_ERROR(tag(), "NetworkService 시작 실패");
+        running = false;
+        stopVoiceWorkers();
         return;
     }
 
@@ -52,38 +58,76 @@ void VoiceServer::run(int port) {
     }
 
     network.stop();
+    stopVoiceWorkers();
 }
 
 void VoiceServer::shutdown() {
     running = false;
     network.stop();
+    stopVoiceWorkers();
 }
 
-void VoiceServer::onUdpPacket(const NetPacket& packet) {
+void VoiceServer::onUdpPacket(NetPacket&& packet) {
     if (packet.protocol != NetProtocol::Udp) {
         LOG_WARN(tag(), "UDP 핸들러에 TCP 패킷이 전달됨");
         return;
     }
-    ParsedPacket parsed{};
-    if (!buildPacket(packet, parsed)) {
+    if (!voiceWorkersRunning_.load(std::memory_order_acquire)) {
         return;
     }
-    packetRouter.dispatch(parsed);
+
+    if (!packet.sharedData && !packet.data.empty()) {
+        auto payload = std::make_shared<std::vector<char>>(std::move(packet.data));
+        packet.sharedData = std::static_pointer_cast<const std::vector<char>>(payload);
+    }
+
+    std::string roomCode;
+    if (!extractRoomCode(packet, roomCode)) {
+        return;
+    }
+
+    const size_t shard = shardIndexForRoom(roomCode);
+    if (shard >= voiceInboundQueues_.size()) {
+        return;
+    }
+
+    VoiceInboundTask task;
+    task.packet = std::move(packet);
+    voiceInboundQueues_[shard]->push(std::move(task));
 }
 
-bool VoiceServer::buildPacket(const NetPacket& packet, ParsedPacket& outPacket) {
-    if (packet.data.size() < sizeof(VoicePacketHeader)) {
-        LOG_WARN(tag(), "패킷 크기 부족: " << packet.data.size());
+bool VoiceServer::extractRoomCode(const NetPacket& packet, std::string& outRoomCode) const {
+    const char* payload = packet.payloadData();
+    const size_t payloadSize = packet.payloadSize();
+    if (payload == nullptr || payloadSize < sizeof(VoicePacketHeader)) {
         return false;
     }
 
-    auto* header = reinterpret_cast<const VoicePacketHeader*>(packet.data.data());
+    auto* header = reinterpret_cast<const VoicePacketHeader*>(payload);
+    const auto typeValue = static_cast<uint8_t>(header->packetType);
+    if (typeValue > static_cast<uint8_t>(VoicePacketType::Leave)) {
+        return false;
+    }
+
+    outRoomCode = fixedString(header->roomCode, sizeof(header->roomCode));
+    return true;
+}
+
+bool VoiceServer::buildPacket(const NetPacket& packet, ParsedPacket& outPacket) {
+    const char* payload = packet.payloadData();
+    const size_t payloadSize = packet.payloadSize();
+    if (payload == nullptr || payloadSize < sizeof(VoicePacketHeader)) {
+        LOG_WARN(tag(), "패킷 크기 부족: " << payloadSize);
+        return false;
+    }
+
+    auto* header = reinterpret_cast<const VoicePacketHeader*>(payload);
     const auto typeValue = static_cast<uint8_t>(header->packetType);
     if (typeValue > static_cast<uint8_t>(VoicePacketType::Leave)) {
         LOG_WARN(tag(), "알 수 없는 패킷 타입: " << static_cast<int>(typeValue));
         return false;
     }
-    size_t payloadBytes = packet.data.size() - sizeof(VoicePacketHeader);
+    size_t payloadBytes = payloadSize - sizeof(VoicePacketHeader);
     if (header->packetType == VoicePacketType::VoiceData) {
         if (header->payloadSize > payloadBytes) {
             LOG_WARN(tag(), "payloadSize 불일치: " << header->payloadSize << " > " << payloadBytes);
@@ -93,14 +137,71 @@ bool VoiceServer::buildPacket(const NetPacket& packet, ParsedPacket& outPacket) 
 
     outPacket = ParsedPacket{
         header,
-        packet.data.data(),
-        static_cast<int>(packet.data.size()),
+        payload,
+        static_cast<int>(payloadSize),
+        packet.sharedData,
         packet.addr,
         makeClientKey(packet.addr),
         fixedString(header->roomCode, sizeof(header->roomCode)),
         fixedString(header->speakerName, sizeof(header->speakerName))
     };
     return true;
+}
+
+size_t VoiceServer::shardIndexForRoom(const std::string& roomCode) const {
+    return std::hash<std::string>{}(roomCode) % kVoiceWorkerCount;
+}
+
+void VoiceServer::startVoiceWorkers() {
+    if (voiceWorkersRunning_.exchange(true, std::memory_order_acq_rel)) {
+        return;
+    }
+
+    voiceWorkers_.clear();
+    voiceInboundQueues_.clear();
+
+    voiceWorkers_.reserve(kVoiceWorkerCount);
+    voiceInboundQueues_.reserve(kVoiceWorkerCount);
+    for (size_t i = 0; i < kVoiceWorkerCount; ++i) {
+        voiceInboundQueues_.push_back(std::make_unique<ConcurrentQueue<VoiceInboundTask>>());
+    }
+
+    for (size_t i = 0; i < kVoiceWorkerCount; ++i) {
+        voiceWorkers_.emplace_back([this, i]() { voiceWorkerLoop(i); });
+    }
+}
+
+void VoiceServer::stopVoiceWorkers() {
+    if (!voiceWorkersRunning_.exchange(false, std::memory_order_acq_rel)) {
+        return;
+    }
+
+    for (auto& queue : voiceInboundQueues_) {
+        queue->close();
+    }
+    for (auto& worker : voiceWorkers_) {
+        if (worker.joinable()) {
+            worker.join();
+        }
+    }
+
+    voiceWorkers_.clear();
+    voiceInboundQueues_.clear();
+}
+
+void VoiceServer::voiceWorkerLoop(size_t workerIndex) {
+    if (workerIndex >= voiceInboundQueues_.size()) {
+        return;
+    }
+
+    VoiceInboundTask task;
+    while (voiceInboundQueues_[workerIndex]->pop(task)) {
+        ParsedPacket parsed{};
+        if (!buildPacket(task.packet, parsed)) {
+            continue;
+        }
+        packetRouter.dispatch(parsed);
+    }
 }
 
 void VoiceServer::handleJoin(ParsedPacket& packet){
@@ -123,11 +224,17 @@ void VoiceServer::handleVoiceData(ParsedPacket& packet){
     clientManager.addClient(packet.senderKey, clientInfo);
     clientManager.joinRoom(packet.roomCode, packet.senderKey, clientInfo);
 
+    thread_local std::vector<std::pair<CLIENT_KEY, ClientInfo>> clientsSnapshot;
+    clientManager.getRoomClientsSnapshot(packet.roomCode, clientsSnapshot);
+
+    auto sharedPayload = packet.sharedPayload;
+    if (!sharedPayload) {
+        sharedPayload = std::make_shared<std::vector<char>>(packet.rawBuffer, packet.rawBuffer + packet.rawSize);
+    }
     int cnt = 0;
-    auto clientsSnapshot = clientManager.getRoomClientsSnapshot(packet.roomCode);
-    for(const auto& [otherKey, otherClient] : clientsSnapshot){
+    for (const auto& [otherKey, otherClient] : clientsSnapshot) {
         if(otherKey != packet.senderKey){
-            network.sendUdp(otherClient.addr, packet.rawBuffer, packet.rawSize);
+            network.sendUdp(otherClient.addr, sharedPayload);
             cnt++;
         }
     }
