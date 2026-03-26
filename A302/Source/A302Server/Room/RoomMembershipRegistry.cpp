@@ -124,6 +124,17 @@ void URoomMembershipRegistry::ClearPendingRoomCode(APlayerController* PlayerCont
 	PendingRoomCodeByController.Remove(PlayerController);
 }
 
+void URoomMembershipRegistry::UnregisterPlayer(APlayerController* PlayerController)
+{
+	if (!PlayerController)
+	{
+		return;
+	}
+
+	ClearPendingRoomCode(PlayerController);
+	UntrackPlayerRoom(PlayerController);
+}
+
 FString URoomMembershipRegistry::ResolveInitialRoomCode(APlayerController* PlayerController) const
 {
 	if (!PlayerController)
@@ -177,12 +188,20 @@ void URoomMembershipRegistry::AssignPlayerToRoom(APlayerController* PlayerContro
 	{
 		// PostLogin/HandleStartingNewPlayer can both run for the same controller.
 		// Do not overwrite an already assigned logical room with fallback "default".
+		TrackPlayerRoom(PlayerController, CurrentRoomCode);
 		return;
 	}
 
 	const FString AssignedRoomCode = A302RoomScope::NormalizeRoomCode(ResolveInitialRoomCode(PlayerController));
-	if (AssignedRoomCode.IsEmpty() || A302RoomScope::MatchesRoomCodeStrict(CurrentRoomCode, AssignedRoomCode))
+	if (AssignedRoomCode.IsEmpty())
 	{
+		return;
+	}
+
+	if (A302RoomScope::MatchesRoomCodeStrict(CurrentRoomCode, AssignedRoomCode))
+	{
+		TrackPlayerRoom(PlayerController, AssignedRoomCode);
+		PendingRoomCodeByController.Remove(PlayerController);
 		return;
 	}
 
@@ -206,6 +225,7 @@ void URoomMembershipRegistry::AssignPlayerToRoom(APlayerController* PlayerContro
 		);
 	}
 
+	TrackPlayerRoom(PlayerController, AssignedRoomCode);
 	PendingRoomCodeByController.Remove(PlayerController);
 }
 
@@ -214,6 +234,12 @@ FString URoomMembershipRegistry::GetPlayerRoomCode(const APlayerController* Play
 	if (!PlayerController)
 	{
 		return FString();
+	}
+
+	const TWeakObjectPtr<APlayerController> WeakPlayerController(const_cast<APlayerController*>(PlayerController));
+	if (const FString* CachedRoomCode = AssignedRoomCodeByController.Find(WeakPlayerController))
+	{
+		return A302RoomScope::NormalizeRoomCode(*CachedRoomCode);
 	}
 
 	if (const AA302PlayerState* A302PlayerState = PlayerController->GetPlayerState<AA302PlayerState>())
@@ -244,6 +270,28 @@ void URoomMembershipRegistry::GatherPlayersInRoom(UWorld* World, const FString& 
 		return;
 	}
 
+	if (const TSet<TWeakObjectPtr<APlayerController>>* RoomPlayers = PlayersByRoomCode.Find(NormalizedRoomCode))
+	{
+		for (const TWeakObjectPtr<APlayerController>& WeakPlayerController : *RoomPlayers)
+		{
+			APlayerController* PlayerController = WeakPlayerController.Get();
+			if (!PlayerController || PlayerController->GetWorld() != World)
+			{
+				continue;
+			}
+
+			if (IsPlayerInRoom(PlayerController, NormalizedRoomCode))
+			{
+				OutPlayers.Add(PlayerController);
+			}
+		}
+
+		if (OutPlayers.Num() > 0)
+		{
+			return;
+		}
+	}
+
 	for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
 	{
 		APlayerController* PlayerController = It->Get();
@@ -262,6 +310,25 @@ int32 URoomMembershipRegistry::CountPlayersInRoom(UWorld* World, const FString& 
 		return 0;
 	}
 
+	if (const TSet<TWeakObjectPtr<APlayerController>>* RoomPlayers = PlayersByRoomCode.Find(NormalizedRoomCode))
+	{
+		int32 Count = 0;
+		for (const TWeakObjectPtr<APlayerController>& WeakPlayerController : *RoomPlayers)
+		{
+			APlayerController* PlayerController = WeakPlayerController.Get();
+			if (!PlayerController || PlayerController->GetWorld() != World)
+			{
+				continue;
+			}
+
+			if (IsPlayerInRoom(PlayerController, NormalizedRoomCode))
+			{
+				++Count;
+			}
+		}
+		return Count;
+	}
+
 	int32 Count = 0;
 	for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
 	{
@@ -272,4 +339,62 @@ int32 URoomMembershipRegistry::CountPlayersInRoom(UWorld* World, const FString& 
 	}
 
 	return Count;
+}
+
+void URoomMembershipRegistry::TrackPlayerRoom(APlayerController* PlayerController, const FString& RoomCode)
+{
+	if (!PlayerController)
+	{
+		return;
+	}
+
+	const FString NormalizedRoomCode = A302RoomScope::NormalizeRoomCode(RoomCode);
+	if (NormalizedRoomCode.IsEmpty())
+	{
+		UntrackPlayerRoom(PlayerController);
+		return;
+	}
+
+	const TWeakObjectPtr<APlayerController> WeakPlayerController(PlayerController);
+	const FString PreviousRoomCode = A302RoomScope::NormalizeRoomCode(AssignedRoomCodeByController.FindRef(WeakPlayerController));
+	if (!PreviousRoomCode.IsEmpty() && !A302RoomScope::MatchesRoomCodeStrict(PreviousRoomCode, NormalizedRoomCode))
+	{
+		if (TSet<TWeakObjectPtr<APlayerController>>* PreviousRoomPlayers = PlayersByRoomCode.Find(PreviousRoomCode))
+		{
+			PreviousRoomPlayers->Remove(WeakPlayerController);
+			if (PreviousRoomPlayers->Num() == 0)
+			{
+				PlayersByRoomCode.Remove(PreviousRoomCode);
+			}
+		}
+	}
+
+	AssignedRoomCodeByController.Add(WeakPlayerController, NormalizedRoomCode);
+	PlayersByRoomCode.FindOrAdd(NormalizedRoomCode).Add(WeakPlayerController);
+}
+
+void URoomMembershipRegistry::UntrackPlayerRoom(APlayerController* PlayerController)
+{
+	if (!PlayerController)
+	{
+		return;
+	}
+
+	const TWeakObjectPtr<APlayerController> WeakPlayerController(PlayerController);
+	const FString PreviousRoomCode = A302RoomScope::NormalizeRoomCode(AssignedRoomCodeByController.FindRef(WeakPlayerController));
+	AssignedRoomCodeByController.Remove(WeakPlayerController);
+
+	if (PreviousRoomCode.IsEmpty())
+	{
+		return;
+	}
+
+	if (TSet<TWeakObjectPtr<APlayerController>>* PreviousRoomPlayers = PlayersByRoomCode.Find(PreviousRoomCode))
+	{
+		PreviousRoomPlayers->Remove(WeakPlayerController);
+		if (PreviousRoomPlayers->Num() == 0)
+		{
+			PlayersByRoomCode.Remove(PreviousRoomCode);
+		}
+	}
 }

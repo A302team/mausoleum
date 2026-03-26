@@ -7,9 +7,11 @@
 #include "Engine/World.h"
 #include "GameData/Events/GroupEvents/GroupEventJudgmentDefinition.h"
 #include "GameData/RewardDefinition.h"
+#include "GameMode/A302GameMode.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerState.h"
+#include "Room/RoomMembershipRegistry.h"
 
 namespace
 {
@@ -31,6 +33,50 @@ namespace
 
 		return PlayerController->GetName();
 	}
+
+	void GatherRoomScopedVoteCandidates(const UGroupEventJudgment* GroupEvent, ACharacter* InstigatorCharacter, TArray<APlayerController*>& OutCandidates)
+	{
+		OutCandidates.Reset();
+
+		if (!GroupEvent)
+		{
+			return;
+		}
+
+		UWorld* World = GroupEvent->GetWorld();
+		if (!World)
+		{
+			return;
+		}
+
+		if (AA302GameMode* GameMode = Cast<AA302GameMode>(World->GetAuthGameMode()))
+		{
+			if (URoomMembershipRegistry* Registry = GameMode->GetRoomMembershipRegistry())
+			{
+				Registry->GatherPlayersInRoom(World, GroupEvent->GetEventRoomCode(), OutCandidates);
+				if (OutCandidates.Num() > 0)
+				{
+					return;
+				}
+			}
+		}
+
+		for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+		{
+			if (APlayerController* PlayerController = It->Get())
+			{
+				OutCandidates.Add(PlayerController);
+			}
+		}
+
+		if (OutCandidates.Num() == 0 && InstigatorCharacter)
+		{
+			if (APlayerController* InstigatorController = Cast<APlayerController>(InstigatorCharacter->GetController()))
+			{
+				OutCandidates.AddUnique(InstigatorController);
+			}
+		}
+	}
 }
 
 void UGroupEventJudgment::ExecuteEvent_Implementation(ACharacter* InstigatorCharacter)
@@ -44,9 +90,10 @@ void UGroupEventJudgment::ExecuteEvent_Implementation(ACharacter* InstigatorChar
 	SubmittedVotes.Reset();
 	InitializeRuntimeContext(InstigatorCharacter);
 
-	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	TArray<APlayerController*> CandidateControllers;
+	GatherRoomScopedVoteCandidates(this, InstigatorCharacter, CandidateControllers);
+	for (APlayerController* PlayerController : CandidateControllers)
 	{
-		APlayerController* PlayerController = It->Get();
 		ACharacter* Character = PlayerController ? Cast<ACharacter>(PlayerController->GetPawn()) : nullptr;
 		AMyPlayerController* ClientEventBridge = Cast<AMyPlayerController>(PlayerController);
 		if (!PlayerController || !Character || !ClientEventBridge || !IsParticipantEligible(PlayerController))

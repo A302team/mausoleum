@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "GamePlay/Events/PersonalEvents/InspectMaliceCandidateData.h"
 #include "TimerManager.h"
 #include "PlayerEventComponent.generated.h"
 
@@ -22,6 +23,7 @@ public:
 	void ShowPersonalEvent(FName EventID, const FText& Title, const FText& Description, const TArray<FText>& Choices);
 	void ShowInspectMaliceSelectionWidget();
 	void ShowInspectMaliceSelectionWidgetWithConfig(float SelectionTimeoutSeconds, float ResultDisplaySeconds);
+	void ShowInspectMaliceSelectionWidgetWithCandidatesAndConfig(const TArray<FInspectMaliceCandidateData>& Candidates, float SelectionTimeoutSeconds, float ResultDisplaySeconds);
 	void OpenGroupEventVote(FName EventID, const FText& EventTitle, const FText& EventDescription, float VoteDuration);
 	void FinishGroupEventVote(FName EventID, const FText& ResultText);
 	void ApplyConfiscationToLocalInventory();
@@ -46,6 +48,9 @@ public:
 
 	UFUNCTION(Client, Reliable)
 	void Client_ShowInspectMaliceSelectionWidgetWithConfig(float SelectionTimeoutSeconds, float ResultDisplaySeconds);
+
+	UFUNCTION(Client, Reliable)
+	void Client_ShowInspectMaliceSelectionWidgetWithCandidatesAndConfig(const TArray<FInspectMaliceCandidateData>& Candidates, float SelectionTimeoutSeconds, float ResultDisplaySeconds);
 
 	UFUNCTION(Client, Reliable)
 	void Client_OpenGroupEventVote(FName EventID, const FText& EventTitle, const FText& EventDescription, float VoteDuration);
