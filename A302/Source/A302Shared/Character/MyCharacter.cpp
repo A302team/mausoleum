@@ -49,6 +49,7 @@
 #include "Interface/A302TimedKillEventBridge.h"
 #include "A302GameplayGuards.h"
 #include "Character/Components/PlayerEventComponent.h"
+#include "Character/Components/Dance/DanceComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogMyInput, Log, All);
@@ -101,6 +102,7 @@ AMyCharacter::AMyCharacter()
 	PlayerEventComponent = CreateDefaultSubobject<UPlayerEventComponent>(TEXT("PlayerEventComponent"));
 	CharacterHealthComponent = CreateDefaultSubobject<UCharacterHealthComponent>(TEXT("CharacterHealthComponent"));
 	CharacterActionInputComponent = CreateDefaultSubobject<UCharacterActionInputComponent>(TEXT("CharacterActionInputComponent"));
+	DanceComponent = CreateDefaultSubobject<UDanceComponent>(TEXT("DanceComponent"));
 }
 
 void AMyCharacter::PossessedBy(AController* NewController)
@@ -358,6 +360,11 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	if (CharacterActionInputComponent)
 	{
 		CharacterActionInputComponent->SetupPlayerInputComponent(PlayerInputComponent);
+	}
+
+	if (DanceComponent)
+	{
+		DanceComponent->SetupPlayerInputComponent(PlayerInputComponent);
 	}
 
 	if (CombatStatusComponent)

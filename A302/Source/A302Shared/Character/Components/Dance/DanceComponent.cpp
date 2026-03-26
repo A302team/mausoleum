@@ -36,9 +36,8 @@ void UDanceComponent::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
 	UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(PlayerInputComponent);
 	if (!EIC) return;
 
-	if (IA_Dance1) EIC->BindAction(IA_Dance1, ETriggerEvent::Started, this, &UDanceComponent::OnDance1);
-	if (IA_Dance2) EIC->BindAction(IA_Dance2, ETriggerEvent::Started, this, &UDanceComponent::OnDance2);
-	if (IA_Dance3) EIC->BindAction(IA_Dance3, ETriggerEvent::Started, this, &UDanceComponent::OnDance3);
+	// IA_Dance(Float) 1개에 F1/F2/F3을 Scalar 모디파이어(1.0/2.0/3.0)로 매핑합니다.
+	if (IA_Dance) EIC->BindAction(IA_Dance, ETriggerEvent::Started, this, &UDanceComponent::OnDance);
 }
 
 // ------------------------------------------------------------
@@ -107,19 +106,14 @@ bool UDanceComponent::CanDance() const
 // ------------------------------------------------------------
 // 로컬 입력 핸들러
 // ------------------------------------------------------------
-void UDanceComponent::OnDance1(const FInputActionValue& Value)
+void UDanceComponent::OnDance(const FInputActionValue& Value)
 {
-	RequestDance(1);
-}
-
-void UDanceComponent::OnDance2(const FInputActionValue& Value)
-{
-	RequestDance(2);
-}
-
-void UDanceComponent::OnDance3(const FInputActionValue& Value)
-{
-	RequestDance(3);
+	// IMC에서 F1→Scalar(1.0), F2→Scalar(2.0), F3→Scalar(3.0)으로 매핑
+	const int32 Index = FMath::RoundToInt(Value.Get<float>());
+	if (Index >= 1 && Index <= 3)
+	{
+		RequestDance(Index);
+	}
 }
 
 void UDanceComponent::RequestDance(int32 Index)
