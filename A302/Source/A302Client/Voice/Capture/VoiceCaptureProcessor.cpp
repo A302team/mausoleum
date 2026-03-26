@@ -7,6 +7,13 @@
 #include "Engine/World.h"
 #include "TimerManager.h"
 
+namespace
+{
+    // 알탭/프레임 정체 후 누적 캡처 데이터를 한 번에 밀어 보내지 않도록 상한을 둡니다.
+    constexpr uint32 MaxCaptureReadBytesPerTick = 4096;
+    constexpr uint32 CaptureDrainChunkBytes = 1024;
+}
+
 void UVoiceCaptureProcessor::Initialize()
 {
     bIsMicActive = false;
@@ -147,13 +154,40 @@ void UVoiceCaptureProcessor::ProcessCapture()
 
     if (CaptureState == EVoiceCaptureState::Ok && AvailableData > 0)
     {
+        if (AvailableData > MaxCaptureReadBytesPerTick)
+        {
+            uint32 BytesToDiscard = AvailableData - MaxCaptureReadBytesPerTick;
+            TArray<uint8> DrainBuffer;
+            DrainBuffer.SetNumUninitialized(CaptureDrainChunkBytes);
+
+            while (BytesToDiscard > 0)
+            {
+                const uint32 RequestBytes = FMath::Min(BytesToDiscard, CaptureDrainChunkBytes);
+                uint32 DiscardedBytes = 0;
+                VoiceCapture->GetVoiceData(DrainBuffer.GetData(), RequestBytes, DiscardedBytes);
+                if (DiscardedBytes == 0)
+                {
+                    break;
+                }
+                BytesToDiscard = (DiscardedBytes >= BytesToDiscard) ? 0 : (BytesToDiscard - DiscardedBytes);
+            }
+
+            uint32 RefreshedAvailableData = 0;
+            if (VoiceCapture->GetCaptureState(RefreshedAvailableData) != EVoiceCaptureState::Ok || RefreshedAvailableData == 0)
+            {
+                return;
+            }
+            AvailableData = RefreshedAvailableData;
+        }
+
+        const uint32 RequestedReadBytes = FMath::Min(AvailableData, MaxCaptureReadBytesPerTick);
         TArray<uint8> VoiceBuffer;
-        VoiceBuffer.SetNumUninitialized(AvailableData);
+        VoiceBuffer.SetNumUninitialized(RequestedReadBytes);
         
         uint32 ReadData = 0;
         
         // GetVoiceData는 RAW PCM을 반환합니다.
-        VoiceCapture->GetVoiceData(VoiceBuffer.GetData(), AvailableData, ReadData);
+        VoiceCapture->GetVoiceData(VoiceBuffer.GetData(), RequestedReadBytes, ReadData);
 
         if (ReadData > 0)
         {
