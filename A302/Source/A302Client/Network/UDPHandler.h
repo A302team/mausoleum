@@ -5,6 +5,7 @@
 #include "Network/ConnectionHandler.h"
 #include "Interfaces/IPv4/IPv4Endpoint.h"
 #include "Common/UdpSocketReceiver.h"
+#include "Templates/Atomic.h"
 #include "UDPHandler.generated.h"
 
 
@@ -44,4 +45,5 @@ private:
 	FSocket* UDPSocket = nullptr;
 	TSharedPtr<FInternetAddr> TargetAddr;
 	FUdpSocketReceiver* SocketReceiver = nullptr;
+	TAtomic<int32> PendingGameThreadDispatchCount {0};
 };

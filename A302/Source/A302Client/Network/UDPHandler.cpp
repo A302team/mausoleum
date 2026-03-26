@@ -8,6 +8,11 @@
 #include "Serialization/ArrayReader.h"
 #include "Async/Async.h"
 
+namespace
+{
+	constexpr int32 MaxPendingGameThreadDispatchCount = 64;
+}
+
 bool UUDPHandler::ParseUrl(const FString& URL, FString& OutHostName, int32& OutPort) const
 {
 	FString PortString;
@@ -146,12 +151,18 @@ void UUDPHandler::OnDataReceived(const FArrayReaderPtr& Data, const FIPv4Endpoin
 {
 	// FUdpSocketReceiver는 백그라운드 스레드에서 실행됨!
 	// UObject/Actor 접근은 반드시 Game Thread에서만 가능하므로 전환 필요
+	if (PendingGameThreadDispatchCount.Load() >= MaxPendingGameThreadDispatchCount)
+	{
+		return;
+	}
+
 	TArray<uint8> ReceivedData;
 	ReceivedData.Append(Data->GetData(), Data->Num());
+	++PendingGameThreadDispatchCount;
 
 	AsyncTask(ENamedThreads::GameThread, [this, ReceivedData = MoveTemp(ReceivedData)]()
 	{
-		UE_LOG(LogTemp, Log, TEXT("[Network/UDPHandler] UDP 수신! %d 바이트"), ReceivedData.Num());
 		OnBinaryMessageReceived.Broadcast(ReceivedData);
+		--PendingGameThreadDispatchCount;
 	});
 }

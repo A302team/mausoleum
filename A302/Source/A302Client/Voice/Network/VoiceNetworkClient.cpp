@@ -11,6 +11,11 @@ struct FVoicePacketHeader {
 };
 #pragma pack(pop)
 
+namespace
+{
+    constexpr uint32 MaxVoicePayloadBytes = 2048;
+}
+
 void UVoiceNetworkClient::Initialize(UObject* OuterObj)
 {
     if (!OuterObj) return;
@@ -65,7 +70,21 @@ void UVoiceNetworkClient::SendVoiceData(const TArray<uint8>& Payload, const FStr
     FTCHARToUTF8 Utf8SpeakerName(*SpeakerName);
     FMemory::Memcpy(Header.speakerName, Utf8SpeakerName.Get(), FMath::Min(Utf8SpeakerName.Length(), 31));
 
-    Header.payloadSize = Payload.Num();
+    if (Header.packetType == 1 && Payload.Num() > static_cast<int32>(MaxVoicePayloadBytes))
+    {
+        UE_LOG(
+            LogVoiceChat,
+            Warning,
+            TEXT("[Voice] Oversized payload dropped. room=%s speaker=%s payload=%dB max=%uB"),
+            *RoomCode,
+            *SpeakerName,
+            Payload.Num(),
+            MaxVoicePayloadBytes
+        );
+        return;
+    }
+
+    Header.payloadSize = static_cast<uint32>(Payload.Num());
 
     // 헤더 + 페이로드를 하나의 연속된 바이트 배열로 합치기
     TArray<uint8> BinaryData;
@@ -118,7 +137,7 @@ void UVoiceNetworkClient::HandleBinaryMessage(const TArray<uint8>& BinaryData)
     // Voice Data 패킷(1)만 처리
     if (Header->packetType != 1) return;
 
-    if (Header->payloadSize == 0) return;
+    if (Header->payloadSize == 0 || Header->payloadSize > MaxVoicePayloadBytes) return;
 
     const int32 ExpectedPacketSize = static_cast<int32>(sizeof(FVoicePacketHeader) + Header->payloadSize);
     if (BinaryData.Num() != ExpectedPacketSize) return;
@@ -136,7 +155,7 @@ void UVoiceNetworkClient::HandleBinaryMessage(const TArray<uint8>& BinaryData)
     const uint8_t* PayloadStart = BinaryData.GetData() + sizeof(FVoicePacketHeader);
 
     TArray<uint8> PayloadArray;
-    PayloadArray.Append(PayloadStart, Header->payloadSize);
+    PayloadArray.Append(PayloadStart, static_cast<int32>(Header->payloadSize));
 
     OnBinaryPacketReceived.ExecuteIfBound(RoomCode, Speaker, PayloadArray);
 }

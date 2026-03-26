@@ -127,10 +127,20 @@ bool VoiceServer::buildPacket(const NetPacket& packet, ParsedPacket& outPacket) 
         LOG_WARN(tag(), "알 수 없는 패킷 타입: " << static_cast<int>(typeValue));
         return false;
     }
-    size_t payloadBytes = payloadSize - sizeof(VoicePacketHeader);
+    const size_t payloadBytes = payloadSize - sizeof(VoicePacketHeader);
     if (header->packetType == VoicePacketType::VoiceData) {
-        if (header->payloadSize > payloadBytes) {
-            LOG_WARN(tag(), "payloadSize 불일치: " << header->payloadSize << " > " << payloadBytes);
+        if (header->payloadSize == 0 || static_cast<size_t>(header->payloadSize) != payloadBytes) {
+            LOG_WARN(tag(), "payloadSize 불일치: header=" << header->payloadSize << ", actual=" << payloadBytes);
+            return false;
+        }
+        if (header->payloadSize > Voice::Config::MAX_VOICE_PAYLOAD_SIZE) {
+            LOG_WARN(tag(), "voice payload 초과: " << header->payloadSize << " > " << Voice::Config::MAX_VOICE_PAYLOAD_SIZE);
+            return false;
+        }
+    } else {
+        if (header->payloadSize != 0 || payloadBytes != 0) {
+            LOG_WARN(tag(), "제어 패킷 payload 오류: type=" << static_cast<int>(typeValue)
+                     << " header=" << header->payloadSize << " actual=" << payloadBytes);
             return false;
         }
     }
@@ -205,7 +215,6 @@ void VoiceServer::voiceWorkerLoop(size_t workerIndex) {
 }
 
 void VoiceServer::handleJoin(ParsedPacket& packet){
-    PROFILE_SCOPE("Handle Join");
     auto now = std::chrono::steady_clock::now();
 
     ClientInfo clientInfo{packet.senderAddr, now};
@@ -216,7 +225,6 @@ void VoiceServer::handleJoin(ParsedPacket& packet){
 }
 
 void VoiceServer::handleVoiceData(ParsedPacket& packet){
-    PROFILE_SCOPE("Handle Voice Data");
     auto now = std::chrono::steady_clock::now();
 
     // 클라이언트 갱신 (lastSeen 업데이트)
@@ -231,22 +239,15 @@ void VoiceServer::handleVoiceData(ParsedPacket& packet){
     if (!sharedPayload) {
         sharedPayload = std::make_shared<std::vector<char>>(packet.rawBuffer, packet.rawBuffer + packet.rawSize);
     }
-    int cnt = 0;
     for (const auto& [otherKey, otherClient] : clientsSnapshot) {
         if(otherKey != packet.senderKey){
             network.sendUdp(otherClient.addr, sharedPayload);
-            cnt++;
         }
     }
 
-    if (packet.header->payloadSize > Voice::Config::LOG_PAYLOAD_MIN_SIZE) {
-        LOG_INFO(tag(), "음성: " << packet.roomCode << "/" << packet.speakerName
-                 << " " << packet.rawSize << "B → " << cnt << "명");
-    }
 }
 
 void VoiceServer::handleLeave(ParsedPacket& packet){
-    PROFILE_SCOPE("Handle Leave");
     if(!clientManager.hasClient(packet.senderKey)){
         LOG_WARN(tag(), "인증되지 않은 클라이언트의 Leave 패킷 수신 - 방: " << packet.roomCode << " / 화자: " << packet.speakerName);
         return;
