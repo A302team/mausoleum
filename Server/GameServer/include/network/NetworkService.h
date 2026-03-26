@@ -36,6 +36,8 @@ private:
     ConcurrentQueue<NetPacket> inboundQueue_;
     ConcurrentQueue<NetPacket> outboundQueue_;
     std::unordered_map<NetProtocol, Handler> handlers_;
+    std::vector<NetworkUdpEndpointConfig> udpEndpointConfigs_;
+    std::vector<NetworkTcpListenerConfig> tcpListenerConfigs_;
 
     ConnectionRegistry connections_;
     NetworkIO io_;

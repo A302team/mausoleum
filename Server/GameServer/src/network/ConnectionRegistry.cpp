@@ -1,4 +1,5 @@
 #include "network/ConnectionRegistry.h"
+#include "network/platform/SocketPlatform.h"
 
 ConnectionId ConnectionRegistry::add(SocketType sock, const sockaddr_in& addr) {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -34,7 +35,7 @@ void ConnectionRegistry::closeAll() {
     std::lock_guard<std::mutex> lock(mutex_);
     for (auto& kv : clients_) {
         if (kv.second.sock != INVALID_SOCK) {
-            CLOSE_SOCKET(kv.second.sock);
+            GetSocketPlatform().closeSocket(kv.second.sock);
             kv.second.sock = INVALID_SOCK;
         }
     }

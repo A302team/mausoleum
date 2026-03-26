@@ -110,16 +110,16 @@ namespace
 		switch (NewPhase)
 		{
 		case EGamePhase::Phase0:
-			OutTitle = FText::FromString(TEXT("PHASE 1"));
-			OutContext = FText::FromString(TEXT("첫 번째 단계가 시작됩니다."));
+			OutTitle = FText::FromString(TEXT("제1장. 계시의 서곡"));
+			OutContext = FText::FromString(TEXT("이제, 돌아갈 길은 없습니다."));
 			break;
 		case EGamePhase::Phase1:
-			OutTitle = FText::FromString(TEXT("PHASE 2"));
-			OutContext = FText::FromString(TEXT("다음 단계가 시작됩니다."));
+			OutTitle = FText::FromString(TEXT("제2장. 의심의 성가"));
+			OutContext = FText::FromString(TEXT("의심이 깊어질수록, 심판은 가까워집니다."));
 			break;
 		case EGamePhase::Phase2:
-			OutTitle = FText::FromString(TEXT("PHASE 3"));
-			OutContext = FText::FromString(TEXT("마지막 단계가 시작됩니다."));
+			OutTitle = FText::FromString(TEXT("제3장. 종말의 찬가"));
+			OutContext = FText::FromString(TEXT("남은 것은 오직, 심판뿐입니다."));
 			break;
 		default:
 			OutTitle = FText::GetEmpty();
@@ -320,6 +320,7 @@ void AMyPlayerController::TryInitializeInGameHUD()
 				ApplyMatchTimerConfigToHUD();
 				BindToReplicatedGamePhase();
 				FlushQueuedPhaseTransition();
+				FlushQueuedGameplayStartTitleCard();
 			}
 			else
 			{
@@ -475,6 +476,54 @@ void AMyPlayerController::FlushQueuedPhaseTransition()
 		};
 		GameHUD->ProcessEvent(Func, &Params);
 		bHasQueuedPhaseTransition = false;
+	}
+}
+
+void AMyPlayerController::ShowGameplayStartTitleCard()
+{
+	if (!IsLocalController())
+	{
+		return;
+	}
+
+	QueuedGameplayStartTitle = FText::FromString(TEXT("제1장. 계시의 서곡"));
+	QueuedGameplayStartContext = FText::FromString(TEXT("이제, 돌아갈 길은 없습니다."));
+	bHasQueuedGameplayStartTitleCard = true;
+	FlushQueuedGameplayStartTitleCard();
+}
+
+void AMyPlayerController::FlushQueuedGameplayStartTitleCard()
+{
+	if (!bHasQueuedGameplayStartTitleCard)
+	{
+		return;
+	}
+
+	AHUD* GameHUD = GetHUD();
+	if (!GameHUD)
+	{
+		TryInitializeInGameHUD();
+		return;
+	}
+
+	if (UFunction* Func = GameHUD->FindFunction(TEXT("ShowTitleCard")))
+	{
+		struct FParams
+		{
+			FText InTitle;
+			FText InContext;
+			float InDisplaySeconds;
+		};
+
+		FParams Params
+		{
+			QueuedGameplayStartTitle,
+			QueuedGameplayStartContext,
+			PhaseTransitionTitleDisplaySeconds
+		};
+
+		GameHUD->ProcessEvent(Func, &Params);
+		bHasQueuedGameplayStartTitleCard = false;
 	}
 }
 
