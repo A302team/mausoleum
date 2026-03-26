@@ -60,6 +60,7 @@ void AStatueInteractable::Multicast_ForcePlayEffectAndDisableCollision_Implement
 		{
 			StatueEffectComponent->SetAsset(ExplosionEffectSystem);
 			StatueEffectComponent->SetVariableFloat(AlphaParameterName, 1.0f); // 폭발은 원래 밝기
+			// 루프 해제는 Niagara 에셋에서 Loop Behavior → "Once"로 설정 필요
 			StatueEffectComponent->ReinitializeSystem();
 		}
 		else

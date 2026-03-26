@@ -53,6 +53,8 @@ public:
 
     std::vector<std::pair<CLIENT_KEY, ClientInfo>> getClientsSnapshot() const;
     std::vector<std::pair<CLIENT_KEY, ClientInfo>> getRoomClientsSnapshot(const std::string& roomCode) const;
+    void getRoomClientsSnapshot(const std::string& roomCode,
+                                std::vector<std::pair<CLIENT_KEY, ClientInfo>>& outSnapshot) const;
 
     void cleanupStaleClients() override;
 };
