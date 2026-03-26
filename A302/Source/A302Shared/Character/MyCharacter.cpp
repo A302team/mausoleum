@@ -580,6 +580,15 @@ void AMyCharacter::ApplyCameraViewMode()
 		}
 	}
 
+	// Keep local mesh hidden only in first-person view.
+	// This overrides BP defaults (e.g. Owner No See=true) when switching to third-person.
+	if (USkeletalMeshComponent* CharacterMesh = GetMesh())
+	{
+		const bool bFirstPersonView = (CameraViewMode == EA302CameraViewMode::FirstPersonChest);
+		CharacterMesh->SetOwnerNoSee(bFirstPersonView);
+		CharacterMesh->SetOnlyOwnerSee(false);
+	}
+
 	if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
 	{
 		PlayerController->SetViewTarget(this);

@@ -6,6 +6,7 @@
 #include "GameFramework/Character.h"
 #include "Engine/GameInstance.h"
 #include "Interface/A302ServerRewardBridge.h"
+#include "Interface/A302ServerRewardSignals.h"
 #include "GameData/RewardTypes.h"
 #include "GameFramework/GameModeBase.h"
 #include "NiagaraComponent.h"
@@ -95,6 +96,10 @@ void AStatueInteractable::OnServerHoldProgress(float DeltaTime, ACharacter* Inte
 			if (IA302ServerRewardBridge* ServerBridge = Cast<IA302ServerRewardBridge>(World->GetAuthGameMode()))
 			{
 				ServerBridge->NotifyInteractionRewardResolved(Interactor, GetRewardDefinition(), ERewardCategory::GroupEvent);
+			}
+			else if (Interactor && Interactor->HasAuthority() && GetRewardDefinition())
+			{
+				A302GetServerRewardResolvedSignal().Broadcast(Interactor, GetRewardDefinition(), ERewardCategory::GroupEvent);
 			}
 		}
 	}

@@ -20,6 +20,7 @@ class UInputMappingContext;
 class UCombatStatusComponent;
 class UItemDefinition;
 class URewardDefinition;
+class UDanceComponent;
 class UItemManagerComponent;
 class UUserWidget;
 class ADummyCharacter;
@@ -223,6 +224,9 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Health", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<class UCharacterHealthComponent> CharacterHealthComponent = nullptr;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Dance", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UDanceComponent> DanceComponent = nullptr;
 
 	UPROPERTY(EditAnywhere, Category = "Camera")
 	EA302CameraViewMode CameraViewMode = EA302CameraViewMode::FirstPersonChest;
