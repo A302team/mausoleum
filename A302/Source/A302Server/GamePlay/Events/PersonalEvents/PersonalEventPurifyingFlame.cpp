@@ -1,6 +1,7 @@
 #include "GamePlay/Events/PersonalEvents/PersonalEventPurifyingFlame.h"
 
 #include "Character/Components/Inventory/ItemManagerComponent.h"
+#include "Character/Components/Interaction/CharacterRewardComponent.h"
 #include "Character/Components/PlayerEventComponent.h"
 #include "Character/MyPlayerController.h"
 #include "GameData/Events/PersonalEvents/Malice/PersonalEventPurifyingFlameDefinition.h"
@@ -71,6 +72,18 @@ void UPersonalEventPurifyingFlame::OnEventResolved(ACharacter* InstigatorCharact
 			{
 				BaseItemLogic->OnItemAcquired(InstigatorCharacter);
 			}
+		}
+	}
+
+	if (UCharacterRewardComponent* RewardComponent = InstigatorCharacter->FindComponentByClass<UCharacterRewardComponent>())
+	{
+		const bool bNeedsClientMirrorGrant =
+			!InstigatorCharacter->IsLocallyControlled() &&
+			Cast<AMyPlayerController>(InstigatorCharacter->GetController()) != nullptr;
+
+		if (bNeedsClientMirrorGrant)
+		{
+			RewardComponent->Client_GrantInteractionReward(EventDefinition->SereneLanternDefinition);
 		}
 	}
 }
