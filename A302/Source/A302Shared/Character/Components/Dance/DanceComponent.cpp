@@ -36,9 +36,8 @@ void UDanceComponent::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
 	UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(PlayerInputComponent);
 	if (!EIC) return;
 
-	if (IA_Dance1) EIC->BindAction(IA_Dance1, ETriggerEvent::Started, this, &UDanceComponent::OnDance1);
-	if (IA_Dance2) EIC->BindAction(IA_Dance2, ETriggerEvent::Started, this, &UDanceComponent::OnDance2);
-	if (IA_Dance3) EIC->BindAction(IA_Dance3, ETriggerEvent::Started, this, &UDanceComponent::OnDance3);
+	// IA_Dance(Float) 1개에 F1/F2/F3을 Scalar 모디파이어(1.0/2.0/3.0)로 매핑합니다.
+	if (IA_Dance) EIC->BindAction(IA_Dance, ETriggerEvent::Started, this, &UDanceComponent::OnDance);
 }
 
 // ------------------------------------------------------------
@@ -82,13 +81,13 @@ AMyCharacter* UDanceComponent::GetOwnerCharacter() const
 
 UAnimMontage* UDanceComponent::GetDanceMontage(int32 Index) const
 {
-	switch (Index)
+	// Index는 1~12, DanceMontages 배열은 0~11
+	const int32 ArrayIndex = Index - 1;
+	if (DanceMontages.IsValidIndex(ArrayIndex))
 	{
-	case 1: return DanceMontage1;
-	case 2: return DanceMontage2;
-	case 3: return DanceMontage3;
-	default: return nullptr;
+		return DanceMontages[ArrayIndex];
 	}
+	return nullptr;
 }
 
 bool UDanceComponent::CanDance() const
@@ -107,19 +106,14 @@ bool UDanceComponent::CanDance() const
 // ------------------------------------------------------------
 // 로컬 입력 핸들러
 // ------------------------------------------------------------
-void UDanceComponent::OnDance1(const FInputActionValue& Value)
+void UDanceComponent::OnDance(const FInputActionValue& Value)
 {
-	RequestDance(1);
-}
-
-void UDanceComponent::OnDance2(const FInputActionValue& Value)
-{
-	RequestDance(2);
-}
-
-void UDanceComponent::OnDance3(const FInputActionValue& Value)
-{
-	RequestDance(3);
+	// IMC에서 F1→Scalar(1.0), F2→Scalar(2.0), ..., F12→Scalar(12.0)으로 매핑
+	const int32 Index = FMath::RoundToInt(Value.Get<float>());
+	if (Index >= 1 && Index <= 12)
+	{
+		RequestDance(Index);
+	}
 }
 
 void UDanceComponent::RequestDance(int32 Index)
