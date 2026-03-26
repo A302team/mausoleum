@@ -2,6 +2,9 @@
 
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
+#include "Kismet/GameplayStatics.h"
+#include "Object/StatueInteractable.h"
+#include "Object/EscapeRouteBlocker.h"
 #include "GameData/Events/PersonalEvents/Interactable/PersonalEventPhase1CollectDefinition.h"
 #include "GameData/RewardDefinition.h"
 #include "GameData/RewardTypes.h"
@@ -175,6 +178,11 @@ void UA302ServerPhaseSubsystem::NotifyRoomRewardResolved(const FString& RoomCode
         {
             ++RoomState->Phase2GroupEventCount;
             bCounted = true;
+            // 모든 석상이 완료된 순간: 나머지 석상 강제완료 + EscapeRouteBlocker 해제
+            if (RoomState->Phase2GroupEventCount >= FMath::Max(1, Phase2RequiredGroupEventCount))
+            {
+                TriggerAllStatuesCompleteInRoom(NormalizedRoomCode);
+            }
         }
         break;
     default:
@@ -228,8 +236,21 @@ bool UA302ServerPhaseSubsystem::NotifyRoomMatchTimerStart(const FString& RoomCod
     RoomState->MatchStartServerTime = static_cast<float>(CurrentServerTime);
     RoomState->bMatchTimerStarted = true;
 
+    // 클라이언트 HUD는 GetServerWorldTimeSeconds() 기반으로 남은 시간을 계산하지만,
+    // 서버 내부 페이즈 평가는 FPlatformTime::Seconds() 기반입니다.
+    // 두 시계는 원점(기준 시각)이 다르기 때문에, 클라이언트에 전달할 start time은
+    // GetServerWorldTimeSeconds() 기준으로 따로 구해야 합니다.
+    float HUDMatchStartTime = static_cast<float>(CurrentServerTime); // 기본값 (fallback)
+    if (UWorld* World = ResolveWorld())
+    {
+        if (const AGameStateBase* GS = World->GetGameState())
+        {
+            HUDMatchStartTime = GS->GetServerWorldTimeSeconds();
+        }
+    }
+
     // 클라이언트 타이머 UI 표시
-    BroadcastMatchTimerStateToRoom(NormalizedRoomCode, RoomState->MatchStartServerTime, MatchTimeLimitSeconds, MatchTimeLimitSeconds > 0.0f);
+    BroadcastMatchTimerStateToRoom(NormalizedRoomCode, HUDMatchStartTime, MatchTimeLimitSeconds, MatchTimeLimitSeconds > 0.0f);
     BroadcastPhaseClearProgressToRoom(NormalizedRoomCode, *RoomState, true);
 
     // GameState 복제 → 클라이언트가 서버 시간 참조 가능
@@ -237,7 +258,7 @@ bool UA302ServerPhaseSubsystem::NotifyRoomMatchTimerStart(const FString& RoomCod
     {
         if (AA302GameState* GS = Cast<AA302GameState>(World->GetGameState()))
         {
-            GS->SetMatchTimer(RoomState->MatchStartServerTime, MatchTimeLimitSeconds);
+            GS->SetMatchTimer(HUDMatchStartTime, MatchTimeLimitSeconds);
         }
     }
 
@@ -368,11 +389,10 @@ void UA302ServerPhaseSubsystem::UpdateRoomPhase(const FString& RoomCode, double 
         }
         else
         {
-            const int32 RequiredGroupEvents = FMath::Max(0, Phase2RequiredGroupEventCount);
             TransitionReason = FString::Printf(
-                TEXT("Phase2 group event count reached (%d/%d)"),
-                RoomState->Phase2GroupEventCount,
-                RequiredGroupEvents
+                TEXT("Escape count reached (%d/%d)"),
+                CountEscapedPlayersInRoom(RoomState->RoomCode),
+                FMath::Max(1, EscapeRequiredCount)
             );
         }
     }
@@ -467,10 +487,10 @@ EGamePhase UA302ServerPhaseSubsystem::ResolvePhase(const FA302RoomPhaseState& Ro
     }
     case EGamePhase::Phase2:
     {
-        // 미션을 완료해서 넘어가야함
-        const int32 RequiredGroupEvents = FMath::Max(0, Phase2RequiredGroupEventCount);
-        const bool bGroupEventsCleared = RequiredGroupEvents > 0 && RoomState.Phase2GroupEventCount >= RequiredGroupEvents;
-        if (bGroupEventsCleared)
+        // 석상 미션 완료는 포탈 접근을 열어주는 역할만 함 (별도 이벤트로 처리).
+        // Phase2 → Ended 전환은 포탈로 탈출한 플레이어 수 기준.
+        const int32 RequiredEscapes = FMath::Max(1, EscapeRequiredCount);
+        if (CountEscapedPlayersInRoom(RoomState.RoomCode) >= RequiredEscapes)
         {
             return EGamePhase::Ended;
         }
@@ -696,4 +716,51 @@ const TCHAR* UA302ServerPhaseSubsystem::ToString(ERewardCategory RewardCategory)
     default:
         return TEXT("UnknownReward");
     }
+}
+
+void UA302ServerPhaseSubsystem::TriggerAllStatuesCompleteInRoom(const FString& RoomCode)
+{
+    UWorld* World = ResolveWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    // 룸 중심 X 좌표로 같은 룸의 액터만 필터링
+    const FVector RoomCenter = A302RoomWorldOffset::ResolveRoomOffset(RoomCode);
+    const float HalfStep = static_cast<float>(A302RoomWorldOffset::DefaultOffsetStepX * 0.5);
+
+    // 룸 내 미완료 석상 모두 강제 완료 (이펙트 재생 포함)
+    TArray<AActor*> StatueActors;
+    UGameplayStatics::GetAllActorsOfClass(World, AStatueInteractable::StaticClass(), StatueActors);
+    for (AActor* Actor : StatueActors)
+    {
+        if (!Actor || FMath::Abs(Actor->GetActorLocation().X - RoomCenter.X) > HalfStep)
+        {
+            continue;
+        }
+        if (AStatueInteractable* Statue = Cast<AStatueInteractable>(Actor))
+        {
+            Statue->ForceComplete();
+        }
+    }
+
+    // 룸 내 EscapeRouteBlocker 모두 해제 (탈출로 오픈)
+    TArray<AActor*> BlockerActors;
+    UGameplayStatics::GetAllActorsOfClass(World, AEscapeRouteBlocker::StaticClass(), BlockerActors);
+    for (AActor* Actor : BlockerActors)
+    {
+        if (!Actor || FMath::Abs(Actor->GetActorLocation().X - RoomCenter.X) > HalfStep)
+        {
+            continue;
+        }
+        if (AEscapeRouteBlocker* Blocker = Cast<AEscapeRouteBlocker>(Actor))
+        {
+            Blocker->OpenEscapeRoute();
+        }
+    }
+
+    UE_LOG(LogA302Phase, Log,
+        TEXT("TriggerAllStatuesComplete: forced statues=%d blockers=%d room=%s"),
+        StatueActors.Num(), BlockerActors.Num(), *RoomCode);
 }
