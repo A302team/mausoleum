@@ -6,6 +6,8 @@
 #include "A302ServerPhaseSubsystem.generated.h"
 
 enum class ERewardCategory : uint8;
+class ACharacter;
+class APlayerController;
 class URewardDefinition;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnRoomPhaseChanged, const FString&, RoomCode, EGamePhase, NewPhase);
@@ -112,9 +114,11 @@ public:
     bool NotifyRoomMatchTimerStart(const FString& RoomCode);
 
 private:
+    void HandleRewardResolvedSignal(ACharacter* InstigatorCharacter, const URewardDefinition* RewardDefinition, ERewardCategory RewardCategory);
     void HandleMapLoaded(UWorld* LoadedWorld);
     void EvaluateRoomPhases();
     void EnsurePhaseTimer();
+    void GatherPlayersInRoom(const FString& RoomCode, TArray<APlayerController*>& OutPlayers) const;
     void BroadcastMatchTimerStateToRoom(const FString& RoomCode, float MatchStartServerTime, float DurationSeconds, bool bVisible) const;
     void BroadcastPhaseClearProgressToRoom(const FString& RoomCode, const FA302RoomPhaseState& RoomState, bool bVisible) const;
     void UpdateRoomPhase(const FString& RoomCode, double CurrentServerTime);

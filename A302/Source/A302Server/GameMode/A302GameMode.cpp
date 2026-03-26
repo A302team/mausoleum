@@ -746,6 +746,46 @@ void AA302GameMode::SyncRoomStateToGameState(const FString& RoomCode)
         if (PhaseSubsystem->TryGetRoomPhaseState(NormalizedRoomCode, RoomPhaseState))
         {
             A302GameState->SetGamePhase(RoomPhaseState.CurrentPhase, RoomPhaseState.PhaseChangedServerTime);
+
+            int32 CurrentCount = 0;
+            int32 RequiredCount = 0;
+            switch (RoomPhaseState.CurrentPhase)
+            {
+            case EGamePhase::Phase0:
+                CurrentCount = RoomPhaseState.Phase0ItemCount;
+                RequiredCount = PhaseSubsystem->Phase0RequiredItemCount;
+                break;
+            case EGamePhase::Phase1:
+                CurrentCount = RoomPhaseState.Phase1ClearObjectCount;
+                RequiredCount = PhaseSubsystem->Phase1RequiredClearObjectCount;
+                break;
+            case EGamePhase::Phase2:
+                CurrentCount = RoomPhaseState.Phase2GroupEventCount;
+                RequiredCount = PhaseSubsystem->Phase2RequiredGroupEventCount;
+                break;
+            default:
+                break;
+            }
+
+            if (RoomMembershipRegistry && GetWorld())
+            {
+                TArray<APlayerController*> RoomPlayers;
+                RoomMembershipRegistry->GatherPlayersInRoom(GetWorld(), NormalizedRoomCode, RoomPlayers);
+
+                const bool bShowProgressUI = RoomPhaseState.CurrentPhase != EGamePhase::Ended;
+                for (APlayerController* RoomPlayer : RoomPlayers)
+                {
+                    if (AMyPlayerController* MyPlayerController = Cast<AMyPlayerController>(RoomPlayer))
+                    {
+                        MyPlayerController->UpdatePhaseClearProgress(
+                            static_cast<uint8>(RoomPhaseState.CurrentPhase),
+                            FMath::Max(0, CurrentCount),
+                            FMath::Max(0, RequiredCount),
+                            bShowProgressUI
+                        );
+                    }
+                }
+            }
         }
     }
 

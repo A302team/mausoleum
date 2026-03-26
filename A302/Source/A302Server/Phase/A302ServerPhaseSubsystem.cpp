@@ -11,8 +11,11 @@
 #include "Character/MyPlayerController.h"
 #include "GameMode/A302GameMode.h"
 #include "GameMode/A302PlayerState.h"
+#include "GameFramework/Character.h"
 #include "GameFramework/PlayerController.h"
+#include "Interface/A302ServerRewardSignals.h"
 #include "Room/RoomMembershipRegistry.h"
+#include "Room/RoomScopeRules.h"
 #include "Room/RoomWorldOffset.h"
 #include "TimerManager.h"
 #include "UObject/UObjectGlobals.h"
@@ -23,6 +26,7 @@ void UA302ServerPhaseSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
     Super::Initialize(Collection);
     FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(this, &UA302ServerPhaseSubsystem::HandleMapLoaded);
+    A302GetServerRewardResolvedSignal().AddUObject(this, &UA302ServerPhaseSubsystem::HandleRewardResolvedSignal);
     UE_LOG(
         LogA302Phase,
         Log,
@@ -38,6 +42,7 @@ void UA302ServerPhaseSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 void UA302ServerPhaseSubsystem::Deinitialize()
 {
     FCoreUObjectDelegates::PostLoadMapWithWorld.RemoveAll(this);
+    A302GetServerRewardResolvedSignal().RemoveAll(this);
     if (UWorld* World = ResolveWorld())
     {
         World->GetTimerManager().ClearTimer(PhaseUpdateTimerHandle);
@@ -442,6 +447,94 @@ UWorld* UA302ServerPhaseSubsystem::ResolveWorld() const
     return GameInstance ? GameInstance->GetWorld() : nullptr;
 }
 
+void UA302ServerPhaseSubsystem::HandleRewardResolvedSignal(
+    ACharacter* InstigatorCharacter,
+    const URewardDefinition* RewardDefinition,
+    ERewardCategory RewardCategory
+)
+{
+    if (!InstigatorCharacter || !InstigatorCharacter->HasAuthority() || !RewardDefinition)
+    {
+        return;
+    }
+
+    const AA302PlayerState* InstigatorState = InstigatorCharacter->GetPlayerState<AA302PlayerState>();
+    if (!InstigatorState)
+    {
+        return;
+    }
+
+    const FString RoomCode = A302RoomScope::NormalizeRoomCode(InstigatorState->GetRoomCode());
+    if (RoomCode.IsEmpty())
+    {
+        return;
+    }
+
+    FA302RoomPhaseState ExistingRoomState;
+    if (!TryGetRoomPhaseState(RoomCode, ExistingRoomState))
+    {
+        const bool bStarted = StartRoomPhaseTimeline(RoomCode);
+        if (bStarted)
+        {
+            NotifyRoomMatchTimerStart(RoomCode);
+            UE_LOG(LogA302Phase, Log, TEXT("Fallback timeline auto-started by reward signal. room=%s"), *RoomCode);
+        }
+    }
+    else if (!ExistingRoomState.bMatchTimerStarted)
+    {
+        NotifyRoomMatchTimerStart(RoomCode);
+    }
+
+    NotifyRoomRewardResolved(RoomCode, RewardDefinition, RewardCategory);
+}
+
+void UA302ServerPhaseSubsystem::GatherPlayersInRoom(const FString& RoomCode, TArray<APlayerController*>& OutPlayers) const
+{
+    OutPlayers.Reset();
+
+    UWorld* World = ResolveWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    const FString NormalizedRoomCode = A302RoomScope::NormalizeRoomCode(RoomCode);
+    if (NormalizedRoomCode.IsEmpty())
+    {
+        return;
+    }
+
+    if (const AA302GameMode* GameMode = Cast<AA302GameMode>(World->GetAuthGameMode()))
+    {
+        if (URoomMembershipRegistry* Registry = GameMode->GetRoomMembershipRegistry())
+        {
+            Registry->GatherPlayersInRoom(World, NormalizedRoomCode, OutPlayers);
+            if (OutPlayers.Num() > 0)
+            {
+                return;
+            }
+        }
+    }
+
+    for (FConstPlayerControllerIterator Iterator = World->GetPlayerControllerIterator(); Iterator; ++Iterator)
+    {
+        APlayerController* PlayerController = Iterator->Get();
+        const AA302PlayerState* PlayerState = PlayerController ? PlayerController->GetPlayerState<AA302PlayerState>() : nullptr;
+        if (!PlayerState)
+        {
+            continue;
+        }
+
+        const FString PlayerRoomCode = A302RoomScope::NormalizeRoomCode(PlayerState->GetRoomCode());
+        if (!A302RoomScope::MatchesRoomCode(NormalizedRoomCode, PlayerRoomCode))
+        {
+            continue;
+        }
+
+        OutPlayers.Add(PlayerController);
+    }
+}
+
 EGamePhase UA302ServerPhaseSubsystem::ResolvePhase(const FA302RoomPhaseState& RoomState, double CurrentServerTime) const
 {
     // 타이머가 시작되지 않았다면 어떤 페이즈 전환(시간 만료 등)도 처리하지 않고 홀딩
@@ -504,26 +597,8 @@ EGamePhase UA302ServerPhaseSubsystem::ResolvePhase(const FA302RoomPhaseState& Ro
 
 int32 UA302ServerPhaseSubsystem::CountAlivePlayersInRoom(const FString& RoomCode) const
 {
-    UWorld* World = ResolveWorld();
-    if (!World)
-    {
-        return 0;
-    }
-
-    const AA302GameMode* GameMode = Cast<AA302GameMode>(World->GetAuthGameMode());
-    if (!GameMode)
-    {
-        return 0;
-    }
-
-    URoomMembershipRegistry* Registry = GameMode->GetRoomMembershipRegistry();
-    if (!Registry)
-    {
-        return 0;
-    }
-
     TArray<APlayerController*> Players;
-    Registry->GatherPlayersInRoom(World, RoomCode, Players);
+    GatherPlayersInRoom(RoomCode, Players);
 
     int32 AliveCount = 0;
     for (APlayerController* PlayerController : Players)
@@ -545,26 +620,8 @@ int32 UA302ServerPhaseSubsystem::CountAlivePlayersInRoom(const FString& RoomCode
 
 int32 UA302ServerPhaseSubsystem::CountEscapedPlayersInRoom(const FString& RoomCode) const
 {
-    UWorld* World = ResolveWorld();
-    if (!World)
-    {
-        return 0;
-    }
-
-    const AA302GameMode* GameMode = Cast<AA302GameMode>(World->GetAuthGameMode());
-    if (!GameMode)
-    {
-        return 0;
-    }
-
-    URoomMembershipRegistry* Registry = GameMode->GetRoomMembershipRegistry();
-    if (!Registry)
-    {
-        return 0;
-    }
-
     TArray<APlayerController*> Players;
-    Registry->GatherPlayersInRoom(World, RoomCode, Players);
+    GatherPlayersInRoom(RoomCode, Players);
 
     int32 EscapedCount = 0;
     for (APlayerController* PlayerController : Players)
@@ -581,26 +638,8 @@ int32 UA302ServerPhaseSubsystem::CountEscapedPlayersInRoom(const FString& RoomCo
 
 void UA302ServerPhaseSubsystem::BroadcastMatchTimerStateToRoom(const FString& RoomCode, float MatchStartServerTime, float DurationSeconds, bool bVisible) const
 {
-    UWorld* World = ResolveWorld();
-    if (!World)
-    {
-        return;
-    }
-
-    const AA302GameMode* GameMode = Cast<AA302GameMode>(World->GetAuthGameMode());
-    if (!GameMode)
-    {
-        return;
-    }
-
-    URoomMembershipRegistry* Registry = GameMode->GetRoomMembershipRegistry();
-    if (!Registry)
-    {
-        return;
-    }
-
     TArray<APlayerController*> Players;
-    Registry->GatherPlayersInRoom(World, RoomCode, Players);
+    GatherPlayersInRoom(RoomCode, Players);
 
     for (APlayerController* PlayerController : Players)
     {
@@ -613,24 +652,6 @@ void UA302ServerPhaseSubsystem::BroadcastMatchTimerStateToRoom(const FString& Ro
 
 void UA302ServerPhaseSubsystem::BroadcastPhaseClearProgressToRoom(const FString& RoomCode, const FA302RoomPhaseState& RoomState, bool bVisible) const
 {
-    UWorld* World = ResolveWorld();
-    if (!World)
-    {
-        return;
-    }
-
-    const AA302GameMode* GameMode = Cast<AA302GameMode>(World->GetAuthGameMode());
-    if (!GameMode)
-    {
-        return;
-    }
-
-    URoomMembershipRegistry* Registry = GameMode->GetRoomMembershipRegistry();
-    if (!Registry)
-    {
-        return;
-    }
-
     int32 CurrentCount = 0;
     int32 RequiredCount = 0;
     switch (RoomState.CurrentPhase)
@@ -652,7 +673,7 @@ void UA302ServerPhaseSubsystem::BroadcastPhaseClearProgressToRoom(const FString&
     }
 
     TArray<APlayerController*> Players;
-    Registry->GatherPlayersInRoom(World, RoomCode, Players);
+    GatherPlayersInRoom(RoomCode, Players);
 
     const bool bShouldShow = bVisible && RoomState.CurrentPhase != EGamePhase::Ended;
     for (APlayerController* PlayerController : Players)

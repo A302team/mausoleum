@@ -71,7 +71,7 @@ public:
 	float AccumulatedHoldSyncTime = 0.0f;
 
 	UPROPERTY(EditAnywhere, Category = "Interaction")
-	float MaxHoldTime = 2.0f;
+	float MaxHoldTime = 2.0f; // 프로그레스 100% 도달 시간 (스태츄는 별도로 사용됨)
 	
 	UPROPERTY(EditAnywhere, Category = "Interaction")
 	float InteractionDistance = 300.f;
@@ -103,6 +103,9 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "Interaction|Highlight", meta = (ClampMin = "0", ClampMax = "255"))
 	int32 NearbyAndFocusedHighlightStencilValue = 3;
+
+	UPROPERTY(EditAnywhere, Category = "Interaction|Statue")
+	float StatueMaxHoldTime = 7.0f; // 스태츄 상호작용의 실제 애니메이션 길이
 	
 	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")
 	FOnQTEStarted OnQTEStarted;
@@ -153,6 +156,7 @@ private:
 
 	bool bIsHoldingInteraction = false;
 	bool bLocalUIInitialized = false;
+	float StatueHoldElapsedTime = 0.0f; // 스태츄 홀드 누적 시간
 
 	TSet<TWeakObjectPtr<AActor>> NearbyHighlightedActors;
 	

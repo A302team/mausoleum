@@ -1,6 +1,7 @@
 #pragma once
 #include <atomic>
 #include <functional>
+#include <memory>
 #include <thread>
 #include <unordered_map>
 #include <vector>
@@ -11,7 +12,7 @@
 
 class NetworkService {
 public:
-    using Handler = std::function<void(const NetPacket&, NetworkService&)>;
+    using Handler = std::function<void(NetPacket&&, NetworkService&)>;
 
     NetworkService();
     ~NetworkService();
@@ -29,6 +30,7 @@ public:
     // 응답 전송 요청 (큐에 적재)
     void sendUdp(const sockaddr_in& addr, const char* data, size_t size);
     void sendUdp(const sockaddr_in& addr, const std::vector<char>& data);
+    void sendUdp(const sockaddr_in& addr, std::shared_ptr<const std::vector<char>> sharedData);
     void sendTcp(ConnectionId id, const char* data, size_t size);
     void sendTcp(ConnectionId id, const std::vector<char>& data);
 
@@ -36,6 +38,8 @@ private:
     ConcurrentQueue<NetPacket> inboundQueue_;
     ConcurrentQueue<NetPacket> outboundQueue_;
     std::unordered_map<NetProtocol, Handler> handlers_;
+    std::vector<NetworkUdpEndpointConfig> udpEndpointConfigs_;
+    std::vector<NetworkTcpListenerConfig> tcpListenerConfigs_;
 
     ConnectionRegistry connections_;
     NetworkIO io_;
