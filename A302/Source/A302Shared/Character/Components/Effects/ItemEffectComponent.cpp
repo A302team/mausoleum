@@ -10,6 +10,7 @@
 #include "NiagaraFunctionLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/Pawn.h"
+#include "Sound/SoundBase.h"
 
 UItemEffectComponent::UItemEffectComponent()
 {
@@ -255,12 +256,25 @@ void UItemEffectComponent::PlayItemEffect(const FItemEffectData& EffectData)
 	// Sound 재생
 	if (EffectData.Sound)
 	{
-		UGameplayStatics::PlaySoundAtLocation(
-			this,
-			EffectData.Sound,
-			SpawnLocation
-		);
-		UE_LOG(LogTemp, Warning, TEXT("[ItemEffectComponent] ✓ Sound played: %s"), *GetNameSafe(EffectData.Sound));
+		if (EffectData.Sound->IsLooping())
+		{
+			UE_LOG(
+				LogTemp,
+				Warning,
+				TEXT("[ItemEffectComponent] Looping sound '%s' is not valid for one-shot item effect (ItemID='%s')."),
+				*GetNameSafe(EffectData.Sound),
+				*EffectData.ItemID.ToString()
+			);
+		}
+		else
+		{
+			UGameplayStatics::PlaySoundAtLocation(
+				this,
+				EffectData.Sound,
+				SpawnLocation
+			);
+			UE_LOG(LogTemp, Warning, TEXT("[ItemEffectComponent] ✓ Sound played: %s"), *GetNameSafe(EffectData.Sound));
+		}
 	}
 
 	UE_LOG(LogTemp, Warning, TEXT("[ItemEffectComponent] Item effect completed – ItemID='%s'"), *EffectData.ItemID.ToString());
@@ -299,12 +313,25 @@ void UItemEffectComponent::PlayMaliceEffect(const FMaliceEffectData& EffectData,
 	// Sound 재생
 	if (EffectData.Sound)
 	{
-		UGameplayStatics::PlaySoundAtLocation(
-			this,
-			EffectData.Sound,
-			SpawnLocation
-		);
-		UE_LOG(LogTemp, Warning, TEXT("[ItemEffectComponent] ✓ Sound played: %s"), *GetNameSafe(EffectData.Sound));
+		if (EffectData.Sound->IsLooping())
+		{
+			UE_LOG(
+				LogTemp,
+				Warning,
+				TEXT("[ItemEffectComponent] Looping sound '%s' is not valid for one-shot malice effect (MaliceCount=%d)."),
+				*GetNameSafe(EffectData.Sound),
+				MaliceCount
+			);
+		}
+		else
+		{
+			UGameplayStatics::PlaySoundAtLocation(
+				this,
+				EffectData.Sound,
+				SpawnLocation
+			);
+			UE_LOG(LogTemp, Warning, TEXT("[ItemEffectComponent] ✓ Sound played: %s"), *GetNameSafe(EffectData.Sound));
+		}
 	}
 
 	UE_LOG(LogTemp, Warning, TEXT("[ItemEffectComponent] Malice effect completed – MaliceCount=%d"), MaliceCount);
