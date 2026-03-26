@@ -1,6 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "GameMode/A302GameInstance.h"
+#include "Character/MyPlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "A302RuntimeGuards.h"
 #include "Engine/LevelStreamingDynamic.h"
@@ -848,6 +849,11 @@ void UA302GameInstance::FinalizeLoadingProgress()
 		LocalPC->SetInputMode(FInputModeGameOnly());
 		LocalPC->bShowMouseCursor = false;
 		LocalPC->bEnableClickEvents = false;
+
+		if (AMyPlayerController* MyPlayerController = Cast<AMyPlayerController>(LocalPC))
+		{
+			MyPlayerController->ShowGameplayStartTitleCard();
+		}
 	}
 	UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameInstance] Local room streaming level is ready. room=%s"), *LocalRoomStreamingRoomCode);
 }
