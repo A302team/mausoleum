@@ -69,15 +69,10 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Interaction")
     UAnimMontage* StatueInteractMontage;
 
-    // Dance Montages – 블루프린트(BP_MyCharacter)의 AnimInstance에서 할당
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Dance")
-    UAnimMontage* DanceMontage1 = nullptr;
-
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Dance")
-    UAnimMontage* DanceMontage2 = nullptr;
-
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Dance")
-    UAnimMontage* DanceMontage3 = nullptr;
+	// Dance Montages – 블루프린트(BP_MyCharacter)의 AnimInstance에서 할당
+	// Index 0 = F1, Index 1 = F2, ..., Index 11 = F12
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Dance")
+	TArray<UAnimMontage*> DanceMontages;
 
 
     // Gameplay → AnimInstance 호출용 함수
