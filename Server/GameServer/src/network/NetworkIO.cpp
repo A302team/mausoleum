@@ -121,21 +121,29 @@ bool NetworkIO::registerTcpListener(int port) {
 }
 
 void NetworkIO::udpLoop() {
-    eventLoop_->udpLoop(running_, udpEndpoints_, inboundQueue_);
+    const auto udpSnapshot = udpEndpoints_;
+    eventLoop_->udpLoop(running_, udpSnapshot, inboundQueue_);
 }
 
 void NetworkIO::tcpLoop() {
-    eventLoop_->tcpLoop(running_, tcpListeners_, connections_, inboundQueue_);
+    const auto listenerSnapshot = tcpListeners_;
+    eventLoop_->tcpLoop(running_, listenerSnapshot, connections_, inboundQueue_);
 }
 
 void NetworkIO::sendLoop() {
     NetPacket packet;
     while (outboundQueue_.pop(packet)) {
+        const char* payload = packet.payloadData();
+        const size_t payloadSize = packet.payloadSize();
+        if (payloadSize == 0) {
+            continue;
+        }
+
         if (packet.protocol == NetProtocol::Udp) {
             if (udpEndpoints_.empty()) continue;
             const auto& ep = udpEndpoints_.front();
-            int sent = sendto(ep.sock, packet.data.data(),
-                              static_cast<int>(packet.data.size()),
+            int sent = sendto(ep.sock, payload,
+                              static_cast<int>(payloadSize),
                               0, reinterpret_cast<const sockaddr*>(&packet.addr),
                               sizeof(packet.addr));
             if (sent == SOCK_ERROR) {
@@ -147,8 +155,8 @@ void NetworkIO::sendLoop() {
                 LOG_WARN("NetworkIO", "TCP 대상 없음: id=" << packet.connectionId);
                 continue;
             }
-            if (!sendAll(c.sock, packet.data.data(),
-                         static_cast<int>(packet.data.size()))) {
+            if (!sendAll(c.sock, payload,
+                         static_cast<int>(payloadSize))) {
                 LOG_WARN("NetworkIO", "TCP 전송 실패: id=" << packet.connectionId);
             }
         }

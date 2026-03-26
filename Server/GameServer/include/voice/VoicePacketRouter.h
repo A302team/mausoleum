@@ -1,5 +1,9 @@
+#pragma once
 #include <functional>
+#include <memory>
+#include <string>
 #include <unordered_map>
+#include <vector>
 #include "common/Platform.h"
 #include "common/logging/Logger.h"
 #include "voice/VoiceConstants.h"
@@ -19,6 +23,7 @@ struct ParsedPacket {
     const VoicePacketHeader* header;
     const char* rawBuffer;
     int rawSize;
+    std::shared_ptr<const std::vector<char>> sharedPayload;
     sockaddr_in senderAddr;
     uint64_t senderKey;
     std::string roomCode;
