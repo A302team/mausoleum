@@ -145,6 +145,34 @@ void AMyPlayerController::Server_RegisterPlayerDisplayName_Implementation(const 
 	PlayerState->SetPlayerName(TrimmedName.Left(20));
 }
 
+void AMyPlayerController::TryRegisterPlayerDisplayName()
+{
+	if (!IsLocalController())
+	{
+		return;
+	}
+
+	const UA302GameInstance* GameInstance = GetGameInstance<UA302GameInstance>();
+	if (!GameInstance)
+	{
+		return;
+	}
+
+	const FString DesiredName = GameInstance->MyPlayerName.TrimStartAndEnd();
+	if (DesiredName.IsEmpty())
+	{
+		return;
+	}
+
+	const FString CurrentName = PlayerState ? PlayerState->GetPlayerName().TrimStartAndEnd() : FString();
+	if (CurrentName.Equals(DesiredName, ESearchCase::CaseSensitive))
+	{
+		return;
+	}
+
+	Server_RegisterPlayerDisplayName(DesiredName);
+}
+
 AMyPlayerController::AMyPlayerController()
 {
 	PlayerEventComponent = CreateDefaultSubobject<UPlayerEventComponent>(TEXT("PlayerEventComponent"));
@@ -188,6 +216,8 @@ void AMyPlayerController::BeginPlay()
 		return;
 	}
 
+	TryRegisterPlayerDisplayName();
+
 	BindToReplicatedGamePhase();
 
 	if (ULocalPlayer* LP = GetLocalPlayer())
@@ -217,6 +247,7 @@ void AMyPlayerController::AcknowledgePossession(APawn* P)
 {
 	Super::AcknowledgePossession(P);
 	DeadSpectateCycleIndex = INDEX_NONE;
+	TryRegisterPlayerDisplayName();
 
 	if (const AA302PlayerState* A302PlayerState = GetPlayerState<AA302PlayerState>())
 	{
@@ -240,6 +271,7 @@ void AMyPlayerController::OnRep_Pawn()
 {
 	Super::OnRep_Pawn();
 	DeadSpectateCycleIndex = INDEX_NONE;
+	TryRegisterPlayerDisplayName();
 
 	if (const AA302PlayerState* A302PlayerState = GetPlayerState<AA302PlayerState>())
 	{
@@ -550,6 +582,8 @@ void AMyPlayerController::NotifyLocalGameplayPawnReady()
 	{
 		GameInstance->NotifyLocalGameplayPawnReady();
 	}
+
+	TryRegisterPlayerDisplayName();
 }
 
 // InitializeClientInGameWidgets, InitializeChatWidget은 AA302GameHUD로 이관되어 제거되었습니다.
