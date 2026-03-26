@@ -390,10 +390,23 @@ void UPlayerHUDComponent::ShowPublicMaliceAnnouncement(const FString& PlayerName
 
 void UPlayerHUDComponent::ShowInspectMaliceSelectionWidget()
 {
+	InspectMaliceServerCandidates.Reset();
 	ShowInspectMaliceSelectionWidgetWithConfig(DefaultInspectMaliceSelectionTimeoutSeconds, DefaultInspectMaliceResultDisplaySeconds);
 }
 
 void UPlayerHUDComponent::ShowInspectMaliceSelectionWidgetWithConfig(float SelectionTimeoutSeconds, float ResultDisplaySeconds)
+{
+	InspectMaliceServerCandidates.Reset();
+	ShowInspectMaliceSelectionWidgetInternal(SelectionTimeoutSeconds, ResultDisplaySeconds);
+}
+
+void UPlayerHUDComponent::ShowInspectMaliceSelectionWidgetWithCandidatesAndConfig(const TArray<FInspectMaliceCandidateData>& Candidates, float SelectionTimeoutSeconds, float ResultDisplaySeconds)
+{
+	InspectMaliceServerCandidates = Candidates;
+	ShowInspectMaliceSelectionWidgetInternal(SelectionTimeoutSeconds, ResultDisplaySeconds);
+}
+
+void UPlayerHUDComponent::ShowInspectMaliceSelectionWidgetInternal(float SelectionTimeoutSeconds, float ResultDisplaySeconds)
 {
 	AMyPlayerController* OwnerController = GetOwnerController();
 	if (!OwnerController || !OwnerController->IsLocalController())
@@ -1716,12 +1729,79 @@ void UPlayerHUDComponent::InitializeInspectMaliceWidget()
 	}
 
 	InspectMaliceSelectablePlayers.Reset();
+	InspectMaliceSelectableCandidates.Reset();
 	ResetInspectMaliceSelectionWidget();
 }
 
 void UPlayerHUDComponent::PopulateInspectMaliceSelectionWidget()
 {
 	InspectMaliceSelectablePlayers.Reset();
+	InspectMaliceSelectableCandidates.Reset();
+
+	if (InspectMaliceServerCandidates.Num() > 0)
+	{
+		for (const FInspectMaliceCandidateData& CandidateData : InspectMaliceServerCandidates)
+		{
+			if (InspectMaliceSelectableCandidates.Num() >= MaxInspectMaliceTargets)
+			{
+				break;
+			}
+
+			if (CandidateData.PlayerId == INDEX_NONE)
+			{
+				continue;
+			}
+
+			InspectMaliceSelectableCandidates.Add(CandidateData);
+
+			const int32 WidgetIndex = InspectMaliceSelectableCandidates.Num();
+			const FName ButtonName(*FString::Printf(TEXT("UserBtn%d"), WidgetIndex));
+			if (UButton* TargetButton = FindInspectMaliceButton(ButtonName))
+			{
+				TargetButton->SetVisibility(ESlateVisibility::Visible);
+				TargetButton->SetIsEnabled(true);
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[InspectMalice] Missing button widget: %s"), *ButtonName.ToString());
+			}
+
+			const FName TextName(*FString::Printf(TEXT("UserText%d"), WidgetIndex));
+			if (UTextBlock* TargetText = FindInspectMaliceText(TextName))
+			{
+				TargetText->SetText(FText::FromString(ClampNicknameForUi(CandidateData.PlayerName)));
+				TargetText->SetVisibility(ESlateVisibility::Visible);
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[InspectMalice] Missing text widget: %s"), *TextName.ToString());
+			}
+		}
+
+		if (InspectMaliceSelectableCandidates.Num() > 0)
+		{
+			for (int32 WidgetIndex = InspectMaliceSelectableCandidates.Num() + 1; WidgetIndex <= PlayerHUDVoteSlotCount; ++WidgetIndex)
+			{
+				const FName ButtonName(*FString::Printf(TEXT("UserBtn%d"), WidgetIndex));
+				if (UButton* HiddenButton = FindInspectMaliceButton(ButtonName))
+				{
+					HiddenButton->SetVisibility(ESlateVisibility::Collapsed);
+					HiddenButton->SetIsEnabled(false);
+				}
+
+				const FName TextName(*FString::Printf(TEXT("UserText%d"), WidgetIndex));
+				if (UTextBlock* HiddenText = FindInspectMaliceText(TextName))
+				{
+					HiddenText->SetVisibility(ESlateVisibility::Collapsed);
+					HiddenText->SetText(FText::GetEmpty());
+				}
+			}
+
+			return;
+		}
+
+		InspectMaliceServerCandidates.Reset();
+	}
 
 	AMyPlayerController* OwnerController = GetOwnerController();
 	AGameStateBase* GameState = GetWorld() ? GetWorld()->GetGameState() : nullptr;
@@ -1882,6 +1962,8 @@ void UPlayerHUDComponent::HideInspectMaliceSelectionWidget()
 
 	StopInspectMaliceItemTimer();
 	bInspectMaliceSelectionConsumed = false;
+	InspectMaliceSelectableCandidates.Reset();
+	InspectMaliceSelectablePlayers.Reset();
 
 	FInputModeGameOnly InputMode;
 	OwnerController->SetInputMode(InputMode);
@@ -1909,15 +1991,29 @@ void UPlayerHUDComponent::ApplyInspectMaliceSelection(int32 EntryIndex)
 		return;
 	}
 
-	if (!InspectMaliceSelectablePlayers.IsValidIndex(EntryIndex))
+	FString SelectedPlayerName;
+	int32 SelectedPlayerMalice = 0;
+	if (InspectMaliceSelectableCandidates.IsValidIndex(EntryIndex))
 	{
-		return;
+		const FInspectMaliceCandidateData& CandidateData = InspectMaliceSelectableCandidates[EntryIndex];
+		SelectedPlayerName = CandidateData.PlayerName;
+		SelectedPlayerMalice = FMath::Max(0, CandidateData.MaliceCount);
 	}
-
-	APlayerState* TargetPlayerState = InspectMaliceSelectablePlayers[EntryIndex];
-	if (!TargetPlayerState)
+	else
 	{
-		return;
+		if (!InspectMaliceSelectablePlayers.IsValidIndex(EntryIndex))
+		{
+			return;
+		}
+
+		APlayerState* TargetPlayerState = InspectMaliceSelectablePlayers[EntryIndex];
+		if (!TargetPlayerState)
+		{
+			return;
+		}
+
+		SelectedPlayerName = ResolvePlayerDisplayName(TargetPlayerState);
+		SelectedPlayerMalice = QueryPlayerMaliceCount(TargetPlayerState);
 	}
 
 	bInspectMaliceSelectionConsumed = true;
@@ -1931,12 +2027,12 @@ void UPlayerHUDComponent::ApplyInspectMaliceSelection(int32 EntryIndex)
 
 	if (UTextBlock* UserText = FindInspectMaliceText(TEXT("InspectMaliceUserText")))
 	{
-		UserText->SetText(FText::FromString(ResolvePlayerDisplayName(TargetPlayerState)));
+		UserText->SetText(FText::FromString(ClampNicknameForUi(SelectedPlayerName)));
 	}
 
 	if (UTextBlock* MaliceNumText = FindInspectMaliceText(TEXT("InspectMaliceUserMaliceNum")))
 	{
-		MaliceNumText->SetText(FText::AsNumber(QueryPlayerMaliceCount(TargetPlayerState)));
+		MaliceNumText->SetText(FText::AsNumber(FMath::Max(0, SelectedPlayerMalice)));
 	}
 
 	SetInspectMaliceResultVisible(true);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "GamePlay/Events/PersonalEvents/InspectMaliceCandidateData.h"
 #include "GameFramework/HUD.h"
 #include "A302GameHUD.generated.h"
 
@@ -101,6 +102,9 @@ public:
 
 	UFUNCTION()
 	void ShowInspectMaliceSelectionWidgetWithConfig(float SelectionTimeoutSeconds, float ResultDisplaySeconds);
+
+	UFUNCTION()
+	void ShowInspectMaliceSelectionWidgetWithCandidatesAndConfig(const TArray<FInspectMaliceCandidateData>& Candidates, float SelectionTimeoutSeconds, float ResultDisplaySeconds);
 
 	UFUNCTION()
 	void UpdateShieldCountText(int32 ShieldCount);

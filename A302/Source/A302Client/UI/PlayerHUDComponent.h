@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "GamePlay/Events/PersonalEvents/InspectMaliceCandidateData.h"
 #include "GameFramework/GameUserSettings.h"
 #include "PlayerHUDComponent.generated.h"
 
@@ -42,6 +43,7 @@ public:
 	void ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount);
 	void ShowInspectMaliceSelectionWidget();
 	void ShowInspectMaliceSelectionWidgetWithConfig(float SelectionTimeoutSeconds, float ResultDisplaySeconds);
+	void ShowInspectMaliceSelectionWidgetWithCandidatesAndConfig(const TArray<FInspectMaliceCandidateData>& Candidates, float SelectionTimeoutSeconds, float ResultDisplaySeconds);
 	bool UpdateShieldCountText(int32 ShieldCount);
 	bool UpdateMaliceCountText(int32 MaliceCount);
 	bool UpdateItemTimerText(float RemainingSeconds);
@@ -102,6 +104,7 @@ private:
 	void ResetInspectMaliceSelectionWidget();
 	void SetInspectMaliceResultVisible(bool bVisible);
 	void HideInspectMaliceSelectionWidget();
+	void ShowInspectMaliceSelectionWidgetInternal(float SelectionTimeoutSeconds, float ResultDisplaySeconds);
 	void ApplyInspectMaliceSelection(int32 EntryIndex);
 	void RetryPopulateInspectMaliceSelectionWidget();
 	void HandleInspectMaliceSelectionTimeout();
@@ -240,6 +243,12 @@ private:
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<APlayerState>> InspectMaliceSelectablePlayers;
+
+	UPROPERTY(Transient)
+	TArray<FInspectMaliceCandidateData> InspectMaliceSelectableCandidates;
+
+	UPROPERTY(Transient)
+	TArray<FInspectMaliceCandidateData> InspectMaliceServerCandidates;
 
 	UPROPERTY(Transient)
 	float InspectMaliceSelectionTimeoutSeconds = 10.0f;
