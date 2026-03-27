@@ -285,20 +285,6 @@ void URoomMembershipRegistry::GatherPlayersInRoom(UWorld* World, const FString& 
 				OutPlayers.Add(PlayerController);
 			}
 		}
-
-		if (OutPlayers.Num() > 0)
-		{
-			return;
-		}
-	}
-
-	for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
-	{
-		APlayerController* PlayerController = It->Get();
-		if (IsPlayerInRoom(PlayerController, NormalizedRoomCode))
-		{
-			OutPlayers.Add(PlayerController);
-		}
 	}
 }
 
@@ -329,16 +315,7 @@ int32 URoomMembershipRegistry::CountPlayersInRoom(UWorld* World, const FString& 
 		return Count;
 	}
 
-	int32 Count = 0;
-	for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
-	{
-		if (IsPlayerInRoom(It->Get(), NormalizedRoomCode))
-		{
-			++Count;
-		}
-	}
-
-	return Count;
+	return 0;
 }
 
 void URoomMembershipRegistry::TrackPlayerRoom(APlayerController* PlayerController, const FString& RoomCode)
