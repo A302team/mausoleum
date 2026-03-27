@@ -4,21 +4,20 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "GameMode/A302GameState.h"
 #include "EscapeRouteBlocker.generated.h"
 
 UCLASS()
 class A302SHARED_API AEscapeRouteBlocker : public AActor
 {
 	GENERATED_BODY()
-	
-public:	
+
+public:
 	AEscapeRouteBlocker();
 
 protected:
 	virtual void BeginPlay() override;
 
-public:	
+public:
 	virtual void Tick(float DeltaTime) override;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
@@ -27,21 +26,16 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	class UBoxComponent* BlockerBox;
 
-	// 서서히 사라지는 연출 등에 쓰일 시간 (기본 3초)
+	// 서서히 사라지는 연출 시간 (기본 3초)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Escape")
 	float FadeDuration = 3.0f;
 
-	// 외부(PhaseSubsystem 등)에서 직접 탈출로를 열 때 호출
+	// 수동 호출: 서버에서 직접 호출해 탈출로를 개방
 	void OpenEscapeRoute();
 
 private:
-	UFUNCTION()
-	void OnGamePhaseChanged(EGamePhase PreviousPhase, EGamePhase NewPhase, float ServerTime);
-
-	// 시각적으로 서서히 사라지는 연출(스케일 다운)을 위해 사용
+	// 시간적으로 서서히 사라지는 연출(스케일 다운)을 위한 상태값
 	bool bIsEscapeOpened = false;
-	bool bGameStateBound = false;
 	float CurrentFadeTime = 0.0f;
 	FVector InitialScale;
 };
-
