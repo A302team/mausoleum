@@ -85,6 +85,12 @@ AA302GameHUD::AA302GameHUD()
 		DieWidgetClass = DieWidgetBPClass.Class;
 	}
 
+	static ConstructorHelpers::FClassFinder<UUserWidget> NotificationListWidgetBPClass(TEXT("/Game/WorkSpace/UI/WBP_NotificationList"));
+	if (NotificationListWidgetBPClass.Succeeded())
+	{
+		NotificationListWidgetClass = NotificationListWidgetBPClass.Class;
+	}
+
 	PlayerHUDComponent = CreateDefaultSubobject<UPlayerHUDComponent>(TEXT("PlayerHUDComponent"));
 }
 
@@ -147,6 +153,8 @@ void AA302GameHUD::InitializeClientInGameWidgets()
 		}
 	}
 
+	GetOrCreateNotificationListWidget();
+
 	InitializeChatWidget();
 
 	if (PlayerHUDComponent)
@@ -154,6 +162,43 @@ void AA302GameHUD::InitializeClientInGameWidgets()
 		PlayerHUDComponent->InitializeInGameHUD(QuickSlotBarClass, InGameSettingClass, InspectMaliceWidgetClass);
 		PlayerHUDComponent->RefreshQuickSlotBinding();
 	}
+}
+
+UUserWidget* AA302GameHUD::GetOrCreateNotificationListWidget()
+{
+	APlayerController* PC = GetOwningPlayerController();
+	if (!PC)
+	{
+		return nullptr;
+	}
+
+	if (!NotificationListWidgetClass)
+	{
+		if (UClass* LoadedNotificationListClass = LoadClass<UUserWidget>(nullptr, TEXT("/Game/WorkSpace/UI/WBP_NotificationList.WBP_NotificationList_C")))
+		{
+			NotificationListWidgetClass = LoadedNotificationListClass;
+		}
+	}
+
+	if (!NotificationListWidgetClass)
+	{
+		return nullptr;
+	}
+
+	if (!NotificationListWidgetInstance)
+	{
+		NotificationListWidgetInstance = CreateWidget<UUserWidget>(PC, NotificationListWidgetClass);
+		if (NotificationListWidgetInstance)
+		{
+			NotificationListWidgetInstance->AddToViewport(220);
+		}
+	}
+	else if (!NotificationListWidgetInstance->IsInViewport())
+	{
+		NotificationListWidgetInstance->AddToViewport(220);
+	}
+
+	return NotificationListWidgetInstance;
 }
 
 void AA302GameHUD::RefreshQuickSlotBinding()
@@ -571,6 +616,26 @@ float AA302GameHUD::GetMouseSensitivityMultiplier() const
 void AA302GameHUD::ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount)
 {
 	if (PlayerHUDComponent) PlayerHUDComponent->ShowPublicMaliceAnnouncement(PlayerName, MaliceCount);
+}
+
+void AA302GameHUD::ShowNotificationMessage(const FText& Message)
+{
+	UUserWidget* NotificationListWidget = GetOrCreateNotificationListWidget();
+	if (!NotificationListWidget)
+	{
+		return;
+	}
+
+	if (UFunction* AddMessageFunction = NotificationListWidget->FindFunction(TEXT("AddNotificationMessage")))
+	{
+		struct FParams
+		{
+			FText NewMessage;
+		};
+
+		FParams Params{ Message };
+		NotificationListWidget->ProcessEvent(AddMessageFunction, &Params);
+	}
 }
 
 void AA302GameHUD::ShowInspectMaliceSelectionWidget()
