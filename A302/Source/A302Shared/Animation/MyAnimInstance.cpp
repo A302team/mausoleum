@@ -83,6 +83,13 @@ void UMyAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 
         PreviousShieldCount = CurrentShieldCount;
     }
+
+    // 석상 상호작용 중 이동이 감지되면 몽타주를 즉시 중단 (로컬 클라이언트 안전망)
+    // 정상적으로 이동이 잠겨 있다면 Speed = 0 이므로 이 분기는 실행되지 않음
+    if (bIsInteracting && Speed > 10.f && CachedCharacter->IsLocallyControlled())
+    {
+        StopStatueInteractMontage();
+    }
 }
 
 
@@ -180,6 +187,7 @@ void UMyAnimInstance::PlayStatueInteractMontage()
 
     if (!Montage_IsPlaying(StatueInteractMontage))
     {
+        bIsInteracting = true;
         Montage_Play(StatueInteractMontage, 1.0f);
     }
 }
@@ -190,6 +198,7 @@ void UMyAnimInstance::StopStatueInteractMontage()
 
     if (Montage_IsPlaying(StatueInteractMontage))
     {
+        bIsInteracting = false;
         Montage_Stop(0.25f, StatueInteractMontage);
     }
 }
