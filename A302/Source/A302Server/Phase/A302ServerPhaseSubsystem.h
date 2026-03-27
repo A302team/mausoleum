@@ -8,6 +8,8 @@
 enum class ERewardCategory : uint8;
 class ACharacter;
 class APlayerController;
+class AStatueInteractable;
+class AEscapeRouteBlocker;
 class URewardDefinition;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnRoomPhaseChanged, const FString&, RoomCode, EGamePhase, NewPhase);
@@ -121,6 +123,7 @@ private:
     void GatherPlayersInRoom(const FString& RoomCode, TArray<APlayerController*>& OutPlayers) const;
     void BroadcastMatchTimerStateToRoom(const FString& RoomCode, float MatchStartServerTime, float DurationSeconds, bool bVisible) const;
     void BroadcastPhaseClearProgressToRoom(const FString& RoomCode, const FA302RoomPhaseState& RoomState, bool bVisible) const;
+    void BroadcastPhaseTransitionToRoom(const FString& RoomCode, EGamePhase PreviousPhase, EGamePhase NewPhase, float PhaseChangedServerTime) const;
     void UpdateRoomPhase(const FString& RoomCode, double CurrentServerTime);
     bool HasAnyActiveRoom() const;
     UWorld* ResolveWorld() const;
@@ -129,6 +132,8 @@ private:
     int32 CountEscapedPlayersInRoom(const FString& RoomCode) const;
     // Phase2 석상이 모두 완료됐을 때 나머지 석상 강제완료 + EscapeRouteBlocker 해제
     void TriggerAllStatuesCompleteInRoom(const FString& RoomCode);
+    void InvalidateRoomActorIndices();
+    void EnsureRoomActorIndices();
     FString BuildRoomProgressSummary(const FA302RoomPhaseState& RoomState) const;
     static const TCHAR* ToString(EGamePhase Phase);
     static const TCHAR* ToString(ERewardCategory RewardCategory);
@@ -137,4 +142,11 @@ private:
 
     UPROPERTY()
     TMap<FString, FA302RoomPhaseState> RoomPhaseStates;
+
+    TMap<int32, TArray<TWeakObjectPtr<AStatueInteractable>>> StatuesByRoomSlot;
+
+    TMap<int32, TArray<TWeakObjectPtr<AEscapeRouteBlocker>>> EscapeBlockersByRoomSlot;
+
+    bool bRoomActorIndexDirty = true;
+    int32 ActiveRoomCount = 0;
 };

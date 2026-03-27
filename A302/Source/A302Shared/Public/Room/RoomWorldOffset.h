@@ -38,6 +38,22 @@ namespace A302RoomWorldOffset
 		return FVector(RoomSlot * OffsetStepX, 0.0, 0.0);
 	}
 
+	inline int32 ResolveRoomSlotByLocationX(double WorldX, double OffsetStepX = DefaultOffsetStepX, int32 SlotCount = DefaultRoomSlotCount)
+	{
+		if (OffsetStepX <= 0.0 || SlotCount <= 0)
+		{
+			return 0;
+		}
+
+		const int32 ResolvedSlot = FMath::RoundToInt(WorldX / OffsetStepX);
+		return FMath::Clamp(ResolvedSlot, 0, SlotCount);
+	}
+
+	inline int32 ResolveRoomSlotByLocation(const FVector& WorldLocation, double OffsetStepX = DefaultOffsetStepX, int32 SlotCount = DefaultRoomSlotCount)
+	{
+		return ResolveRoomSlotByLocationX(WorldLocation.X, OffsetStepX, SlotCount);
+	}
+
 	inline FString BuildLevelInstanceNameOverride(const FString& RoomCode)
 	{
 		FString SafeRoomCode = NormalizeRoomCode(RoomCode);
