@@ -7,7 +7,8 @@ namespace A302RoomWorldOffset
 {
 	// Keep room offsets in a safer range for local/dedicated tests while preserving room separation.
 	inline constexpr int32 DefaultRoomSlotCount = 128;
-	inline constexpr double DefaultOffsetStepX = 50000.0;
+	// MyMap-scale large levels require wider room spacing to avoid cross-room overlap.
+	inline constexpr double DefaultOffsetStepX = 5000000.0;
 
 	inline FString NormalizeRoomCode(const FString& RoomCode)
 	{

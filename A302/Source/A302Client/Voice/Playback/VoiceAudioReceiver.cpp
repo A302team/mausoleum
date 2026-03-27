@@ -55,6 +55,18 @@ void UVoiceAudioReceiver::Initialize(UActorComponent* OuterComp)
     }
 }
 
+void UVoiceAudioReceiver::SetSpatializedPlayback(bool bEnableSpatializedPlayback)
+{
+    if (!AudioComponent || bIsSpatializedPlayback == bEnableSpatializedPlayback)
+    {
+        return;
+    }
+
+    bIsSpatializedPlayback = bEnableSpatializedPlayback;
+    AudioComponent->bAllowSpatialization = bEnableSpatializedPlayback;
+    AudioComponent->bOverrideAttenuation = bEnableSpatializedPlayback;
+}
+
 void UVoiceAudioReceiver::PlayVoice(const TArray<uint8>& VoiceData)
 {
     VOICE_PROFILE_PLAYBACK();

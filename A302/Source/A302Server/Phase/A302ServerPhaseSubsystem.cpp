@@ -513,7 +513,7 @@ void UA302ServerPhaseSubsystem::GatherPlayersInRoom(const FString& RoomCode, TAr
             {
                 return;
             }
-        }
+        }   
     }
 
     for (FConstPlayerControllerIterator Iterator = World->GetPlayerControllerIterator(); Iterator; ++Iterator)

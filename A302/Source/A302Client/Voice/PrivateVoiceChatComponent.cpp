@@ -16,6 +16,37 @@
 #include "EngineUtils.h"
 #include "A302RuntimeGuards.h"
 
+namespace
+{
+    const AA302PlayerState* ResolveVoicePlayerState(const UPrivateVoiceChatComponent* VoiceComponent)
+    {
+        const APawn* OwnerPawn = VoiceComponent ? Cast<APawn>(VoiceComponent->GetOwner()) : nullptr;
+        return OwnerPawn ? OwnerPawn->GetPlayerState<AA302PlayerState>() : nullptr;
+    }
+
+    bool IsSpiritPlayerState(const AA302PlayerState* PlayerState)
+    {
+        return PlayerState && (!PlayerState->bIsAlive || PlayerState->bIsEscaped);
+    }
+
+    bool ShouldUseSpatializedPlayback(const UPrivateVoiceChatComponent* ListenerComp, const UPrivateVoiceChatComponent* SpeakerComp)
+    {
+        if (!ListenerComp || !SpeakerComp)
+        {
+            return true;
+        }
+
+        if (ListenerComp->GetCurrentMode() == EVoiceChatMode::Lobby)
+        {
+            return false;
+        }
+
+        const bool bListenerSpirit = IsSpiritPlayerState(ResolveVoicePlayerState(ListenerComp));
+        const bool bSpeakerSpirit = IsSpiritPlayerState(ResolveVoicePlayerState(SpeakerComp));
+        return !bListenerSpirit && !bSpeakerSpirit;
+    }
+}
+
 UPrivateVoiceChatComponent::UPrivateVoiceChatComponent()
 {
     PrimaryComponentTick.bCanEverTick = false; 
@@ -428,6 +459,11 @@ void UPrivateVoiceChatComponent::OnNetworkBinaryMessageReceived(const FString& I
                 if (CanHearActor(CurrentPawn))
                 {
                     TargetReceiver = OtherComp->AudioReceiver;
+                    if (TargetReceiver)
+                    {
+                        const bool bUseSpatializedPlayback = ShouldUseSpatializedPlayback(this, OtherComp);
+                        TargetReceiver->SetSpatializedPlayback(bUseSpatializedPlayback);
+                    }
                 }
             }
             break;
