@@ -579,6 +579,23 @@ float AMyPlayerController::GetMouseSensitivityMultiplier() const
 	return 1.0f;
 }
 
+void AMyPlayerController::ShowNotificationMessage(const FText& Message)
+{
+	if (AHUD* GameHUD = GetHUD())
+	{
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("ShowNotificationMessage")))
+		{
+			struct FParams
+			{
+				FText InMessage;
+			};
+
+			FParams Params{ Message };
+			GameHUD->ProcessEvent(Func, &Params);
+		}
+	}
+}
+
 void AMyPlayerController::Client_HideTitleCard_Implementation()
 {
 	if (AHUD* GameHUD = GetHUD())
@@ -597,6 +614,8 @@ void AMyPlayerController::Client_ReceiveSystemMessage_Implementation(const FStri
 	{
 		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, SystemMessage);
 	}
+
+	ShowNotificationMessage(FText::FromString(SystemMessage));
 }
 
 void AMyPlayerController::Client_ShowTitleCard_Implementation(const FText& Title, const FText& Context, float DisplaySeconds)
@@ -613,6 +632,11 @@ void AMyPlayerController::Client_ShowTitleCard_Implementation(const FText& Title
 			GameHUD->ProcessEvent(ShowFunc, &Params);
 		}
 	}
+}
+
+void AMyPlayerController::Client_ShowNotificationMessage_Implementation(const FText& Message)
+{
+	ShowNotificationMessage(Message);
 }
 
 void AMyPlayerController::ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount)

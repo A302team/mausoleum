@@ -6,6 +6,13 @@
 #include "Character/MyCharacter.h"
 #include "Character/MyPlayerController.h"
 #include "Character/Components/PlayerEventComponent.h"
+#include "Engine/World.h"
+#include "Room/RoomScopeRules.h"
+
+namespace
+{
+	constexpr float MaliceOverloadNotificationRadius = 1500.0f;
+}
 
 void UPersonalEventMaliceOverload::ExecuteEvent_Implementation(ACharacter* InstigatorCharacter)
 {
@@ -55,18 +62,43 @@ void UPersonalEventMaliceOverload::OnEventResolved(ACharacter* InstigatorCharact
 
 	if (MaliceComponent->MaliceCount >= 3)
 	{
-		const FString PlayerName = InstigatorCharacter->GetPlayerState()
-			? InstigatorCharacter->GetPlayerState()->GetPlayerName()
-			: GetNameSafe(InstigatorCharacter);
-		const int32 CurrentMalice = FMath::Max(0, MaliceComponent->MaliceCount);
+		if (UWorld* World = InstigatorCharacter->GetWorld())
+		{
+			const FString SourceRoomCode = A302RoomScope::ResolvePlayerRoomCode(InstigatorCharacter->GetPlayerState());
+			const FVector SourceLocation = InstigatorCharacter->GetActorLocation();
+			const float RadiusSquared = FMath::Square(MaliceOverloadNotificationRadius);
+			const FText NotificationMessage = FText::FromString(TEXT("악인의 짙은 악의가 느껴집니다."));
 
-		if (AMyCharacter* CharacterBridge = Cast<AMyCharacter>(InstigatorCharacter))
-		{
-			CharacterBridge->BroadcastPublicMaliceAnnouncement(PlayerName, CurrentMalice);
-		}
-		else if (AMyPlayerController* ClientEventBridge = Cast<AMyPlayerController>(InstigatorCharacter->GetController()))
-		{
-			ClientEventBridge->ShowPublicMaliceAnnouncement(PlayerName, CurrentMalice);
+			for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+			{
+				AMyPlayerController* TargetController = Cast<AMyPlayerController>(It->Get());
+				if (!TargetController)
+				{
+					continue;
+				}
+
+				APawn* TargetPawn = TargetController->GetPawn();
+				if (!TargetPawn || TargetPawn == InstigatorCharacter)
+				{
+					continue;
+				}
+
+				if (!SourceRoomCode.IsEmpty())
+				{
+					const FString TargetRoomCode = A302RoomScope::ResolvePlayerRoomCode(TargetController->PlayerState);
+					if (!A302RoomScope::MatchesRoomCodeStrict(SourceRoomCode, TargetRoomCode))
+					{
+						continue;
+					}
+				}
+
+				if (FVector::DistSquared(SourceLocation, TargetPawn->GetActorLocation()) > RadiusSquared)
+				{
+					continue;
+				}
+
+				TargetController->Client_ShowNotificationMessage(NotificationMessage);
+			}
 		}
 	}
 

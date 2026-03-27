@@ -38,6 +38,7 @@ public:
 	virtual void ToggleInGameSettingMenu();
 	bool IsInGameSettingMenuOpen() const;
 	float GetMouseSensitivityMultiplier() const;
+	virtual void ShowNotificationMessage(const FText& Message);
 	virtual void ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount);
 	virtual void SetActivePersonalEvent(UBaseEvent* Event);
 	virtual void SetActiveGroupEvent(UBaseGroupEvent* Event);
@@ -98,6 +99,9 @@ public:
 
 	UFUNCTION(Client, Reliable)
 	void Client_ReceiveSystemMessage(const FString& SystemMessage);
+
+	UFUNCTION(Client, Reliable)
+	void Client_ShowNotificationMessage(const FText& Message);
 
 	UFUNCTION(Client, Reliable)
 	void Client_ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount);
