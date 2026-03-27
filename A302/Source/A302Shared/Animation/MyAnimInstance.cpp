@@ -76,7 +76,7 @@ void UMyAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
     {
         int32 CurrentShieldCount = CachedCombatComponent->ShieldBlockCount;
 
-        if (CurrentShieldCount < PreviousShieldCount && CachedCharacter->HasAuthority())
+        if (CurrentShieldCount < PreviousShieldCount)
         {
             PlayBlockMontage();
         }

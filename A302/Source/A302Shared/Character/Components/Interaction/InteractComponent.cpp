@@ -425,6 +425,12 @@ void UInteractComponent::HandleInteractHoldStarted()
 		if (IA302AnimationBridge* Anim = Cast<IA302AnimationBridge>(OwnerCharacter->GetMesh()->GetAnimInstance()))
 		{
 			Anim->PlayStatueInteractAnimation();
+
+			// 다른 클라이언트들에게도 애니메이션 재생 요청
+			if (AMyCharacter* MyChar = Cast<AMyCharacter>(OwnerCharacter))
+			{
+				MyChar->Server_PlayStatueInteractAnimation();
+			}
 		}
 
 		// 3인칭 카메라로 전환
@@ -460,11 +466,17 @@ void UInteractComponent::HandleInteractHoldComplete()
 			UE_LOG(LogTemp, Warning, TEXT("[InteractComponent] Statue 상호작용 완료(100%%) - 1인칭 카메라 전환"));
 		}
 		
-		// 애니메이션 중지
-		if (IA302AnimationBridge* Anim = Cast<IA302AnimationBridge>(OwnerCharacter->GetMesh()->GetAnimInstance()))
+	// 애니메이션 중지
+	if (IA302AnimationBridge* Anim = Cast<IA302AnimationBridge>(OwnerCharacter->GetMesh()->GetAnimInstance()))
+	{
+		Anim->StopStatueInteractAnimation();
+
+		// 다른 클라이언트들에게도 중단 요청
+		if (AMyCharacter* MyChar = Cast<AMyCharacter>(OwnerCharacter))
 		{
-			Anim->StopStatueInteractAnimation();
+			MyChar->Server_StopStatueInteractAnimation();
 		}
+	}
 	}
 
 	if (IInteractableInterface* Interactable = Cast<IInteractableInterface>(LastInteractableActor))
@@ -508,6 +520,12 @@ void UInteractComponent::HandleInteractHoldCanceled()
 		if (IA302AnimationBridge* Anim = Cast<IA302AnimationBridge>(OwnerCharacter->GetMesh()->GetAnimInstance()))
 		{
 			Anim->StopStatueInteractAnimation();
+
+			// 다른 클라이언트들에게도 중단 요청
+			if (AMyCharacter* MyChar = Cast<AMyCharacter>(OwnerCharacter))
+			{
+				MyChar->Server_StopStatueInteractAnimation();
+			}
 		}
 
 		// 1인칭 카메라로 복귀
@@ -633,6 +651,12 @@ void UInteractComponent::InteractionCompleteResult()
 	{
 		Anim->StopStatueInteractAnimation();
 		Anim->PlayInteractAnimation();
+
+		// 석상 중단 동기화
+		if (AMyCharacter* MyChar = Cast<AMyCharacter>(OwnerCharacter))
+		{
+			MyChar->Server_StopStatueInteractAnimation();
+		}
 	}
 
 	// Statue 상호작용 완료 시 1인칭 복귀

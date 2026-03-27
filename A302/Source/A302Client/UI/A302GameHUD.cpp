@@ -86,7 +86,7 @@ AA302GameHUD::AA302GameHUD()
 		DieWidgetClass = DieWidgetBPClass.Class;
 	}
 
-	static ConstructorHelpers::FClassFinder<UEscapeWaitingWidget> EscapeWaitingWidgetBPClass(TEXT("/Game/WorkSpace/UI/WBP_EscapeWaiting"));
+	static ConstructorHelpers::FClassFinder<UEscapeWaitingWidget> EscapeWaitingWidgetBPClass(TEXT("/Game/PersonalWorkSpace/sikk806/BP_EscapeWaitingWidget"));
 	if (EscapeWaitingWidgetBPClass.Succeeded())
 	{
 		EscapeWaitingWidgetClass = EscapeWaitingWidgetBPClass.Class;
@@ -856,7 +856,7 @@ void AA302GameHUD::ShowEscapeWaitingUI()
 
 	if (!EscapeWaitingWidgetClass)
 	{
-		if (UClass* LoadedClass = LoadClass<UEscapeWaitingWidget>(nullptr, TEXT("/Game/WorkSpace/UI/WBP_EscapeWaiting.WBP_EscapeWaiting_C")))
+		if (UClass* LoadedClass = LoadClass<UEscapeWaitingWidget>(nullptr, TEXT("/Game/PersonalWorkSpace/sikk806/BP_EscapeWaitingWidget.BP_EscapeWaitingWidget_C")))
 		{
 			EscapeWaitingWidgetClass = LoadedClass;
 		}

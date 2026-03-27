@@ -150,6 +150,8 @@ void AMyCharacter::BeginPlay()
 void AMyCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(AMyCharacter, CameraViewMode);
 }
 
 void AMyCharacter::HandleShieldChanged(int32 NewCount)
@@ -171,6 +173,14 @@ void AMyCharacter::HandleMaliceChanged(int32 NewCount)
 	if (AMyPlayerController* ClientEventBridge = Cast<AMyPlayerController>(GetController()))
 	{
 		ClientEventBridge->UpdateMaliceCount(FMath::Max(0, NewCount));
+	}
+}
+
+void AMyCharacter::BroadcastPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount)
+{
+	if (MaliceComponent)
+	{
+		MaliceComponent->BroadcastPublicMaliceAnnouncement(PlayerName, MaliceCount);
 	}
 }
 
@@ -296,6 +306,41 @@ void AMyCharacter::BeginEscapedSequence()
 
 	bEscapedSequenceStarted = true;
 
+	// 탈출 즉시 폰을 숨기고 콜리전 제거:
+	// 탈출자 폰이 포탈 위치에 서 있는 채로 남아 다른 플레이어 화면에 보이거나,
+	// 관전 카메라에서 자신의 폰이 시야에 걸리는 시각적 혼란을 방지.
+	// HasAuthority() 가드: 서버에서 bHidden 변경 → 모든 클라이언트에 자동 복제됨.
+	if (HasAuthority())
+	{
+		SetActorHiddenInGame(true);
+
+		// 서버 측 캐릭터는 포탈 위치에 고정(DisableMovement).
+		// 핵심: 서버에서 MOVE_Flying을 설정하면 MovementMode가 모든 클라이언트에 복제되어
+		// 다른 플레이어(Player B)의 화면에서도 탈출자 프록시가 MOVE_Flying으로 바뀌는 부작용 발생.
+		// 자유 비행은 로컬 클라이언트 전용(IsLocallyControlled 블록)으로만 처리.
+		if (UCharacterMovementComponent* MovementComponent = GetCharacterMovement())
+		{
+			MovementComponent->StopMovementImmediately();
+			MovementComponent->DisableMovement();
+		}
+	}
+
+	// 자유 비행은 탈출한 플레이어의 로컬 머신에서만 처리.
+	// ──────────────────────────────────────────────────────────────────────────
+	// SetReplicateMovement(false): 서버가 "캐릭터는 포탈 위치에 있다"는 위치 보정을 보내지 않도록 차단.
+	// 이 설정 없이는 서버의 DisableMovement 위치(포탈)가 계속 클라이언트로 snap되어 비행 불가.
+	if (IsLocallyControlled())
+	{
+		SetReplicateMovement(false);
+
+		if (AMyPlayerController* PC = Cast<AMyPlayerController>(GetController()))
+		{
+			// 자유 비행 모드 진입: 로컬 CMC를 MOVE_Flying + GravityScale=0으로 전환.
+			// SetIgnoreMoveInput은 호출하지 않음 — 플레이어가 WASD로 비행해야 함.
+			PC->BeginEscapeSpectatorMode();
+		}
+	}
+
 	UWorld* World = GetWorld();
 	if (!World)
 	{
@@ -325,31 +370,10 @@ void AMyCharacter::FinalizeEscapedSequence()
 
 void AMyCharacter::HandleEscapedState()
 {
-	// 이동 비활성화는 모든 머신에서 실행 — 사망 패턴(HandleDead)과 동일
-	if (UCharacterMovementComponent* MovementComponent = GetCharacterMovement())
-	{
-		MovementComponent->StopMovementImmediately();
-		MovementComponent->DisableMovement();
-	}
-
-	// 입력 차단 + 탈출 관전 UI는 로컬 컨트롤 중인 머신에서만 실행 — 사망 패턴과 동일
-	// GetController()는 서버에서 모든 플레이어의 PC를 반환하므로
-	// IsLocallyControlled() 가드 없이 사용하면 다른 플레이어 입력에 영향을 줄 수 있음
-	if (IsLocallyControlled())
-	{
-		if (APlayerController* PC = Cast<APlayerController>(GetController()))
-		{
-			PC->SetIgnoreMoveInput(true);
-			PC->SetIgnoreLookInput(true);
-		}
-
-		if (AMyPlayerController* PC = Cast<AMyPlayerController>(GetController()))
-		{
-			PC->BeginEscapeSpectatorMode();
-		}
-	}
-
-	ForceNetUpdate();
+	// 자유 비행 모드: DisableMovement()와 SetIgnoreMoveInput()을 호출하지 않음.
+	// BeginEscapedSequence()에서 이미 MOVE_Flying + GravityScale=0 설정 완료.
+	// 탈출한 플레이어는 WASD로 맵을 자유롭게 비행할 수 있음.
+	// NOTE: BeginEscapeSpectatorMode()는 BeginEscapedSequence()에서 이미 즉시 호출됨.
 }
 
 void AMyCharacter::ForceDeathByPersonalEvent()
@@ -392,13 +416,16 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 
 void AMyCharacter::CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult)
 {
-	Super::CalcCamera(DeltaTime, OutResult);
-
 	if (IsLocallyControlled())
 	{
+		// 탈출 후 자유 비행 모드: 폰이 살아있고 로컬 컨트롤 중이므로
+		// 일반 카메라(Super::CalcCamera)를 그대로 사용. 플레이어가 WASD로 자유롭게 비행함.
+		Super::CalcCamera(DeltaTime, OutResult);
 		return;
 	}
 
+	// 관전자(로컬 클라이언트가 다른 플레이어를 보는 중)용 시점 계산
+	// 항상 3인칭 카메라로 고정하여 탈출한 플레이어의 1인칭 모드에 영향받지 않도록 함
 	UCameraComponent* TargetCamera = ResolveCameraForMode(EA302CameraViewMode::ThirdPerson);
 	if (!TargetCamera)
 	{
@@ -412,7 +439,9 @@ void AMyCharacter::CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult)
 		return;
 	}
 
+	// 대상 플레이어의 시선(회전) 사용 - "빙의"된 듯한 정학한 뷰 제공
 	const FRotator SpectateViewRotation = GetBaseAimRotation();
+
 	if (USpringArmComponent* ThirdPersonSpringArm = Cast<USpringArmComponent>(TargetCamera->GetAttachParent()))
 	{
 		const FVector ArmOrigin =
@@ -432,6 +461,62 @@ void AMyCharacter::CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult)
 	OutResult.Location = TargetCamera->GetComponentLocation();
 	OutResult.Rotation = SpectateViewRotation;
 	OutResult.FOV = TargetCamera->FieldOfView;
+}
+
+// ─── Animation Sync RPC Implementations ───────────────────────────────────────
+// Server_* : 클라이언트 → 서버 전달 후 Multicast 브로드캐스트
+// Multicast_* : 이미 로컬에서 직접 재생한 클라이언트(IsLocallyControlled)는 스킵,
+//               나머지 모든 클라이언트에서 애니메이션 동기화
+
+void AMyCharacter::Server_PlayAttackAnimation_Implementation(bool bIsCursedSword)
+{
+	Multicast_PlayAttackAnimation(bIsCursedSword);
+}
+
+void AMyCharacter::Multicast_PlayAttackAnimation_Implementation(bool bIsCursedSword)
+{
+	if (IsLocallyControlled())
+	{
+		return; // 요청자 클라이언트는 이미 로컬에서 재생 완료
+	}
+	if (IA302AnimationBridge* Anim = Cast<IA302AnimationBridge>(GetMesh()->GetAnimInstance()))
+	{
+		bIsCursedSword ? Anim->PlayTimeKnifeAnimation() : Anim->PlayAttackAnimation();
+	}
+}
+
+void AMyCharacter::Server_PlayStatueInteractAnimation_Implementation()
+{
+	Multicast_PlayStatueInteractAnimation();
+}
+
+void AMyCharacter::Multicast_PlayStatueInteractAnimation_Implementation()
+{
+	if (IsLocallyControlled())
+	{
+		return;
+	}
+	if (IA302AnimationBridge* Anim = Cast<IA302AnimationBridge>(GetMesh()->GetAnimInstance()))
+	{
+		Anim->PlayStatueInteractAnimation();
+	}
+}
+
+void AMyCharacter::Server_StopStatueInteractAnimation_Implementation()
+{
+	Multicast_StopStatueInteractAnimation();
+}
+
+void AMyCharacter::Multicast_StopStatueInteractAnimation_Implementation()
+{
+	if (IsLocallyControlled())
+	{
+		return;
+	}
+	if (IA302AnimationBridge* Anim = Cast<IA302AnimationBridge>(GetMesh()->GetAnimInstance()))
+	{
+		Anim->StopStatueInteractAnimation();
+	}
 }
 
 void AMyCharacter::NotifyKilledCharacter()
@@ -598,33 +683,17 @@ void AMyCharacter::ApplyCameraViewMode()
 		}
 	}
 
-	// Keep local mesh hidden only in first-person view.
-	// This overrides BP defaults (e.g. Owner No See=true) when switching to third-person.
-	if (USkeletalMeshComponent* CharacterMesh = GetMesh())
+	// 1인칭일 때만 자신의 메시를 숨김. BP 기본값(OwnerNoSee=true)을 3인칭 전환 시 재정의.
+	// GetMesh() 외에 Blueprint에 추가된 메시(머리, 장비 등)도 함께 처리.
+	const bool bFirstPersonView = (CameraViewMode == EA302CameraViewMode::FirstPersonChest);
+	TArray<USkeletalMeshComponent*> AllMeshComponents;
+	GetComponents<USkeletalMeshComponent>(AllMeshComponents);
+	for (USkeletalMeshComponent* SkelMesh : AllMeshComponents)
 	{
-		const bool bFirstPersonView = (CameraViewMode == EA302CameraViewMode::FirstPersonChest);
-		CharacterMesh->SetOwnerNoSee(bFirstPersonView);
-		CharacterMesh->SetOnlyOwnerSee(false);
-	}
-
-	if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
-	{
-		PlayerController->SetViewTarget(this);
-	}
-}
-
-void AMyCharacter::BroadcastPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount)
-{
-	if (MaliceComponent)
-	{
-		MaliceComponent->BroadcastPublicMaliceAnnouncement(PlayerName, MaliceCount);
+		if (SkelMesh)
+		{
+			SkelMesh->SetOwnerNoSee(bFirstPersonView);
+			SkelMesh->SetOnlyOwnerSee(false);
+		}
 	}
 }
-
-
-
-
-
-
-
-

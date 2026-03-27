@@ -2,6 +2,8 @@
 
 #include "Character/Components/PlayerEventComponent.h"
 #include "Character/Components/Inventory/ItemManagerComponent.h"
+#include "Character/MyCharacter.h"
+#include "GameFramework/CharacterMovementComponent.h"
 // UI Widget 헤더들은 AA302GameHUD에서 관리합니다.
 #include "EnhancedInputSubsystems.h"
 #include "GameMode/A302GameState.h"
@@ -456,6 +458,23 @@ void AMyPlayerController::HandleReplicatedGamePhaseChanged(EGamePhase PreviousPh
 	if (!IsLocalController() || PreviousPhase == NewPhase || NewPhase == EGamePhase::Ended)
 	{
 		return;
+	}
+
+	// 같은 방코드를 가진 플레이어에게만 페이즈 전환 UI 적용.
+	// GameState->GamePhaseRoomCode는 페이즈가 바뀐 방의 코드이며 서버에서 복제됨.
+	// 다른 방(예: 방 D)의 플레이어는 방 C의 페이즈 전환 UI를 보지 않아야 함.
+	if (UWorld* World = GetWorld())
+	{
+		if (AA302GameState* GS = Cast<AA302GameState>(World->GetGameState()))
+		{
+			if (AA302PlayerState* LocalPS = GetPlayerState<AA302PlayerState>())
+			{
+				if (!A302RoomScope::MatchesRoomCodeStrict(LocalPS->GetRoomCode(), GS->GamePhaseRoomCode))
+				{
+					return;
+				}
+			}
+		}
 	}
 
 	QueuePhaseTransition(NewPhase, PhaseChangedServerTime);
@@ -1112,12 +1131,20 @@ void AMyPlayerController::BeginEscapeSpectatorMode()
 		return;
 	}
 
-	EscapeSpectateCycleIndex = INDEX_NONE;
-	ShowEscapeWaitingUI();
+	// 자유 비행 모드: 탈출한 로컬 플레이어의 캐릭터를 중력 없는 비행 상태로 전환.
+	// 서버(HasAuthority 블록)에서도 동일하게 설정되지만, 클라이언트 예측을 위해 로컬에서도 즉시 설정.
+	AMyCharacter* EscapedCharacter = Cast<AMyCharacter>(GetPawn());
+	if (!EscapedCharacter)
+	{
+		return;
+	}
 
-	// 아직 플레이 중인(살아있고 탈출 안 한) 플레이어가 있으면 첫 번째로 카메라 전환
-	// 없으면 자기 자신을 바라보며 대기
-	CycleEscapeSpectatorViewTarget();
+	if (UCharacterMovementComponent* CMC = EscapedCharacter->GetCharacterMovement())
+	{
+		CMC->StopMovementImmediately();
+		CMC->GravityScale = 0.f;
+		CMC->SetMovementMode(MOVE_Flying);
+	}
 }
 
 void AMyPlayerController::CycleEscapeSpectatorViewTarget()
@@ -1165,27 +1192,47 @@ void AMyPlayerController::CycleEscapeSpectatorViewTarget()
 	TArray<APawn*> StillPlayingPawns;
 	StillPlayingPawns.Reserve(GameState->PlayerArray.Num());
 
+	UE_LOG(LogTemp, Log, TEXT("[Spectate] Total Players in GameState: %d"), GameState->PlayerArray.Num());
+
 	for (APlayerState* CandidatePlayerState : GameState->PlayerArray)
 	{
 		const AA302PlayerState* CandidateA302State = Cast<AA302PlayerState>(CandidatePlayerState);
-		if (!CandidateA302State || !CandidateA302State->bIsAlive || CandidateA302State->bIsEscaped)
+		if (!CandidateA302State)
 		{
+			UE_LOG(LogTemp, Verbose, TEXT("[Spectate] CandidatePlayerState is not AA302PlayerState: %s"), *GetNameSafe(CandidatePlayerState));
+			continue;
+		}
+
+		if (!CandidateA302State->bIsAlive)
+		{
+			UE_LOG(LogTemp, Verbose, TEXT("[Spectate] Player %s is not alive"), *CandidateA302State->GetPlayerName());
+			continue;
+		}
+
+		if (CandidateA302State->bIsEscaped)
+		{
+			UE_LOG(LogTemp, Verbose, TEXT("[Spectate] Player %s is already escaped"), *CandidateA302State->GetPlayerName());
 			continue;
 		}
 
 		if (!A302RoomScope::ArePlayersInSameLogicalRoom(LocalPlayerState, CandidateA302State))
 		{
+			UE_LOG(LogTemp, Verbose, TEXT("[Spectate] Player %s is in different room. A:%s B:%s"), 
+				*CandidateA302State->GetPlayerName(), *LocalPlayerState->GetRoomCode(), *CandidateA302State->GetRoomCode());
 			continue;
 		}
 
-		APawn* CandidatePawn = CandidatePlayerState ? CandidatePlayerState->GetPawn() : nullptr;
+		APawn* CandidatePawn = CandidatePlayerState->GetPawn();
 		if (!CandidatePawn)
 		{
+			UE_LOG(LogTemp, Warning, TEXT("[Spectate] Player %s has no Pawn on this client"), *CandidateA302State->GetPlayerName());
 			continue;
 		}
 
 		StillPlayingPawns.Add(CandidatePawn);
 	}
+
+	UE_LOG(LogTemp, Log, TEXT("[Spectate] Found %d still playing candidates in same room"), StillPlayingPawns.Num());
 
 	// 관전할 대상이 없으면 자기 자신을 바라보며 대기 (Panel_SpectatorInfo 숨김)
 	if (StillPlayingPawns.Num() == 0)

@@ -745,7 +745,7 @@ void AA302GameMode::SyncRoomStateToGameState(const FString& RoomCode)
         FA302RoomPhaseState RoomPhaseState;
         if (PhaseSubsystem->TryGetRoomPhaseState(NormalizedRoomCode, RoomPhaseState))
         {
-            A302GameState->SetGamePhase(RoomPhaseState.CurrentPhase, RoomPhaseState.PhaseChangedServerTime);
+            A302GameState->SetGamePhase(RoomPhaseState.CurrentPhase, RoomPhaseState.PhaseChangedServerTime, NormalizedRoomCode);
 
             int32 CurrentCount = 0;
             int32 RequiredCount = 0;

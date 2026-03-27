@@ -37,6 +37,7 @@ private:
 	void OnLook(const FInputActionValue& Value);
 	void OnJump(const FInputActionValue& Value);
 	void OnJumpReleased(const FInputActionValue& Value);
+	void OnFlyUp(const FInputActionValue& Value); // 탈출 후 자유 비행 중 스페이스 홀드 → 상승
 	
 	void OnItemSelect(const FInputActionValue& Value);
 	void OnAttack(const FInputActionValue& Value);

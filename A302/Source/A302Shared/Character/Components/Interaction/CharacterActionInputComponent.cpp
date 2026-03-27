@@ -51,9 +51,10 @@ void UCharacterActionInputComponent::SetupPlayerInputComponent(UInputComponent* 
 	// 점프
 	if (OwnerCharacter->IA_Jump)
 	{
-		EIC->BindAction(OwnerCharacter->IA_Jump, ETriggerEvent::Started, this, &UCharacterActionInputComponent::OnJump);
+		EIC->BindAction(OwnerCharacter->IA_Jump, ETriggerEvent::Started,   this, &UCharacterActionInputComponent::OnJump);
+		EIC->BindAction(OwnerCharacter->IA_Jump, ETriggerEvent::Triggered, this, &UCharacterActionInputComponent::OnFlyUp); // 비행 중 홀드 → 상승
 		EIC->BindAction(OwnerCharacter->IA_Jump, ETriggerEvent::Completed, this, &UCharacterActionInputComponent::OnJumpReleased);
-		EIC->BindAction(OwnerCharacter->IA_Jump, ETriggerEvent::Canceled, this, &UCharacterActionInputComponent::OnJumpReleased);
+		EIC->BindAction(OwnerCharacter->IA_Jump, ETriggerEvent::Canceled,  this, &UCharacterActionInputComponent::OnJumpReleased);
 	}
 
 	// 상호작용 (InteractComponent로 바로 라우팅)
@@ -95,6 +96,23 @@ void UCharacterActionInputComponent::OnMove(const FInputActionValue& Value)
 	}
 
 	const FVector2D Axis = Value.Get<FVector2D>();
+
+	// 탈출 후 자유 비행 모드: 카메라가 바라보는 방향(피치 포함)으로 이동.
+	// 위를 보고 W를 누르면 위쪽으로, 아래를 보고 W를 누르면 아래쪽으로 이동.
+	if (const UCharacterMovementComponent* CMC = OwnerCharacter->GetCharacterMovement())
+	{
+		if (CMC->MovementMode == MOVE_Flying)
+		{
+			const FRotator ControlRot = OwnerCharacter->GetControlRotation();
+			const FVector Forward = FRotationMatrix(ControlRot).GetUnitAxis(EAxis::X);
+			const FVector Right   = FRotationMatrix(ControlRot).GetUnitAxis(EAxis::Y);
+			OwnerCharacter->AddMovementInput(Forward, Axis.Y);
+			OwnerCharacter->AddMovementInput(Right,   Axis.X);
+			return;
+		}
+	}
+
+	// 일반 이동: Yaw만 사용해 수평면 이동.
 	const FRotator YawRot(0.f, OwnerCharacter->GetControlRotation().Yaw, 0.f);
 	const FVector Forward = FRotationMatrix(YawRot).GetUnitAxis(EAxis::X);
 	const FVector Right = FRotationMatrix(YawRot).GetUnitAxis(EAxis::Y);
@@ -146,6 +164,19 @@ void UCharacterActionInputComponent::OnJumpReleased(const FInputActionValue& Val
 	OwnerCharacter->StopJumping();
 }
 
+void UCharacterActionInputComponent::OnFlyUp(const FInputActionValue& Value)
+{
+	AMyCharacter* OwnerCharacter = GetOwnerCharacter();
+	if (!OwnerCharacter) return;
+
+	// MOVE_Flying 상태(탈출 후 자유 비행)에서만 동작.
+	// ETriggerEvent::Triggered — 키를 누르고 있는 동안 매 틱 호출되어 지속적으로 상승.
+	const UCharacterMovementComponent* CMC = OwnerCharacter->GetCharacterMovement();
+	if (!CMC || CMC->MovementMode != MOVE_Flying) return;
+
+	OwnerCharacter->AddMovementInput(FVector::UpVector, 1.0f);
+}
+
 void UCharacterActionInputComponent::OnItemSelect(const FInputActionValue& Value)
 {
 	AMyCharacter* OwnerCharacter = GetOwnerCharacter();
@@ -172,15 +203,11 @@ void UCharacterActionInputComponent::OnAttack(const FInputActionValue& Value)
 	AMyCharacter* OwnerCharacter = GetOwnerCharacter();
 	if (!OwnerCharacter) return;
 
-	// 탈출 후 관전 대기 중: 다음 관전 대상으로 전환 (사망 관전보다 먼저 체크)
+	// 탈출 후: 버드뷰 고정 상태이므로 버튼 입력을 무시 (관전 전환 불필요)
 	if (const AA302PlayerState* A302PS = OwnerCharacter->GetPlayerState<AA302PlayerState>())
 	{
 		if (A302PS->bIsEscaped && A302PS->bIsAlive)
 		{
-			if (AMyPlayerController* OwnerController = Cast<AMyPlayerController>(OwnerCharacter->GetController()))
-			{
-				OwnerController->CycleEscapeSpectatorViewTarget();
-			}
 			return;
 		}
 	}
@@ -253,6 +280,9 @@ void UCharacterActionInputComponent::OnAttack(const FInputActionValue& Value)
 			}
 
 			bIsCursedSword ? Anim->PlayTimeKnifeAnimation() : Anim->PlayAttackAnimation();
+
+			// 다른 클라이언트들에게도 애니메이션 재생 요청 (서버 RPC 호출)
+			OwnerCharacter->Server_PlayAttackAnimation(bIsCursedSword);
 
 			if (UMyAnimInstance* MyAnimInstance = Cast<UMyAnimInstance>(OwnerCharacter->GetMesh()->GetAnimInstance()))
 			{

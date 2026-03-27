@@ -42,4 +42,7 @@ private:
 	FVector GetRoomOffset(const FString& RoomCode) const;
     bool IsSpawnAreaInRoomSpace(const class ASpawnArea* SpawnArea, const FString& RoomCode) const;
     bool IsPointInRoomSpace(const FVector& Location, const FString& RoomCode) const;
+    /** RoomCode 프로퍼티(명시) 우선, 없으면 X좌표 범위 Fallback으로 스폰 포인트가 룸에 속하는지 확인합니다. */
+    bool IsSpawnPointForRoom(const class APhaseSpawnPoint* Point, const FString& RoomCode) const;
+
 };

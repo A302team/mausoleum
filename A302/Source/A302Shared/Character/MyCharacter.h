@@ -58,6 +58,25 @@ public:
 	void ClearTimedKillEvent(UObject* EventInstance);
 	void ForceDeathByPersonalEvent();
 	void SetTimedKnifeAttackInProgress(bool bInProgress);
+	
+	/** Animation Sync RPCs */
+	UFUNCTION(Server, Reliable)
+	void Server_PlayAttackAnimation(bool bIsCursedSword);
+
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_PlayAttackAnimation(bool bIsCursedSword);
+
+	UFUNCTION(Server, Reliable)
+	void Server_PlayStatueInteractAnimation();
+
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_PlayStatueInteractAnimation();
+
+	UFUNCTION(Server, Reliable)
+	void Server_StopStatueInteractAnimation();
+
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_StopStatueInteractAnimation();
 
 	UFUNCTION(BlueprintCallable, Category = "Health")
 	bool IsDead() const;
@@ -228,7 +247,7 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Dance", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UDanceComponent> DanceComponent = nullptr;
 
-	UPROPERTY(EditAnywhere, Category = "Camera")
+	UPROPERTY(Replicated, EditAnywhere, Category = "Camera")
 	EA302CameraViewMode CameraViewMode = EA302CameraViewMode::FirstPersonChest;
 
 	// Optional explicit component names in BP_MyCharacter.

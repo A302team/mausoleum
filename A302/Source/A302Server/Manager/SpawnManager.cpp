@@ -6,6 +6,7 @@
 #include "Object/SpawnArea.h"
 #include "Object/PhaseSpawnPoint.h"
 #include "Room/RoomWorldOffset.h"
+#include "Room/RoomScopeRules.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Pawn.h"
@@ -206,7 +207,7 @@ FTransform ASpawnManager::GetRandomPlayerSpawnTransform(int32 StageNum, const FS
         {
             if (APhaseSpawnPoint* Point = Cast<APhaseSpawnPoint>(Actor))
             {
-                if (Point->PhaseTarget == EGamePhase::Phase0 && IsPointInRoomSpace(Point->GetActorLocation(), RoomCode))
+                if (Point->PhaseTarget == EGamePhase::Phase0 && IsSpawnPointForRoom(Point, RoomCode))
                 {
                     ValidPhase0Points.Add(Point);
                 }
@@ -330,6 +331,24 @@ bool ASpawnManager::IsPointInRoomSpace(const FVector& Location, const FString& R
     return DistanceX <= AcceptRangeX;
 }
 
+bool ASpawnManager::IsSpawnPointForRoom(const APhaseSpawnPoint* Point, const FString& RoomCode) const
+{
+    if (!Point)
+    {
+        return false;
+    }
+
+    // RoomCode 프로퍼티가 설정된 경우: 방 코드 직접 매칭 (대소문자 무시)
+    // → 레벨에서 X좌표 위치 무관하게, 에디터에서 지정한 방 코드로만 필터링
+    if (!Point->RoomCode.IsEmpty())
+    {
+        return A302RoomScope::MatchesRoomCodeStrict(Point->RoomCode, RoomCode);
+    }
+
+    // RoomCode 프로퍼티가 비어있는 경우: 기존 X좌표 범위 기반 필터링으로 Fallback
+    return IsPointInRoomSpace(Point->GetActorLocation(), RoomCode);
+}
+
 void ASpawnManager::TeleportPlayersToPhaseSpawnPoints(
     const TArray<APlayerController*>& Players,
     const FString& RoomCode,
@@ -365,7 +384,7 @@ void ASpawnManager::TeleportPlayersToPhaseSpawnPoints(
         {
             continue;
         }
-        if (!IsPointInRoomSpace(Point->GetActorLocation(), RoomCode))
+        if (!IsSpawnPointForRoom(Point, RoomCode))
         {
             continue;
         }
@@ -398,12 +417,24 @@ void ASpawnManager::TeleportPlayersToPhaseSpawnPoints(
     );
 
     // 4. 플레이어 순회 → 모듈로 인덱스로 포인트 배정
+    //    탈출/사망한 플레이어는 이미 포탈 위치에 숨겨진 채 고정되어 있으므로 텔레포트 제외.
+    int32 EligibleIndex = 0;
     for (int32 i = 0; i < Players.Num(); ++i)
     {
         APlayerController* PC = Players[i];
         if (!PC)
         {
             continue;
+        }
+
+        // 탈출 또는 사망 플레이어는 페이즈 텔레포트 대상에서 제외
+        if (const AA302PlayerState* PS = PC->GetPlayerState<AA302PlayerState>())
+        {
+            if (PS->bIsEscaped || !PS->bIsAlive)
+            {
+                UE_LOG(LogTemp, Log, TEXT("[SpawnManager] TeleportToPhase: skipping escaped/dead player %s"), *GetNameSafe(PC));
+                continue;
+            }
         }
 
         ACharacter* Character = Cast<ACharacter>(PC->GetPawn());
@@ -413,7 +444,9 @@ void ASpawnManager::TeleportPlayersToPhaseSpawnPoints(
             continue;
         }
 
-        const int32 PointIndex = i % ValidPoints.Num();
+        const int32 PointIndex = EligibleIndex % ValidPoints.Num();
+        ++EligibleIndex;
+
         const APhaseSpawnPoint* TargetPoint = ValidPoints[PointIndex];
         const FVector TargetLocation = TargetPoint->GetActorLocation();
         const FRotator TargetRotation = TargetPoint->GetActorRotation();

@@ -5,13 +5,14 @@
 #include "Net/UnrealNetwork.h"
 #include "Kismet/GameplayStatics.h"
 #include "Object/StatueInteractable.h"
+#include "Character/MyPlayerController.h"
 
 AA302GameState::AA302GameState()
 {
     LastNotifiedGamePhase = GamePhase;
 }
 
-void AA302GameState::SetGamePhase(EGamePhase NewGamePhase, float ChangedServerTime)
+void AA302GameState::SetGamePhase(EGamePhase NewGamePhase, float ChangedServerTime, const FString& RoomCode)
 {
     if (GamePhase == NewGamePhase && FMath::IsNearlyEqual(PhaseChangedServerTime, ChangedServerTime))
     {
@@ -21,6 +22,7 @@ void AA302GameState::SetGamePhase(EGamePhase NewGamePhase, float ChangedServerTi
     const EGamePhase PreviousPhase = LastNotifiedGamePhase;
     GamePhase = NewGamePhase;
     PhaseChangedServerTime = ChangedServerTime;
+    GamePhaseRoomCode = RoomCode;
     LastNotifiedGamePhase = GamePhase;
 
     // 서버에서 직접 호출되는 경로이므로 OnRep_GamePhase가 실행되지 않음.
@@ -39,10 +41,41 @@ void AA302GameState::SetMatchTimer(float StartServerTime, float TimeLimitSeconds
     MatchTimeLimitSeconds = TimeLimitSeconds;
 }
 
+void AA302GameState::OnRep_MatchStartServerTime()
+{
+    // 서버가 타이머를 시작한 시점(0→양수)에만 동작
+    if (MatchStartServerTime <= 0.0f || MatchTimeLimitSeconds <= 0.0f)
+    {
+        return;
+    }
+
+    // Client_ConfigureMatchTimer RPC를 놓쳤거나 HUD 미초기화 상태에서 도착한 경우 복구.
+    // 이미 RPC로 타이머가 설정되었더라도 동일한 값을 다시 적용하므로 중복 실행에 안전.
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+    {
+        if (AMyPlayerController* PC = Cast<AMyPlayerController>(It->Get()))
+        {
+            if (PC->IsLocalController())
+            {
+                PC->ConfigureMatchTimer(MatchStartServerTime, MatchTimeLimitSeconds, true);
+                break;
+            }
+        }
+    }
+}
+
 void AA302GameState::OnRep_GamePhase()
 {
     const EGamePhase PreviousPhase = LastNotifiedGamePhase;
     LastNotifiedGamePhase = GamePhase;
+    // 이 OnRep에서 처리한 RoomCode를 기록 → OnRep_GamePhaseRoomCode 중복 발화 방지
+    LastNotifiedRoomCode = GamePhaseRoomCode;
 
     if (PreviousPhase != GamePhase)
     {
@@ -53,6 +86,24 @@ void AA302GameState::OnRep_GamePhase()
             HandlePhaseEnded();
         }
     }
+}
+
+void AA302GameState::OnRep_GamePhaseRoomCode()
+{
+    // OnRep_GamePhase가 이미 처리한 경우(GamePhase 값도 같이 바뀐 경우) 중복 발화 방지.
+    // GetLifetimeReplicatedProps 에서 GamePhase가 GamePhaseRoomCode보다 먼저 선언되어
+    // OnRep_GamePhase가 항상 먼저 호출되고 LastNotifiedRoomCode를 업데이트하므로 안전함.
+    if (LastNotifiedRoomCode == GamePhaseRoomCode)
+    {
+        return;
+    }
+
+    // 여기까지 도달 = GamePhase 값은 변하지 않았지만 RoomCode가 바뀐 경우
+    // (다른 방이 동일한 페이즈 번호로 전환) → 해당 방 플레이어에게 UI 표시를 위해 Broadcast.
+    LastNotifiedRoomCode = GamePhaseRoomCode;
+    LastNotifiedGamePhase = GamePhase;
+
+    GamePhaseChangedDelegate.Broadcast(GamePhase, GamePhase, PhaseChangedServerTime);
 }
 
 void AA302GameState::HandlePhaseEnded()
@@ -96,6 +147,7 @@ void AA302GameState::GetLifetimeReplicatedProps(
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
     DOREPLIFETIME(AA302GameState, GamePhase);
+    DOREPLIFETIME(AA302GameState, GamePhaseRoomCode);
     DOREPLIFETIME(AA302GameState, AlivePlayerCount);
     DOREPLIFETIME(AA302GameState, PhaseChangedServerTime);
     DOREPLIFETIME(AA302GameState, MatchStartServerTime);
