@@ -14,6 +14,7 @@ class A302CLIENT_API UVoiceAudioReceiver : public UObject
 public:
     void Initialize(UActorComponent* OuterComp);
     void PlayVoice(const TArray<uint8>& VoiceData);
+    void SetSpatializedPlayback(bool bEnableSpatializedPlayback);
 
 private:
     UPROPERTY(VisibleAnywhere, Category = "Voice|Audio")
@@ -21,4 +22,6 @@ private:
 
     UPROPERTY(Transient)
     TObjectPtr<USoundWaveProcedural> SoundWave = nullptr;
+
+    bool bIsSpatializedPlayback = true;
 };
