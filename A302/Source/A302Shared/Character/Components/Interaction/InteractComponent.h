@@ -68,6 +68,10 @@ public:
 	UFUNCTION(Server, Reliable, WithValidation)
 	void Server_SyncHoldProgress(AActor* InteractTarget, float DeltaTime);
 
+	// -- Statue Movement Lock --
+	UFUNCTION(Server, Reliable)
+	void Server_SetMovementLocked(bool bLocked);
+
 	float AccumulatedHoldSyncTime = 0.0f;
 
 	UPROPERTY(EditAnywhere, Category = "Interaction")
@@ -153,6 +157,9 @@ private:
 	
 	UPROPERTY()
 	TObjectPtr<ACharacter> CachedOwnerCharacter = nullptr;
+
+	// 석상 상호작용 중 이동 잠금 처리 (클라이언트 입력 차단 + 서버 이동 모드 변경)
+	void SetStatueMovementLocked(bool bLocked);
 
 	bool bIsHoldingInteraction = false;
 	bool bLocalUIInitialized = false;
