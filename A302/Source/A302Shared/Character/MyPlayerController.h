@@ -27,7 +27,6 @@ class UBasePersonalEvent;
 class UMaliceBGMComponent; // Added
 class UGameBGMComponent;  // Added
 class UCursedSwordBGMComponent; // Added
-class AA302GameState;
 
 UCLASS()
 class A302SHARED_API AMyPlayerController : public APlayerController
@@ -55,6 +54,7 @@ public:
 	virtual void SetItemTimerVisibleForClient(bool bVisible);
 	virtual void ConfigureMatchTimer(float MatchStartServerTime, float DurationSeconds, bool bVisible);
 	virtual void UpdatePhaseClearProgress(uint8 PhaseAsByte, int32 CurrentCount, int32 RequiredCount, bool bVisible);
+	virtual void NotifyRoomPhaseTransition(uint8 PhaseAsByte, float PhaseChangedServerTime);
 	virtual void ShowResultScreen(const FText& Title, const FText& Description, float DisplaySeconds);
 	virtual void ShowItemDescription(const FText& ItemName, const FText& Description, float DisplaySeconds);
 	virtual void ToggleVoiceChatCapture();
@@ -118,6 +118,9 @@ public:
 	void Client_UpdatePhaseClearProgress(uint8 PhaseAsByte, int32 CurrentCount, int32 RequiredCount, bool bVisible);
 
 	UFUNCTION(Client, Reliable)
+	void Client_NotifyRoomPhaseTransition(uint8 PhaseAsByte, float PhaseChangedServerTime);
+
+	UFUNCTION(Client, Reliable)
 	void Client_ShowResultScreen(const FText& Title, const FText& Description, float DisplaySeconds);
 
 	UFUNCTION(Client, Reliable)
@@ -150,8 +153,6 @@ private:
 	void TryInitializeInGameHUD();
 	void PollDeferredHUDInitialization();
 	void ApplyMatchTimerConfigToHUD();
-    void BindToReplicatedGamePhase();
-    void HandleReplicatedGamePhaseChanged(EGamePhase PreviousPhase, EGamePhase NewPhase, float PhaseChangedServerTime);
     void QueuePhaseTransition(EGamePhase NewPhase, float PhaseChangedServerTime);
     void FlushQueuedPhaseTransition();
 	void FlushQueuedGameplayStartTitleCard();
@@ -168,7 +169,6 @@ private:
 	EGamePhase QueuedPhaseTransition = EGamePhase::Phase0;
 	FText QueuedGameplayStartTitle;
 	FText QueuedGameplayStartContext;
-	TWeakObjectPtr<AA302GameState> BoundGameState;
 	FTimerHandle DeferredHUDInitTimerHandle;
 	FTimerHandle VoiceRoomCodeRetryTimerHandle;
 	int32 VoiceRoomCodeRetryCount = 0;
