@@ -11,6 +11,7 @@
 #include "Animation/MyAnimInstance.h"
 #include "Interface/A302AnimationBridge.h"
 #include "GamePlay/Items/BaseItem.h"
+#include "GamePlay/Items/ItemKnife.h"
 #include "GamePlay/Items/ItemCursedSword.h"
 #include "GameData/Items/ItemDefinition.h"
 #include "EnhancedInputComponent.h"
@@ -74,7 +75,11 @@ void UCharacterActionInputComponent::SetupPlayerInputComponent(UInputComponent* 
 		EIC->BindAction(OwnerCharacter->IA_ItemSelect, ETriggerEvent::Started, this, &UCharacterActionInputComponent::OnItemSelect);
 		EIC->BindAction(OwnerCharacter->IA_ItemSelect, ETriggerEvent::Triggered, this, &UCharacterActionInputComponent::OnItemSelect);
 	}
-	if (OwnerCharacter->IA_Attack) EIC->BindAction(OwnerCharacter->IA_Attack, ETriggerEvent::Started, this, &UCharacterActionInputComponent::OnAttack);
+	if (OwnerCharacter->IA_Attack)
+	{
+		EIC->BindAction(OwnerCharacter->IA_Attack, ETriggerEvent::Started, this, &UCharacterActionInputComponent::OnAttack);
+		EIC->BindAction(OwnerCharacter->IA_Attack, ETriggerEvent::Started, this, &UCharacterActionInputComponent::OnUseSelectedItem);
+	}
 
 	// UI 및 보이스챗
 	if (OwnerCharacter->IA_VoiceChat) EIC->BindAction(OwnerCharacter->IA_VoiceChat, ETriggerEvent::Started, this, &UCharacterActionInputComponent::OnToggleVoiceChat);
@@ -180,55 +185,33 @@ void UCharacterActionInputComponent::OnAttack(const FInputActionValue& Value)
 		return;
 	}
 
-	UQuickSlotComponent* QuickSlotComp = OwnerCharacter->FindComponentByClass<UQuickSlotComponent>();
+	UQuickSlotComponent* QuickSlotComp = nullptr;
+	UItemDefinition* SelectedItemDefinition = nullptr;
+	UClass* SelectedLogicClass = nullptr;
+	if (!TryGetSelectedItemContext(QuickSlotComp, SelectedItemDefinition, SelectedLogicClass))
+	{
+		return;
+	}
+
+	if (!IsAttackItemLogicClass(SelectedLogicClass))
+	{
+		return;
+	}
+
 	UEquipmentComponent* EquipmentComp = OwnerCharacter->FindComponentByClass<UEquipmentComponent>();
-	
-	if (!QuickSlotComp) return;
 
 	UItemDefinition* UsedItemDefinition = nullptr;
 	int32 UsedSlotIndex = INDEX_NONE;
 	
 	if (QuickSlotComp->TryUseSelectedItem(UsedItemDefinition, UsedSlotIndex))
 	{
+		TryHandleTargetedServerUse(OwnerCharacter, UsedItemDefinition, true);
+		HandlePrimaryItemUseFeedback(OwnerCharacter, UsedItemDefinition, UsedSlotIndex);
+
 		OwnerCharacter->SetCameraViewMode(EA302CameraViewMode::ThirdPerson);
-
-		// In network sessions, targeted item effects must also be resolved on server.
-		// Local use keeps immediate presentation/inventory feedback.
-		if (!OwnerCharacter->HasAuthority() && UsedItemDefinition)
-		{
-			const bool bNeedsServerTargetUse =
-				UsedItemDefinition->Payload.UseMode == EItemUseMode::Targeted ||
-				UsedItemDefinition->Payload.UseMode == EItemUseMode::SelfOrTargeted;
-
-			if (bNeedsServerTargetUse)
-			{
-				if (UItemTargetingComponent* TargetingComponent = OwnerCharacter->FindComponentByClass<UItemTargetingComponent>())
-				{
-					FItemTargetData TargetData;
-					const bool bForceTargetActor = UsedItemDefinition->Payload.UseMode == EItemUseMode::Targeted;
-					if (TargetingComponent->TryBuildTargetDataForUse(UsedItemDefinition, TargetData, bForceTargetActor))
-					{
-						if (UCharacterRewardComponent* RewardComponent = OwnerCharacter->FindComponentByClass<UCharacterRewardComponent>())
-						{
-							RewardComponent->Server_RequestTargetedItemUse(UsedItemDefinition, TargetData.TargetActor);
-						}
-					}
-				}
-			}
-		}
-
-		OwnerCharacter->BP_OnPrimaryItemUsed(UsedItemDefinition, UsedSlotIndex + 1);
 
 		UClass* UsedLogicClass = UsedItemDefinition ? UsedItemDefinition->ResolveRewardLogicClass() : nullptr;
 		const bool bIsCursedSword = UsedLogicClass && UsedLogicClass->IsChildOf(UItemCursedSword::StaticClass());
-
-		if (UsedLogicClass && UsedLogicClass->IsChildOf(UBaseItem::StaticClass()))
-		{
-			if (const UBaseItem* BaseItemLogic = Cast<UBaseItem>(UsedLogicClass->GetDefaultObject()))
-			{
-				BaseItemLogic->OnItemUsed(OwnerCharacter);
-			}
-		}
 		
 		if (IA302AnimationBridge* Anim = Cast<IA302AnimationBridge>(OwnerCharacter->GetMesh()->GetAnimInstance()))
 		{
@@ -255,6 +238,38 @@ void UCharacterActionInputComponent::OnAttack(const FInputActionValue& Value)
 
 		ScheduleAttackCameraRecovery(OwnerCharacter, bIsCursedSword);
 	}
+}
+
+void UCharacterActionInputComponent::OnUseSelectedItem(const FInputActionValue& Value)
+{
+	AMyCharacter* OwnerCharacter = GetOwnerCharacter();
+	if (!OwnerCharacter || OwnerCharacter->IsDead())
+	{
+		return;
+	}
+
+	UQuickSlotComponent* QuickSlotComp = nullptr;
+	UItemDefinition* SelectedItemDefinition = nullptr;
+	UClass* SelectedLogicClass = nullptr;
+	if (!TryGetSelectedItemContext(QuickSlotComp, SelectedItemDefinition, SelectedLogicClass))
+	{
+		return;
+	}
+
+	if (IsAttackItemLogicClass(SelectedLogicClass))
+	{
+		return;
+	}
+
+	UItemDefinition* UsedItemDefinition = nullptr;
+	int32 UsedSlotIndex = INDEX_NONE;
+	if (!QuickSlotComp->TryUseSelectedItem(UsedItemDefinition, UsedSlotIndex))
+	{
+		return;
+	}
+
+	TryHandleTargetedServerUse(OwnerCharacter, UsedItemDefinition, false);
+	HandlePrimaryItemUseFeedback(OwnerCharacter, UsedItemDefinition, UsedSlotIndex);
 }
 
 void UCharacterActionInputComponent::OnToggleVoiceChat(const FInputActionValue& Value)
@@ -287,6 +302,131 @@ void UCharacterActionInputComponent::OnQTEInput(const FInputActionValue& Value)
 	if (UInteractComponent* InteractionComponent = OwnerCharacter->FindComponentByClass<UInteractComponent>())
 	{
 		InteractionComponent->OnQTEInput(Value.Get<FVector2D>());
+	}
+}
+
+bool UCharacterActionInputComponent::TryGetSelectedItemContext(
+	UQuickSlotComponent*& OutQuickSlotComp,
+	UItemDefinition*& OutItemDefinition,
+	UClass*& OutLogicClass
+) const
+{
+	OutQuickSlotComp = nullptr;
+	OutItemDefinition = nullptr;
+	OutLogicClass = nullptr;
+
+	AMyCharacter* OwnerCharacter = GetOwnerCharacter();
+	if (!OwnerCharacter)
+	{
+		return false;
+	}
+
+	OutQuickSlotComp = OwnerCharacter->FindComponentByClass<UQuickSlotComponent>();
+	if (!OutQuickSlotComp)
+	{
+		return false;
+	}
+
+	const int32 SelectedSlotIndex = OutQuickSlotComp->GetSelectedSlotIndex();
+	if (SelectedSlotIndex == INDEX_NONE)
+	{
+		return false;
+	}
+
+	OutItemDefinition = const_cast<UItemDefinition*>(OutQuickSlotComp->GetItemDefinitionAtSlot(SelectedSlotIndex));
+	if (!OutItemDefinition)
+	{
+		return false;
+	}
+
+	OutLogicClass = OutItemDefinition->ResolveRewardLogicClass();
+	return OutLogicClass != nullptr;
+}
+
+bool UCharacterActionInputComponent::IsAttackItemLogicClass(const UClass* LogicClass) const
+{
+	return LogicClass && LogicClass->IsChildOf(UItemKnife::StaticClass());
+}
+
+void UCharacterActionInputComponent::HandlePrimaryItemUseFeedback(
+	AMyCharacter* OwnerCharacter,
+	UItemDefinition* UsedItemDefinition,
+	int32 UsedSlotIndex
+) const
+{
+	if (!OwnerCharacter || !UsedItemDefinition || UsedSlotIndex == INDEX_NONE)
+	{
+		return;
+	}
+
+	OwnerCharacter->BP_OnPrimaryItemUsed(UsedItemDefinition, UsedSlotIndex + 1);
+}
+
+void UCharacterActionInputComponent::TryHandleTargetedServerUse(
+	AMyCharacter* OwnerCharacter,
+	const UItemDefinition* UsedItemDefinition,
+	bool bIsAttackItem
+) const
+{
+	if (!OwnerCharacter || !UsedItemDefinition)
+	{
+		return;
+	}
+
+	const bool bNeedsServerTargetUse =
+		UsedItemDefinition->Payload.UseMode == EItemUseMode::Targeted ||
+		UsedItemDefinition->Payload.UseMode == EItemUseMode::SelfOrTargeted;
+	if (!bNeedsServerTargetUse)
+	{
+		return;
+	}
+
+	UItemTargetingComponent* TargetingComponent = OwnerCharacter->FindComponentByClass<UItemTargetingComponent>();
+	if (!TargetingComponent)
+	{
+		return;
+	}
+
+	FItemTargetData TargetData;
+	const bool bForceTargetActor = UsedItemDefinition->Payload.UseMode == EItemUseMode::Targeted;
+	if (!TargetingComponent->TryBuildTargetDataForUse(UsedItemDefinition, TargetData, bForceTargetActor))
+	{
+		return;
+	}
+
+	if (!OwnerCharacter->HasAuthority())
+	{
+		if (UCharacterRewardComponent* RewardComponent = OwnerCharacter->FindComponentByClass<UCharacterRewardComponent>())
+		{
+			RewardComponent->Server_RequestTargetedItemUse(const_cast<UItemDefinition*>(UsedItemDefinition), TargetData.TargetActor);
+		}
+		return;
+	}
+
+	if (bIsAttackItem)
+	{
+		return;
+	}
+
+	UClass* LogicClass = UsedItemDefinition->ResolveRewardLogicClass();
+	const UBaseItem* ItemLogic = LogicClass ? Cast<UBaseItem>(LogicClass->GetDefaultObject()) : nullptr;
+	if (!ItemLogic)
+	{
+		return;
+	}
+
+	FString SystemMessage;
+	if (!ItemLogic->ResolveServerTargetedUse(OwnerCharacter, TargetData.TargetActor, SystemMessage))
+	{
+		return;
+	}
+
+	if (!SystemMessage.IsEmpty())
+	{
+		if (AMyPlayerController* OwnerPlayerController = Cast<AMyPlayerController>(OwnerCharacter->GetController()))
+		{
+			OwnerPlayerController->Client_ReceiveSystemMessage(SystemMessage);
+		}
 	}
 }
 
