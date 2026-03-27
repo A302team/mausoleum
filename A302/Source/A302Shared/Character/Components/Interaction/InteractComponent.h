@@ -90,7 +90,7 @@ public:
     
 	// 디버그 드로우 토글
 	UPROPERTY(EditAnywhere, Category = "Interaction|Debug")
-	bool bDrawDebug = true;
+	bool bDrawDebug = false;
 
 	UPROPERTY(EditAnywhere, Category = "Interaction|Highlight", meta = (ClampMin = "0.0"))
 	float NearbyHighlightRadius = 600.0f;
