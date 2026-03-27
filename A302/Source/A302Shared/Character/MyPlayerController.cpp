@@ -4,7 +4,6 @@
 #include "Character/Components/Inventory/ItemManagerComponent.h"
 // UI Widget 헤더들은 AA302GameHUD에서 관리합니다.
 #include "EnhancedInputSubsystems.h"
-#include "GameMode/A302GameState.h"
 #include "GameMode/A302GameInstance.h"
 #include "GameMode/A302PlayerState.h"
 #include "GameData/Items/ItemDefinition.h"
@@ -218,8 +217,6 @@ void AMyPlayerController::BeginPlay()
 
 	TryRegisterPlayerDisplayName();
 
-	BindToReplicatedGamePhase();
-
 	if (ULocalPlayer* LP = GetLocalPlayer())
 	{
 		if (UEnhancedInputLocalPlayerSubsystem* Subsys = LP->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
@@ -350,7 +347,6 @@ void AMyPlayerController::TryInitializeInGameHUD()
 				CurrentHUD->ProcessEvent(Func, nullptr);
 				bInGameHUDInitialized = true;
 				ApplyMatchTimerConfigToHUD();
-				BindToReplicatedGamePhase();
 				FlushQueuedPhaseTransition();
 				FlushQueuedGameplayStartTitleCard();
 			}
@@ -414,50 +410,6 @@ void AMyPlayerController::PollDeferredHUDInitialization()
 	GetWorldTimerManager().ClearTimer(DeferredHUDInitTimerHandle);
 	TryInitializeInGameHUD();
 #endif
-}
-
-void AMyPlayerController::BindToReplicatedGamePhase()
-{
-	if (!IsLocalController())
-	{
-		return;
-	}
-
-	UWorld* World = GetWorld();
-	if (!World)
-	{
-		return;
-	}
-
-	AA302GameState* GameState = World->GetGameState<AA302GameState>();
-	if (!GameState)
-	{
-		return;
-	}
-
-	if (BoundGameState.Get() == GameState)
-	{
-		return;
-	}
-
-	if (BoundGameState.IsValid())
-	{
-		BoundGameState->OnGamePhaseChanged().RemoveAll(this);
-	}
-
-	GameState->OnGamePhaseChanged().AddUObject(this, &AMyPlayerController::HandleReplicatedGamePhaseChanged);
-	BoundGameState = GameState;
-}
-
-void AMyPlayerController::HandleReplicatedGamePhaseChanged(EGamePhase PreviousPhase, EGamePhase NewPhase, float PhaseChangedServerTime)
-{
-	if (!IsLocalController() || PreviousPhase == NewPhase || NewPhase == EGamePhase::Ended)
-	{
-		return;
-	}
-
-	QueuePhaseTransition(NewPhase, PhaseChangedServerTime);
-	FlushQueuedPhaseTransition();
 }
 
 void AMyPlayerController::QueuePhaseTransition(EGamePhase NewPhase, float PhaseChangedServerTime)
@@ -627,6 +579,23 @@ float AMyPlayerController::GetMouseSensitivityMultiplier() const
 	return 1.0f;
 }
 
+void AMyPlayerController::ShowNotificationMessage(const FText& Message)
+{
+	if (AHUD* GameHUD = GetHUD())
+	{
+		if (UFunction* Func = GameHUD->FindFunction(TEXT("ShowNotificationMessage")))
+		{
+			struct FParams
+			{
+				FText InMessage;
+			};
+
+			FParams Params{ Message };
+			GameHUD->ProcessEvent(Func, &Params);
+		}
+	}
+}
+
 void AMyPlayerController::Client_HideTitleCard_Implementation()
 {
 	if (AHUD* GameHUD = GetHUD())
@@ -645,6 +614,8 @@ void AMyPlayerController::Client_ReceiveSystemMessage_Implementation(const FStri
 	{
 		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, SystemMessage);
 	}
+
+	ShowNotificationMessage(FText::FromString(SystemMessage));
 }
 
 void AMyPlayerController::Client_ShowTitleCard_Implementation(const FText& Title, const FText& Context, float DisplaySeconds)
@@ -661,6 +632,11 @@ void AMyPlayerController::Client_ShowTitleCard_Implementation(const FText& Title
 			GameHUD->ProcessEvent(ShowFunc, &Params);
 		}
 	}
+}
+
+void AMyPlayerController::Client_ShowNotificationMessage_Implementation(const FText& Message)
+{
+	ShowNotificationMessage(Message);
 }
 
 void AMyPlayerController::ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount)
@@ -921,6 +897,24 @@ void AMyPlayerController::UpdatePhaseClearProgress(uint8 PhaseAsByte, int32 Curr
 			GameHUD->ProcessEvent(Func, &Params);
 		}
 	}
+}
+
+void AMyPlayerController::NotifyRoomPhaseTransition(uint8 PhaseAsByte, float PhaseChangedServerTime)
+{
+	const EGamePhase NewPhase = static_cast<EGamePhase>(PhaseAsByte);
+	if (NewPhase == EGamePhase::Ended)
+	{
+		return;
+	}
+
+	if (HasAuthority() && !IsLocalController())
+	{
+		Client_NotifyRoomPhaseTransition(PhaseAsByte, PhaseChangedServerTime);
+		return;
+	}
+
+	QueuePhaseTransition(NewPhase, PhaseChangedServerTime);
+	FlushQueuedPhaseTransition();
 }
 
 void AMyPlayerController::ShowResultScreen(const FText& Title, const FText& Description, float DisplaySeconds)
@@ -1244,6 +1238,11 @@ void AMyPlayerController::Client_ConfigureMatchTimer_Implementation(float MatchS
 void AMyPlayerController::Client_UpdatePhaseClearProgress_Implementation(uint8 PhaseAsByte, int32 CurrentCount, int32 RequiredCount, bool bVisible)
 {
 	UpdatePhaseClearProgress(PhaseAsByte, CurrentCount, RequiredCount, bVisible);
+}
+
+void AMyPlayerController::Client_NotifyRoomPhaseTransition_Implementation(uint8 PhaseAsByte, float PhaseChangedServerTime)
+{
+	NotifyRoomPhaseTransition(PhaseAsByte, PhaseChangedServerTime);
 }
 
 void AMyPlayerController::Client_ShowResultScreen_Implementation(const FText& Title, const FText& Description, float DisplaySeconds)

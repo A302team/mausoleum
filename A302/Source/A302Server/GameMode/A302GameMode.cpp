@@ -303,14 +303,6 @@ void AA302GameMode::BeginPlay()
                 BackendSubsystem->OnPacketReceived.AddDynamic(this, &AA302GameMode::OnMessageReceived);
             }
 
-            GetWorldTimerManager().ClearTimer(GameStateSyncTimerHandle);
-            GetWorldTimerManager().SetTimer(
-                GameStateSyncTimerHandle,
-                this,
-                &AA302GameMode::SyncTrackedRoomState,
-                0.5f,
-                true
-            );
         }
     }
 
@@ -515,7 +507,6 @@ void AA302GameMode::HandleRoomPhaseChanged(const FString& RoomCode, EGamePhase N
 		return;
 	}
 
-    TrackedRoomCodeForGameState = NormalizedRoomCode;
     SyncRoomStateToGameState(NormalizedRoomCode);
 
     if (ItemSpawnSubsystem)
@@ -675,7 +666,6 @@ void AA302GameMode::SpawnPlayersInRoom(const FString& RoomCode)
 		PlayerSubsystem->QueueSpawnPlayer(RoomPlayer, true);
 	}
 
-    TrackedRoomCodeForGameState = NormalizedRoomCode;
     SyncRoomStateToGameState(NormalizedRoomCode);
 
     // 캐릭터 스폰 완료를 대기하기 위해 짧은 딜레이 후 타이머 시작
@@ -717,13 +707,7 @@ void AA302GameMode::StartRoomGameplay(const FString& RoomCode)
         RoomRuntimeSubsystem->PrepareRoom(NormalizedRoomCode);
     }
 
-    TrackedRoomCodeForGameState = NormalizedRoomCode;
     SyncRoomStateToGameState(NormalizedRoomCode);
-}
-
-void AA302GameMode::SyncTrackedRoomState()
-{
-    SyncRoomStateToGameState(TrackedRoomCodeForGameState);
 }
 
 void AA302GameMode::SyncRoomStateToGameState(const FString& RoomCode)
@@ -734,19 +718,11 @@ void AA302GameMode::SyncRoomStateToGameState(const FString& RoomCode)
         return;
     }
 
-    AA302GameState* A302GameState = GetGameState<AA302GameState>();
-    if (!A302GameState)
-    {
-        return;
-    }
-
     if (PhaseSubsystem)
     {
         FA302RoomPhaseState RoomPhaseState;
         if (PhaseSubsystem->TryGetRoomPhaseState(NormalizedRoomCode, RoomPhaseState))
         {
-            A302GameState->SetGamePhase(RoomPhaseState.CurrentPhase, RoomPhaseState.PhaseChangedServerTime);
-
             int32 CurrentCount = 0;
             int32 RequiredCount = 0;
             switch (RoomPhaseState.CurrentPhase)
@@ -788,8 +764,6 @@ void AA302GameMode::SyncRoomStateToGameState(const FString& RoomCode)
             }
         }
     }
-
-    A302GameState->AlivePlayerCount = CountAlivePlayersInRoom(NormalizedRoomCode);
 }
 
 int32 AA302GameMode::CountAlivePlayersInRoom(const FString& RoomCode) const

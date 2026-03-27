@@ -90,14 +90,11 @@ private:
     UFUNCTION()
     void HandleRoomPhaseChanged(const FString& RoomCode, EGamePhase NewPhase);
     void HandleRoomLevelReady(const FString& RoomCode);
-    void SyncTrackedRoomState();
     void SyncRoomStateToGameState(const FString& RoomCode);
     int32 CountAlivePlayersInRoom(const FString& RoomCode) const;
 
 
     int CurrentStage = 1;
-    FString TrackedRoomCodeForGameState;
-    FTimerHandle GameStateSyncTimerHandle;
 
     bool EnsureSpawnManager();
 };
