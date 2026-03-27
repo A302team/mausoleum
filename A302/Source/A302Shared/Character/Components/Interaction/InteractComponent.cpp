@@ -134,6 +134,23 @@ void UInteractComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 	CheckForInteractables();
 	UpdateNearbyHighlights();
 
+	// 스태츄 상호작용 중 이동 감지 시 즉시 취소
+	// 이동 잠금이 정상 동작하면 Speed = 0 이므로 이 분기는 외부 충격 등 예외 상황에서만 실행됨
+	if (bIsHoldingInteraction && Cast<AStatueInteractable>(LastInteractableActor))
+	{
+		ACharacter* OwnerCharacter = GetOwnerCharacter();
+		if (OwnerCharacter && OwnerCharacter->IsLocallyControlled())
+		{
+			FVector HorizontalVel = OwnerCharacter->GetVelocity();
+			HorizontalVel.Z = 0.f;
+			if (HorizontalVel.Size() > 10.f)
+			{
+				HandleInteractHoldCanceled();
+				return;
+			}
+		}
+	}
+
 	// 스태츄 홀드 중일 때 애니메이션 반복 재생 처리
 	if (bIsHoldingInteraction && Cast<AStatueInteractable>(LastInteractableActor))
 	{
@@ -433,6 +450,9 @@ void UInteractComponent::HandleInteractHoldStarted()
 			MyChar->SetCameraViewMode(EA302CameraViewMode::ThirdPerson);
 			UE_LOG(LogTemp, Warning, TEXT("[InteractComponent] Statue 상호작용 시작 - 3인칭 카메라 전환"));
 		}
+
+		// 상호작용 중 이동 금지 (클라이언트 입력 차단 + 서버 이동 모드 변경)
+		SetStatueMovementLocked(true);
 	}
 }
 
@@ -465,6 +485,9 @@ void UInteractComponent::HandleInteractHoldComplete()
 		{
 			Anim->StopStatueInteractAnimation();
 		}
+
+		// 이동 잠금 해제
+		SetStatueMovementLocked(false);
 	}
 
 	if (IInteractableInterface* Interactable = Cast<IInteractableInterface>(LastInteractableActor))
@@ -516,6 +539,12 @@ void UInteractComponent::HandleInteractHoldCanceled()
 			MyChar->SetCameraViewMode(EA302CameraViewMode::FirstPersonChest);
 			UE_LOG(LogTemp, Warning, TEXT("[InteractComponent] Statue 상호작용 취소 - 1인칭 카메라 복귀"));
 		}
+
+		// 이동 잠금 해제 (Statue 상호작용이었을 때만)
+		if (Cast<AStatueInteractable>(LastInteractableActor))
+		{
+			SetStatueMovementLocked(false);
+		}
 	}
 }
 
@@ -545,6 +574,44 @@ void UInteractComponent::Server_SyncHoldProgress_Implementation(AActor* Interact
 bool UInteractComponent::Server_SyncHoldProgress_Validate(AActor* InteractTarget, float DeltaTime)
 {
 	return true;
+}
+
+void UInteractComponent::SetStatueMovementLocked(bool bLocked)
+{
+	ACharacter* OwnerCharacter = GetOwnerCharacter();
+	if (!OwnerCharacter || !OwnerCharacter->IsLocallyControlled()) return;
+
+	// 클라이언트: 입력 차단 및 즉각 이동 정지
+	if (APlayerController* PC = Cast<APlayerController>(OwnerCharacter->GetController()))
+	{
+		PC->SetIgnoreMoveInput(bLocked);
+	}
+
+	if (bLocked)
+	{
+		OwnerCharacter->GetCharacterMovement()->StopMovementImmediately();
+	}
+
+	// 서버: 이동 모드 변경 (Server RPC)
+	Server_SetMovementLocked(bLocked);
+}
+
+void UInteractComponent::Server_SetMovementLocked_Implementation(bool bLocked)
+{
+	ACharacter* OwnerCharacter = GetOwnerCharacter();
+	if (!OwnerCharacter) return;
+
+	UCharacterMovementComponent* MoveComp = OwnerCharacter->GetCharacterMovement();
+	if (!MoveComp) return;
+
+	if (bLocked)
+	{
+		MoveComp->DisableMovement();
+	}
+	else
+	{
+		MoveComp->SetMovementMode(MOVE_Walking);
+	}
 }
 
 void UInteractComponent::OnQTEInteractStarted()
