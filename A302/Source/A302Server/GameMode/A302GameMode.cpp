@@ -235,6 +235,8 @@ AA302GameMode::AA302GameMode()
 
     DefaultPawnClass = nullptr;
     PlayerControllerClass = AMyPlayerController::StaticClass();
+#if !UE_SERVER
+    // Client/Editor targets can use the BP subclass (contains client-side presentation components).
     static ConstructorHelpers::FClassFinder<APlayerController> PlayerControllerBPClass(TEXT("/Game/WorkSpace/Character/BP_MyPlayerController"));
     if (PlayerControllerBPClass.Succeeded())
     {
@@ -244,6 +246,10 @@ AA302GameMode::AA302GameMode()
     {
         UE_LOG(LogTemp, Warning, TEXT("[GameMode/A302GameMode] Failed to load BP_MyPlayerController. fallback=%s"), *GetNameSafe(PlayerControllerClass.Get()));
     }
+#else
+    // Dedicated server target must not load A302Client-only blueprint classes.
+    UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] UE_SERVER build: using native AMyPlayerController class."));
+#endif
 
     PlayerStateClass = AA302PlayerState::StaticClass();
     GameStateClass = AA302GameState::StaticClass();
