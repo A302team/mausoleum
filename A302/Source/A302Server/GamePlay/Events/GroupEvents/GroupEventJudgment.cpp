@@ -54,18 +54,7 @@ namespace
 			if (URoomMembershipRegistry* Registry = GameMode->GetRoomMembershipRegistry())
 			{
 				Registry->GatherPlayersInRoom(World, GroupEvent->GetEventRoomCode(), OutCandidates);
-				if (OutCandidates.Num() > 0)
-				{
-					return;
-				}
-			}
-		}
-
-		for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
-		{
-			if (APlayerController* PlayerController = It->Get())
-			{
-				OutCandidates.Add(PlayerController);
+				return;
 			}
 		}
 
