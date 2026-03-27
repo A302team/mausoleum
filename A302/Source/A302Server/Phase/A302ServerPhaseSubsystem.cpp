@@ -25,6 +25,8 @@ DEFINE_LOG_CATEGORY_STATIC(LogA302Phase, Log, All);
 void UA302ServerPhaseSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
     Super::Initialize(Collection);
+    InvalidateRoomActorIndices();
+    ActiveRoomCount = 0;
     FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(this, &UA302ServerPhaseSubsystem::HandleMapLoaded);
     A302GetServerRewardResolvedSignal().AddUObject(this, &UA302ServerPhaseSubsystem::HandleRewardResolvedSignal);
     UE_LOG(
@@ -49,6 +51,10 @@ void UA302ServerPhaseSubsystem::Deinitialize()
     }
 
     RoomPhaseStates.Reset();
+    StatuesByRoomSlot.Reset();
+    EscapeBlockersByRoomSlot.Reset();
+    bRoomActorIndexDirty = true;
+    ActiveRoomCount = 0;
     Super::Deinitialize();
 }
 
@@ -65,6 +71,10 @@ bool UA302ServerPhaseSubsystem::StartRoomPhaseTimeline(const FString& RoomCode)
 
     FA302RoomPhaseState& RoomState = RoomPhaseStates.FindOrAdd(NormalizedRoomCode);
     const bool bRestartingExistingRoom = !RoomState.RoomCode.IsEmpty() && !RoomState.bFinished;
+    if (!bRestartingExistingRoom)
+    {
+        ++ActiveRoomCount;
+    }
 
     RoomState.RoomCode = NormalizedRoomCode;
     RoomState.CurrentPhase = EGamePhase::Phase0;
@@ -103,11 +113,24 @@ bool UA302ServerPhaseSubsystem::StopRoomPhaseTimeline(const FString& RoomCode)
         return false;
     }
 
+    const FA302RoomPhaseState* ExistingState = RoomPhaseStates.Find(NormalizedRoomCode);
+    if (!ExistingState)
+    {
+        UE_LOG(LogA302Phase, Verbose, TEXT("Stop ignored. room=%s was not active."), *NormalizedRoomCode);
+        return false;
+    }
+
+    const bool bWasActive = !ExistingState->bFinished;
     const bool bRemoved = RoomPhaseStates.Remove(NormalizedRoomCode) > 0;
     if (!bRemoved)
     {
         UE_LOG(LogA302Phase, Verbose, TEXT("Stop ignored. room=%s was not active."), *NormalizedRoomCode);
         return false;
+    }
+
+    if (bWasActive)
+    {
+        ActiveRoomCount = FMath::Max(0, ActiveRoomCount - 1);
     }
 
     if (!HasAnyActiveRoom())
@@ -259,14 +282,6 @@ bool UA302ServerPhaseSubsystem::NotifyRoomMatchTimerStart(const FString& RoomCod
     BroadcastPhaseClearProgressToRoom(NormalizedRoomCode, *RoomState, true);
 
     // GameState 복제 → 클라이언트가 서버 시간 참조 가능
-    if (UWorld* World = ResolveWorld())
-    {
-        if (AA302GameState* GS = Cast<AA302GameState>(World->GetGameState()))
-        {
-            GS->SetMatchTimer(HUDMatchStartTime, MatchTimeLimitSeconds);
-        }
-    }
-
     UE_LOG(
         LogA302Phase,
         Log,
@@ -286,6 +301,8 @@ void UA302ServerPhaseSubsystem::HandleMapLoaded(UWorld* LoadedWorld)
         return;
     }
 
+    InvalidateRoomActorIndices();
+
     if (HasAnyActiveRoom())
     {
         EnsurePhaseTimer();
@@ -294,7 +311,7 @@ void UA302ServerPhaseSubsystem::HandleMapLoaded(UWorld* LoadedWorld)
 
 void UA302ServerPhaseSubsystem::EvaluateRoomPhases()
 {
-    if (RoomPhaseStates.Num() == 0)
+    if (ActiveRoomCount <= 0)
     {
         if (UWorld* World = ResolveWorld())
         {
@@ -406,12 +423,15 @@ void UA302ServerPhaseSubsystem::UpdateRoomPhase(const FString& RoomCode, double 
     RoomState->PhaseChangedServerTime = static_cast<float>(CurrentServerTime);
     RoomState->bTimedOutWithoutEscape = bTimedOutWithoutEscape && NewPhase == EGamePhase::Ended;
     RoomState->bFinished = (NewPhase == EGamePhase::Ended);
+    const bool bRoomFinishedNow = RoomState->bFinished;
     if (RoomState->bFinished)
     {
+        ActiveRoomCount = FMath::Max(0, ActiveRoomCount - 1);
         BroadcastMatchTimerStateToRoom(NormalizedRoomCode, RoomState->MatchStartServerTime, MatchTimeLimitSeconds, false);
     }
 
     BroadcastPhaseClearProgressToRoom(NormalizedRoomCode, *RoomState, !RoomState->bFinished);
+    BroadcastPhaseTransitionToRoom(NormalizedRoomCode, PreviousPhase, NewPhase, RoomState->PhaseChangedServerTime);
 
     UE_LOG(
         LogA302Phase,
@@ -426,19 +446,16 @@ void UA302ServerPhaseSubsystem::UpdateRoomPhase(const FString& RoomCode, double 
     );
 
     OnRoomPhaseChanged.Broadcast(NormalizedRoomCode, NewPhase);
+
+    if (bRoomFinishedNow)
+    {
+        RoomPhaseStates.Remove(NormalizedRoomCode);
+    }
 }
 
 bool UA302ServerPhaseSubsystem::HasAnyActiveRoom() const
 {
-    for (const TPair<FString, FA302RoomPhaseState>& Pair : RoomPhaseStates)
-    {
-        if (!Pair.Value.bFinished)
-        {
-            return true;
-        }
-    }
-
-    return false;
+    return ActiveRoomCount > 0;
 }
 
 UWorld* UA302ServerPhaseSubsystem::ResolveWorld() const
@@ -509,29 +526,8 @@ void UA302ServerPhaseSubsystem::GatherPlayersInRoom(const FString& RoomCode, TAr
         if (URoomMembershipRegistry* Registry = GameMode->GetRoomMembershipRegistry())
         {
             Registry->GatherPlayersInRoom(World, NormalizedRoomCode, OutPlayers);
-            if (OutPlayers.Num() > 0)
-            {
-                return;
-            }
+            return;
         }
-    }
-
-    for (FConstPlayerControllerIterator Iterator = World->GetPlayerControllerIterator(); Iterator; ++Iterator)
-    {
-        APlayerController* PlayerController = Iterator->Get();
-        const AA302PlayerState* PlayerState = PlayerController ? PlayerController->GetPlayerState<AA302PlayerState>() : nullptr;
-        if (!PlayerState)
-        {
-            continue;
-        }
-
-        const FString PlayerRoomCode = A302RoomScope::NormalizeRoomCode(PlayerState->GetRoomCode());
-        if (!A302RoomScope::MatchesRoomCode(NormalizedRoomCode, PlayerRoomCode))
-        {
-            continue;
-        }
-
-        OutPlayers.Add(PlayerController);
     }
 }
 
@@ -693,6 +689,83 @@ void UA302ServerPhaseSubsystem::BroadcastPhaseClearProgressToRoom(const FString&
     }
 }
 
+void UA302ServerPhaseSubsystem::BroadcastPhaseTransitionToRoom(
+    const FString& RoomCode,
+    EGamePhase PreviousPhase,
+    EGamePhase NewPhase,
+    float PhaseChangedServerTime
+) const
+{
+    if (PreviousPhase == NewPhase || NewPhase == EGamePhase::Ended)
+    {
+        return;
+    }
+
+    TArray<APlayerController*> Players;
+    GatherPlayersInRoom(RoomCode, Players);
+    for (APlayerController* PlayerController : Players)
+    {
+        if (AMyPlayerController* MyPlayerController = Cast<AMyPlayerController>(PlayerController))
+        {
+            MyPlayerController->NotifyRoomPhaseTransition(static_cast<uint8>(NewPhase), PhaseChangedServerTime);
+        }
+    }
+}
+
+void UA302ServerPhaseSubsystem::InvalidateRoomActorIndices()
+{
+    StatuesByRoomSlot.Reset();
+    EscapeBlockersByRoomSlot.Reset();
+    bRoomActorIndexDirty = true;
+}
+
+void UA302ServerPhaseSubsystem::EnsureRoomActorIndices()
+{
+    if (!bRoomActorIndexDirty)
+    {
+        return;
+    }
+
+    UWorld* World = ResolveWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    StatuesByRoomSlot.Reset();
+    EscapeBlockersByRoomSlot.Reset();
+
+    TArray<AActor*> FoundStatues;
+    UGameplayStatics::GetAllActorsOfClass(World, AStatueInteractable::StaticClass(), FoundStatues);
+    for (AActor* Actor : FoundStatues)
+    {
+        if (AStatueInteractable* Statue = Cast<AStatueInteractable>(Actor))
+        {
+            const int32 RoomSlot = A302RoomWorldOffset::ResolveRoomSlotByLocation(Statue->GetActorLocation());
+            if (RoomSlot > 0)
+            {
+                StatuesByRoomSlot.FindOrAdd(RoomSlot).Add(Statue);
+            }
+        }
+    }
+
+    TArray<AActor*> FoundBlockers;
+    UGameplayStatics::GetAllActorsOfClass(World, AEscapeRouteBlocker::StaticClass(), FoundBlockers);
+    for (AActor* Actor : FoundBlockers)
+    {
+        if (AEscapeRouteBlocker* Blocker = Cast<AEscapeRouteBlocker>(Actor))
+        {
+            const int32 RoomSlot = A302RoomWorldOffset::ResolveRoomSlotByLocation(Blocker->GetActorLocation());
+            if (RoomSlot > 0)
+            {
+                EscapeBlockersByRoomSlot.FindOrAdd(RoomSlot).Add(Blocker);
+            }
+        }
+    }
+
+    bRoomActorIndexDirty = false;
+}
+
 FString UA302ServerPhaseSubsystem::BuildRoomProgressSummary(const FA302RoomPhaseState& RoomState) const
 {
     return FString::Printf(
@@ -744,6 +817,66 @@ const TCHAR* UA302ServerPhaseSubsystem::ToString(ERewardCategory RewardCategory)
 
 void UA302ServerPhaseSubsystem::TriggerAllStatuesCompleteInRoom(const FString& RoomCode)
 {
+    const FString NormalizedRoomCode = A302RoomWorldOffset::NormalizeRoomCode(RoomCode);
+    const int32 RoomSlot = A302RoomWorldOffset::ResolveRoomSlot(NormalizedRoomCode);
+    if (RoomSlot <= 0)
+    {
+        return;
+    }
+
+    EnsureRoomActorIndices();
+    if (!StatuesByRoomSlot.Contains(RoomSlot) && !EscapeBlockersByRoomSlot.Contains(RoomSlot))
+    {
+        InvalidateRoomActorIndices();
+        EnsureRoomActorIndices();
+    }
+
+    int32 ForcedStatueCount = 0;
+    if (TArray<TWeakObjectPtr<AStatueInteractable>>* Statues = StatuesByRoomSlot.Find(RoomSlot))
+    {
+        for (int32 Index = Statues->Num() - 1; Index >= 0; --Index)
+        {
+            AStatueInteractable* Statue = (*Statues)[Index].Get();
+            if (!Statue)
+            {
+                Statues->RemoveAtSwap(Index);
+                continue;
+            }
+
+            Statue->ForceComplete();
+            ++ForcedStatueCount;
+        }
+    }
+
+    int32 OpenedBlockerCount = 0;
+    if (TArray<TWeakObjectPtr<AEscapeRouteBlocker>>* Blockers = EscapeBlockersByRoomSlot.Find(RoomSlot))
+    {
+        for (int32 Index = Blockers->Num() - 1; Index >= 0; --Index)
+        {
+            AEscapeRouteBlocker* Blocker = (*Blockers)[Index].Get();
+            if (!Blocker)
+            {
+                Blockers->RemoveAtSwap(Index);
+                continue;
+            }
+
+            Blocker->OpenEscapeRoute();
+            ++OpenedBlockerCount;
+        }
+    }
+
+    UE_LOG(
+        LogA302Phase,
+        Log,
+        TEXT("TriggerAllStatuesComplete: room=%s slot=%d forcedStatues=%d openedBlockers=%d"),
+        *NormalizedRoomCode,
+        RoomSlot,
+        ForcedStatueCount,
+        OpenedBlockerCount
+    );
+    return;
+
+#if 0
     UWorld* World = ResolveWorld();
     if (!World)
     {
@@ -787,4 +920,5 @@ void UA302ServerPhaseSubsystem::TriggerAllStatuesCompleteInRoom(const FString& R
     UE_LOG(LogA302Phase, Log,
         TEXT("TriggerAllStatuesComplete: forced statues=%d blockers=%d room=%s"),
         StatueActors.Num(), BlockerActors.Num(), *RoomCode);
+#endif
 }

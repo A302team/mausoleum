@@ -10,6 +10,8 @@ class UEnhancedInputComponent;
 class UAnimMontage;
 struct FInputActionValue;
 class AMyCharacter;
+class UQuickSlotComponent;
+class UItemDefinition;
 
 /**
  * 캐릭터의 모든 키 입력 바인딩(Move, Look, Jump, Attack 등) 처리와 
@@ -41,10 +43,24 @@ private:
 	
 	void OnItemSelect(const FInputActionValue& Value);
 	void OnAttack(const FInputActionValue& Value);
+	void OnUseSelectedItem(const FInputActionValue& Value);
 	void OnToggleVoiceChat(const FInputActionValue& Value);
 	void OnEscPressed(const FInputActionValue& Value);
 	
 	void OnQTEInput(const FInputActionValue& Value);
+
+	bool TryGetSelectedItemContext(
+		UQuickSlotComponent*& OutQuickSlotComp,
+		UItemDefinition*& OutItemDefinition,
+		UClass*& OutLogicClass
+	) const;
+	bool IsAttackItemLogicClass(const UClass* LogicClass) const;
+	void HandlePrimaryItemUseFeedback(AMyCharacter* OwnerCharacter, UItemDefinition* UsedItemDefinition, int32 UsedSlotIndex) const;
+	void TryHandleTargetedServerUse(
+		AMyCharacter* OwnerCharacter,
+		const UItemDefinition* UsedItemDefinition,
+		bool bIsAttackItem
+	) const;
 
 	void ScheduleAttackCameraRecovery(AMyCharacter* OwnerCharacter, bool bIsCursedSword);
 	void HandleAttackCameraRecovery();

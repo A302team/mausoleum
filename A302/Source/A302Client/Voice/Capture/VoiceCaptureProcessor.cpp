@@ -6,6 +6,16 @@
 #include "Misc/Base64.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
+#include "Misc/App.h"
+
+namespace
+{
+    // 알탭/프레임 정체 후 누적 캡처 데이터를 한 번에 밀어 보내지 않도록 상한을 둡니다.
+    constexpr uint32 MaxCaptureReadBytesPerTick = 4096;
+    constexpr uint32 CaptureDrainChunkBytes = 1024;
+    // 이 값을 넘는 누적은 "실시간이 아닌 오래된 데이터"로 간주하고 전량 폐기합니다.
+    constexpr uint32 StaleCaptureHardDropBytes = 8192;
+}
 
 void UVoiceCaptureProcessor::Initialize()
 {
@@ -141,19 +151,55 @@ void UVoiceCaptureProcessor::ProcessCapture()
 {
     VOICE_PROFILE_CAPTURE();
     if (!bIsMicActive || !VoiceCapture.IsValid()) return;
+
+    // 백그라운드 동안 쌓인 음성을 복귀 직후 전송하면 지연/지지직의 원인이 됩니다.
+    // 포커스가 없을 때는 캡처 버퍼를 비우고 코덱 상태를 리셋하여 실시간성만 유지합니다.
+    if (!FApp::HasFocus())
+    {
+        DrainAllCaptureData();
+        ResetCodecForRealtime();
+        return;
+    }
     
     uint32 AvailableData = 0;
     EVoiceCaptureState::Type CaptureState = VoiceCapture->GetCaptureState(AvailableData);
 
     if (CaptureState == EVoiceCaptureState::Ok && AvailableData > 0)
     {
+        if (AvailableData > StaleCaptureHardDropBytes)
+        {
+            UE_LOG(
+                LogVoiceChat,
+                Verbose,
+                TEXT("[VoiceCaptureProcessor] Stale capture backlog dropped. available=%uB"),
+                AvailableData
+            );
+            DrainAllCaptureData();
+            ResetCodecForRealtime();
+            return;
+        }
+
+        if (AvailableData > MaxCaptureReadBytesPerTick)
+        {
+            uint32 BytesToDiscard = AvailableData - MaxCaptureReadBytesPerTick;
+            DrainCaptureData(BytesToDiscard);
+
+            uint32 RefreshedAvailableData = 0;
+            if (VoiceCapture->GetCaptureState(RefreshedAvailableData) != EVoiceCaptureState::Ok || RefreshedAvailableData == 0)
+            {
+                return;
+            }
+            AvailableData = RefreshedAvailableData;
+        }
+
+        const uint32 RequestedReadBytes = FMath::Min(AvailableData, MaxCaptureReadBytesPerTick);
         TArray<uint8> VoiceBuffer;
-        VoiceBuffer.SetNumUninitialized(AvailableData);
+        VoiceBuffer.SetNumUninitialized(RequestedReadBytes);
         
         uint32 ReadData = 0;
         
         // GetVoiceData는 RAW PCM을 반환합니다.
-        VoiceCapture->GetVoiceData(VoiceBuffer.GetData(), AvailableData, ReadData);
+        VoiceCapture->GetVoiceData(VoiceBuffer.GetData(), RequestedReadBytes, ReadData);
 
         if (ReadData > 0)
         {
@@ -176,4 +222,58 @@ void UVoiceCaptureProcessor::ProcessCapture()
         }
     }
 
+}
+
+void UVoiceCaptureProcessor::DrainCaptureData(uint32 BytesToDrain)
+{
+    if (!VoiceCapture.IsValid() || BytesToDrain == 0)
+    {
+        return;
+    }
+
+    TArray<uint8> DrainBuffer;
+    DrainBuffer.SetNumUninitialized(CaptureDrainChunkBytes);
+
+    while (BytesToDrain > 0)
+    {
+        const uint32 RequestBytes = FMath::Min(BytesToDrain, CaptureDrainChunkBytes);
+        uint32 DiscardedBytes = 0;
+        VoiceCapture->GetVoiceData(DrainBuffer.GetData(), RequestBytes, DiscardedBytes);
+        if (DiscardedBytes == 0)
+        {
+            break;
+        }
+        BytesToDrain = (DiscardedBytes >= BytesToDrain) ? 0 : (BytesToDrain - DiscardedBytes);
+    }
+}
+
+void UVoiceCaptureProcessor::DrainAllCaptureData()
+{
+    if (!VoiceCapture.IsValid())
+    {
+        return;
+    }
+
+    uint32 AvailableData = 0;
+    constexpr int32 MaxDrainLoops = 256;
+    int32 DrainLoops = 0;
+
+    while (DrainLoops++ < MaxDrainLoops
+        && VoiceCapture->GetCaptureState(AvailableData) == EVoiceCaptureState::Ok
+        && AvailableData > 0)
+    {
+        DrainCaptureData(AvailableData);
+    }
+}
+
+void UVoiceCaptureProcessor::ResetCodecForRealtime()
+{
+    if (!Codec)
+    {
+        return;
+    }
+
+    // 인코더 링버퍼/상태를 초기화해 오래된 잔여 프레임이 다음 전송에 섞이지 않게 합니다.
+    Codec->Shutdown();
+    Codec->Init();
 }

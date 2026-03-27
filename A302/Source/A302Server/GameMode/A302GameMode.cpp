@@ -235,6 +235,8 @@ AA302GameMode::AA302GameMode()
 
     DefaultPawnClass = nullptr;
     PlayerControllerClass = AMyPlayerController::StaticClass();
+#if !UE_SERVER
+    // Client/Editor targets can use the BP subclass (contains client-side presentation components).
     static ConstructorHelpers::FClassFinder<APlayerController> PlayerControllerBPClass(TEXT("/Game/WorkSpace/Character/BP_MyPlayerController"));
     if (PlayerControllerBPClass.Succeeded())
     {
@@ -244,6 +246,10 @@ AA302GameMode::AA302GameMode()
     {
         UE_LOG(LogTemp, Warning, TEXT("[GameMode/A302GameMode] Failed to load BP_MyPlayerController. fallback=%s"), *GetNameSafe(PlayerControllerClass.Get()));
     }
+#else
+    // Dedicated server target must not load A302Client-only blueprint classes.
+    UE_LOG(LogTemp, Log, TEXT("[GameMode/A302GameMode] UE_SERVER build: using native AMyPlayerController class."));
+#endif
 
     PlayerStateClass = AA302PlayerState::StaticClass();
     GameStateClass = AA302GameState::StaticClass();
@@ -303,14 +309,6 @@ void AA302GameMode::BeginPlay()
                 BackendSubsystem->OnPacketReceived.AddDynamic(this, &AA302GameMode::OnMessageReceived);
             }
 
-            GetWorldTimerManager().ClearTimer(GameStateSyncTimerHandle);
-            GetWorldTimerManager().SetTimer(
-                GameStateSyncTimerHandle,
-                this,
-                &AA302GameMode::SyncTrackedRoomState,
-                0.5f,
-                true
-            );
         }
     }
 
@@ -515,7 +513,6 @@ void AA302GameMode::HandleRoomPhaseChanged(const FString& RoomCode, EGamePhase N
 		return;
 	}
 
-    TrackedRoomCodeForGameState = NormalizedRoomCode;
     SyncRoomStateToGameState(NormalizedRoomCode);
 
     if (ItemSpawnSubsystem)
@@ -675,7 +672,6 @@ void AA302GameMode::SpawnPlayersInRoom(const FString& RoomCode)
 		PlayerSubsystem->QueueSpawnPlayer(RoomPlayer, true);
 	}
 
-    TrackedRoomCodeForGameState = NormalizedRoomCode;
     SyncRoomStateToGameState(NormalizedRoomCode);
 
     // 캐릭터 스폰 완료를 대기하기 위해 짧은 딜레이 후 타이머 시작
@@ -717,25 +713,13 @@ void AA302GameMode::StartRoomGameplay(const FString& RoomCode)
         RoomRuntimeSubsystem->PrepareRoom(NormalizedRoomCode);
     }
 
-    TrackedRoomCodeForGameState = NormalizedRoomCode;
     SyncRoomStateToGameState(NormalizedRoomCode);
-}
-
-void AA302GameMode::SyncTrackedRoomState()
-{
-    SyncRoomStateToGameState(TrackedRoomCodeForGameState);
 }
 
 void AA302GameMode::SyncRoomStateToGameState(const FString& RoomCode)
 {
     const FString NormalizedRoomCode = A302RoomScope::NormalizeRoomCode(RoomCode);
     if (NormalizedRoomCode.IsEmpty())
-    {
-        return;
-    }
-
-    AA302GameState* A302GameState = GetGameState<AA302GameState>();
-    if (!A302GameState)
     {
         return;
     }
@@ -788,8 +772,6 @@ void AA302GameMode::SyncRoomStateToGameState(const FString& RoomCode)
             }
         }
     }
-
-    A302GameState->AlivePlayerCount = CountAlivePlayersInRoom(NormalizedRoomCode);
 }
 
 int32 AA302GameMode::CountAlivePlayersInRoom(const FString& RoomCode) const

@@ -1,7 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-
 #include "GameMode/A302GameState.h"
+
 #include "Net/UnrealNetwork.h"
 #include "Kismet/GameplayStatics.h"
 #include "Object/StatueInteractable.h"
@@ -9,15 +9,15 @@
 
 AA302GameState::AA302GameState()
 {
-    LastNotifiedGamePhase = GamePhase;
+	LastNotifiedGamePhase = GamePhase;
 }
 
 void AA302GameState::SetGamePhase(EGamePhase NewGamePhase, float ChangedServerTime, const FString& RoomCode)
 {
-    if (GamePhase == NewGamePhase && FMath::IsNearlyEqual(PhaseChangedServerTime, ChangedServerTime))
-    {
-        return;
-    }
+	if (GamePhase == NewGamePhase && FMath::IsNearlyEqual(PhaseChangedServerTime, ChangedServerTime))
+	{
+		return;
+	}
 
     const EGamePhase PreviousPhase = LastNotifiedGamePhase;
     GamePhase = NewGamePhase;
@@ -25,20 +25,17 @@ void AA302GameState::SetGamePhase(EGamePhase NewGamePhase, float ChangedServerTi
     GamePhaseRoomCode = RoomCode;
     LastNotifiedGamePhase = GamePhase;
 
-    // 서버에서 직접 호출되는 경로이므로 OnRep_GamePhase가 실행되지 않음.
-    // EscapeRouteBlocker 등 Delegate에 바인딩된 서버 측 액터들을 위해 여기서도 Broadcast.
-    GamePhaseChangedDelegate.Broadcast(PreviousPhase, GamePhase, PhaseChangedServerTime);
-
-    if (GamePhase == EGamePhase::Ended)
-    {
-        HandlePhaseEnded();
-    }
+	GamePhaseChangedDelegate.Broadcast(PreviousPhase, GamePhase, PhaseChangedServerTime);
+	if (GamePhase == EGamePhase::Ended)
+	{
+		HandlePhaseEnded();
+	}
 }
 
 void AA302GameState::SetMatchTimer(float StartServerTime, float TimeLimitSeconds)
 {
-    MatchStartServerTime = StartServerTime;
-    MatchTimeLimitSeconds = TimeLimitSeconds;
+	MatchStartServerTime = StartServerTime;
+	MatchTimeLimitSeconds = TimeLimitSeconds;
 }
 
 void AA302GameState::OnRep_MatchStartServerTime()
@@ -77,15 +74,14 @@ void AA302GameState::OnRep_GamePhase()
     // 이 OnRep에서 처리한 RoomCode를 기록 → OnRep_GamePhaseRoomCode 중복 발화 방지
     LastNotifiedRoomCode = GamePhaseRoomCode;
 
-    if (PreviousPhase != GamePhase)
-    {
-        GamePhaseChangedDelegate.Broadcast(PreviousPhase, GamePhase, PhaseChangedServerTime);
-
-        if (GamePhase == EGamePhase::Ended)
-        {
-            HandlePhaseEnded();
-        }
-    }
+	if (PreviousPhase != GamePhase)
+	{
+		GamePhaseChangedDelegate.Broadcast(PreviousPhase, GamePhase, PhaseChangedServerTime);
+		if (GamePhase == EGamePhase::Ended)
+		{
+			HandlePhaseEnded();
+		}
+	}
 }
 
 void AA302GameState::OnRep_GamePhaseRoomCode()
@@ -106,7 +102,7 @@ void AA302GameState::OnRep_GamePhaseRoomCode()
     GamePhaseChangedDelegate.Broadcast(GamePhase, GamePhase, PhaseChangedServerTime);
 }
 
-void AA302GameState::HandlePhaseEnded()
+void AA302GameState::OnRep_GamePhaseRoomCode()
 {
     // 모든 미완료 석상들을 찾아서 100%로 강제 완료 처리 (서버 전용)
     if (HasAuthority())
@@ -142,8 +138,7 @@ void AA302GameState::HandlePhaseEnded()
     Bp_OnEscapeUnlocked(TargetActors);
 }
 
-void AA302GameState::GetLifetimeReplicatedProps(
-    TArray<FLifetimeProperty>& OutLifetimeProps) const
+void AA302GameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
     DOREPLIFETIME(AA302GameState, GamePhase);

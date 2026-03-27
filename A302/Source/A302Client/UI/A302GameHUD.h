@@ -62,7 +62,7 @@ public:
 	TSubclassOf<UUserWidget> DieWidgetClass;
 
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
-	TSubclassOf<UEscapeWaitingWidget> EscapeWaitingWidgetClass;
+	TSubclassOf<UUserWidget> NotificationListWidgetClass;
 
 	// 석상 전용 위젯 클래스
 	UPROPERTY(EditDefaultsOnly, Category = "UI|Statue")
@@ -96,6 +96,9 @@ public:
 
 	UFUNCTION()
 	void ShowPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount);
+
+	UFUNCTION()
+	void ShowNotificationMessage(const FText& Message);
 
 	UFUNCTION()
 	void ShowInspectMaliceSelectionWidget();
@@ -185,12 +188,13 @@ protected:
 	TObjectPtr<UUserWidget> DieWidgetInstance;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UEscapeWaitingWidget> EscapeWaitingWidgetInstance;
+	TObjectPtr<UUserWidget> NotificationListWidgetInstance;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UStatueProgressWidget> StatueProgressWidgetInstance;
 
 private:
+	UUserWidget* GetOrCreateNotificationListWidget();
 	void TickPhaseTransition();
 	void BeginPhaseTransitionStep(EA302PhaseTransitionState NewState, float DurationSeconds);
 	void FinishPhaseTransition();

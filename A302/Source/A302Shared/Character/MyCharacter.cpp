@@ -85,6 +85,10 @@ AMyCharacter::AMyCharacter()
 	PrimaryActorTick.bCanEverTick = false;
 	bReplicates = true;
 
+	// Keep capsule upright. Looking up/down should rotate camera only, not the character body.
+	bUseControllerRotationPitch = false;
+	bUseControllerRotationRoll = false;
+
 	SetReplicateMovement(true);
 
 	ItemManagerComponent = CreateDefaultSubobject<UItemManagerComponent>(TEXT("ItemManagerComponent"));
@@ -120,6 +124,15 @@ void AMyCharacter::OnRep_Controller()
 void AMyCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Runtime safety: even if BP defaults enable pitch/roll rotation, force an upright capsule.
+	bUseControllerRotationPitch = false;
+	bUseControllerRotationRoll = false;
+	const FRotator CurrentRotation = GetActorRotation();
+	if (!FMath::IsNearlyZero(CurrentRotation.Pitch) || !FMath::IsNearlyZero(CurrentRotation.Roll))
+	{
+		SetActorRotation(FRotator(0.f, CurrentRotation.Yaw, 0.f));
+	}
 
 	if (UCapsuleComponent* CollisionCapsule = GetCapsuleComponent())
 	{
@@ -683,17 +696,32 @@ void AMyCharacter::ApplyCameraViewMode()
 		}
 	}
 
-	// 1인칭일 때만 자신의 메시를 숨김. BP 기본값(OwnerNoSee=true)을 3인칭 전환 시 재정의.
-	// GetMesh() 외에 Blueprint에 추가된 메시(머리, 장비 등)도 함께 처리.
-	const bool bFirstPersonView = (CameraViewMode == EA302CameraViewMode::FirstPersonChest);
-	TArray<USkeletalMeshComponent*> AllMeshComponents;
-	GetComponents<USkeletalMeshComponent>(AllMeshComponents);
-	for (USkeletalMeshComponent* SkelMesh : AllMeshComponents)
+	// Keep local mesh hidden only in first-person view.
+	// This overrides BP defaults (e.g. Owner No See=true) when switching to third-person.
+	if (USkeletalMeshComponent* CharacterMesh = GetMesh())
 	{
-		if (SkelMesh)
-		{
-			SkelMesh->SetOwnerNoSee(bFirstPersonView);
-			SkelMesh->SetOnlyOwnerSee(false);
-		}
+		const bool bFirstPersonView = (CameraViewMode == EA302CameraViewMode::FirstPersonChest);
+		CharacterMesh->SetOwnerNoSee(bFirstPersonView);
+		CharacterMesh->SetOnlyOwnerSee(false);
+	}
+
+	if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
+	{
+		PlayerController->SetViewTarget(this);
 	}
 }
+
+void AMyCharacter::BroadcastPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount)
+{
+	if (MaliceComponent)
+	{
+		MaliceComponent->BroadcastPublicMaliceAnnouncement(PlayerName, MaliceCount);
+	}
+}
+
+
+
+
+
+
+

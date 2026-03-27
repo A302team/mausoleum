@@ -31,6 +31,9 @@ private:
     void OnAudioDevicesObtained(const TArray<FAudioInputDeviceInfo>& AvailableDevices);
 
     void ProcessCapture();
+    void DrainCaptureData(uint32 BytesToDrain);
+    void DrainAllCaptureData();
+    void ResetCodecForRealtime();
 
     TSharedPtr<IVoiceCapture> VoiceCapture;
     FTimerHandle CaptureTimer;

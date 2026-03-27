@@ -450,9 +450,10 @@ void ASpawnManager::TeleportPlayersToPhaseSpawnPoints(
         const APhaseSpawnPoint* TargetPoint = ValidPoints[PointIndex];
         const FVector TargetLocation = TargetPoint->GetActorLocation();
         const FRotator TargetRotation = TargetPoint->GetActorRotation();
+        const FRotator FacingRotation(0.f, TargetRotation.Yaw, 0.f);
 
         // TeleportTo: 충돌 감지 포함 이동 (SetActorLocation보다 안전)
-        const bool bSuccess = Character->TeleportTo(TargetLocation, TargetRotation, false, false);
+        const bool bSuccess = Character->TeleportTo(TargetLocation, FacingRotation, false, false);
 
         // 이동 속도 초기화: 이전 속도 잔류 방지
         if (UCharacterMovementComponent* Movement = Character->GetCharacterMovement())
@@ -460,13 +461,19 @@ void ASpawnManager::TeleportPlayersToPhaseSpawnPoints(
             Movement->StopMovementImmediately();
         }
 
+        // Ensure pawn and camera both face forward when phase changes.
+        Character->SetActorRotation(FacingRotation);
+        PC->SetControlRotation(FacingRotation);
+        PC->ClientSetRotation(FacingRotation, true);
+
         UE_LOG(
             LogTemp,
             Log,
-            TEXT("[SpawnManager] TeleportToPhase player=%s pointIndex=%d location=(%.0f, %.0f, %.0f) success=%s"),
+            TEXT("[SpawnManager] TeleportToPhase player=%s pointIndex=%d location=(%.0f, %.0f, %.0f) facingYaw=%.1f success=%s"),
             *GetNameSafe(PC),
             PointIndex,
             TargetLocation.X, TargetLocation.Y, TargetLocation.Z,
+            FacingRotation.Yaw,
             bSuccess ? TEXT("true") : TEXT("false")
         );
     }
