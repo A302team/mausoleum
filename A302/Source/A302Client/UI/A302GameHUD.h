@@ -62,6 +62,9 @@ public:
 	TSubclassOf<UUserWidget> DieWidgetClass;
 
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<UEscapeWaitingWidget> EscapeWaitingWidgetClass;
+
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<UUserWidget> NotificationListWidgetClass;
 
 	// 석상 전용 위젯 클래스
@@ -186,6 +189,9 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UUserWidget> DieWidgetInstance;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UEscapeWaitingWidget> EscapeWaitingWidgetInstance;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UUserWidget> NotificationListWidgetInstance;

@@ -718,6 +718,12 @@ void AA302GameMode::SyncRoomStateToGameState(const FString& RoomCode)
         return;
     }
 
+    AA302GameState* A302GameState = GetGameState<AA302GameState>();
+    if (!A302GameState)
+    {
+        return;
+    }
+
     if (PhaseSubsystem)
     {
         FA302RoomPhaseState RoomPhaseState;

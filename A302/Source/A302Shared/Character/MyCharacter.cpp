@@ -336,16 +336,18 @@ void AMyCharacter::BeginEscapedSequence()
 			MovementComponent->StopMovementImmediately();
 			MovementComponent->DisableMovement();
 		}
+
+		// SetReplicateMovement(false)는 반드시 서버에서 호출해야 효과가 있음.
+		// 클라이언트에서 호출하면 로컬 값만 바뀌고, 다음 레플리케이션 사이클에
+		// 서버가 true로 덮어써서 서버→클라이언트 위치 스냅 차단 효과가 사라짐.
+		// 서버에서 false로 설정하면 이 캐릭터의 위치/회전 업데이트를 모든 클라이언트에
+		// 전송하지 않으므로 탈출자의 포탈 위치가 다른 플레이어에게 전파되지 않음.
+		SetReplicateMovement(false);
 	}
 
 	// 자유 비행은 탈출한 플레이어의 로컬 머신에서만 처리.
-	// ──────────────────────────────────────────────────────────────────────────
-	// SetReplicateMovement(false): 서버가 "캐릭터는 포탈 위치에 있다"는 위치 보정을 보내지 않도록 차단.
-	// 이 설정 없이는 서버의 DisableMovement 위치(포탈)가 계속 클라이언트로 snap되어 비행 불가.
 	if (IsLocallyControlled())
 	{
-		SetReplicateMovement(false);
-
 		if (AMyPlayerController* PC = Cast<AMyPlayerController>(GetController()))
 		{
 			// 자유 비행 모드 진입: 로컬 CMC를 MOVE_Flying + GravityScale=0으로 전환.
@@ -710,18 +712,3 @@ void AMyCharacter::ApplyCameraViewMode()
 		PlayerController->SetViewTarget(this);
 	}
 }
-
-void AMyCharacter::BroadcastPublicMaliceAnnouncement(const FString& PlayerName, int32 MaliceCount)
-{
-	if (MaliceComponent)
-	{
-		MaliceComponent->BroadcastPublicMaliceAnnouncement(PlayerName, MaliceCount);
-	}
-}
-
-
-
-
-
-
-

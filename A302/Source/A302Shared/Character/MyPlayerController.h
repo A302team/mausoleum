@@ -185,4 +185,11 @@ private:
 	int32 VoiceRoomCodeRetryCount = 0;
 	int32 DeadSpectateCycleIndex = INDEX_NONE;
 	int32 EscapeSpectateCycleIndex = INDEX_NONE;
+
+	// 페이즈 복제 구독: GameState의 OnGamePhaseChanged 델리게이트에 바인딩.
+	// OnRep_Pawn / AcknowledgePossession 시점에 호출해 GameState가 준비된 후 구독.
+	void BindToReplicatedGamePhase();
+	void HandleReplicatedGamePhaseChanged(EGamePhase PreviousPhase, EGamePhase NewPhase, float PhaseChangedServerTime);
+
+	TWeakObjectPtr<AA302GameState> BoundGameState;
 };

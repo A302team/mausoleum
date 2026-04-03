@@ -86,25 +86,21 @@ void AA302GameState::OnRep_GamePhase()
 
 void AA302GameState::OnRep_GamePhaseRoomCode()
 {
+    // ── Part 1: 페이즈 UI Delegate 발화 ────────────────────────────────────────
     // OnRep_GamePhase가 이미 처리한 경우(GamePhase 값도 같이 바뀐 경우) 중복 발화 방지.
     // GetLifetimeReplicatedProps 에서 GamePhase가 GamePhaseRoomCode보다 먼저 선언되어
     // OnRep_GamePhase가 항상 먼저 호출되고 LastNotifiedRoomCode를 업데이트하므로 안전함.
-    if (LastNotifiedRoomCode == GamePhaseRoomCode)
+    if (LastNotifiedRoomCode != GamePhaseRoomCode)
     {
-        return;
+        // GamePhase 값은 변하지 않았지만 RoomCode가 바뀐 경우
+        // (다른 방이 동일한 페이즈 번호로 전환) → 해당 방 플레이어에게 UI 표시를 위해 Broadcast.
+        LastNotifiedRoomCode = GamePhaseRoomCode;
+        LastNotifiedGamePhase = GamePhase;
+        GamePhaseChangedDelegate.Broadcast(GamePhase, GamePhase, PhaseChangedServerTime);
     }
 
-    // 여기까지 도달 = GamePhase 값은 변하지 않았지만 RoomCode가 바뀐 경우
-    // (다른 방이 동일한 페이즈 번호로 전환) → 해당 방 플레이어에게 UI 표시를 위해 Broadcast.
-    LastNotifiedRoomCode = GamePhaseRoomCode;
-    LastNotifiedGamePhase = GamePhase;
-
-    GamePhaseChangedDelegate.Broadcast(GamePhase, GamePhase, PhaseChangedServerTime);
-}
-
-void AA302GameState::OnRep_GamePhaseRoomCode()
-{
-    // 모든 미완료 석상들을 찾아서 100%로 강제 완료 처리 (서버 전용)
+    // ── Part 2: 탈출구 개방 (원래 OnRep_GamePhaseRoomCode 로직) ───────────────
+    // 모든 미완료 석상들을 찾아서 100%로 강제 완료 처리 (Listen Server / 클라이언트)
     if (HasAuthority())
     {
         TArray<AActor*> FoundStatues;
@@ -136,6 +132,12 @@ void AA302GameState::OnRep_GamePhaseRoomCode()
 
     // 클라이언트와 서버 모두 BP 이벤트 호출 (BP에서 Local Fog 볼륨 등의 시각적 페이드아웃 처리)
     Bp_OnEscapeUnlocked(TargetActors);
+}
+
+void AA302GameState::HandlePhaseEnded()
+{
+    // Ended 페이즈 진입 시 처리 (서버: SetGamePhase, 클라이언트: OnRep_GamePhase에서 호출).
+    // 현재는 GamePhaseChangedDelegate 브로드캐스트만으로 충분하여 추가 처리 없음.
 }
 
 void AA302GameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const

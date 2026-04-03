@@ -40,7 +40,7 @@ FString FA302NetworkEndpointConfig::ResolveHost(EA302AddressPreset Preset)
 	switch (Preset)
 	{
 	case EA302AddressPreset::PublicEc2:
-		return TEXT("j14a302.p.ssafy.io");
+		return TEXT("43.201.83.68");
 	case EA302AddressPreset::Local:
 	default:
 		return TEXT("127.0.0.1");
