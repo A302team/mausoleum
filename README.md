@@ -1,7 +1,7 @@
 # Mausoleum
 
 > 멀티플레이 협동 탈출 게임 — Unreal Engine 5 + C++ 전용 서버 (WebSocket / UDP) <br>
-**개발 인원 : 6인 ** <br>
+**개발 인원 : 6인** <br>
 **강경은** : https://github.com/siris-Kang <br>
 **김민수** : https://github.com/means-kim  <br>
 **김정식** : https://github.com/sikk806  <br>
